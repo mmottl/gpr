@@ -1,40 +1,4 @@
 (*
-open Lacaml.Impl.D
-
-module type Kernel_spec = sig
-  type data
-
-  val get_n_samples : data -> int
-end
-
-module type Kernel_fun = sig
-  type data
-  type hyper
-
-  val upper : hyper : hyper -> x : data -> dst : mat -> unit
-  val cross : hyper : hyper -> x : data -> y : data -> dst : mat -> unit
-  val diag_mat : hyper : hyper -> x : data -> dst : mat -> unit
-  val diag_vec : hyper : hyper -> x : data -> dst : vec -> unit
-end
-
-module type Deriv_kernel_fun = sig
-  include Kernel_fun
-
-  val upper_deriv_precomp : hyper : hyper -> x : data -> dst : mat -> unit
-  val cross_deriv_precomp : hyper : hyper -> x : data -> y : data -> dst : mat -> unit
-  val deriv_diag_mat_precomp : hyper : hyper -> x : data -> dst : mat -> unit
-  val deriv_diag_vec_precomp : hyper : hyper -> x : data -> dst : vec -> unit
-
-  val upper_deriv : hyper : hyper -> x : data -> dst : mat -> unit
-  val cross_deriv : hyper : hyper -> x : data -> y : data -> dst : mat -> unit
-  val deriv_diag_mat : hyper : hyper -> x : data -> dst : mat -> unit
-  val deriv_diag_vec : hyper : hyper -> x : data -> dst : vec -> unit
-end
-
-module type Pseudo_input_kernel = sig
-  include Kernel_fun
-end
-
 let trace_prod =
   (assert false (* XXX *))
 
@@ -75,12 +39,6 @@ module Squared_exponential_ard : Kernel = struct
       done
     done
 end
-
-let main () =
-  ()
-
-let () = main ()
-*)
 
 type ('data_spec, 'data) kernel =
   {
@@ -128,13 +86,27 @@ type env =
   | `InnerProd
   | `WeightedInnerProd
 
+module type KERNEL = sig
+  type hyper
+  type data_set
+  type data_point
+  type kernel
+
+  val prod : kernel -> kernel -> kernel
+  val sum : kernel -> kernel -> kernel
+
+  val create_hyper :
+end
+
+
+
 val prod :
-  ('env1, 'data1) kernel -> ('env2, 'data2) kernel
-  -> ('env1 * 'env2, 'data1 * 'data2) kernel
+  ('hyper1, 'data1) kernel -> ('hyper2, 'data2) kernel
+  -> ('hyper1 * 'hyper2, 'data1 * 'data2) kernel
 
 val sum :
-  ('env1, 'data1) kernel -> ('env2, 'data2) kernel
-  -> ('env1 * 'env2, 'data1 * 'data2) kernel
+  ('hyper1, 'data1) kernel -> ('hyper2, 'data2) kernel
+  -> ('hyper1 * 'hyper2, 'data1 * 'data2) kernel
 
 val sq_const : float -> (unit, 'a) kernel
 
@@ -144,9 +116,15 @@ val inner_prod : 'ip_space -> (unit, 'ip_space) kernel
 
 val weighted_inner_prod : unit kernel
 
+val create :
+  ?upper : (hyper : 'hyper -> data : 'data -> dst : mat)
+  ?single : (hyper : 'hyper -> data : 'data -> dst : mat)
+
+
 let _ =
   prod (sq_const 1.3)
-    (inner_prod 
+    (inner_prod
 
 
 (* Autom. generate OCaml-code from kernel spec *)
+*)

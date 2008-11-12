@@ -1,2 +1,8 @@
 .omakedb
 .omakedb.lock
+*.omc
+*.cm*
+*.o
+*.a
+.RData
+.Rhistory

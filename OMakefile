@@ -1,17 +1,18 @@
 USE_OCAMLFIND = 1
 ABORT_ON_DEPENDENCY_ERRORS = true
 
-OCAMLPACKS += lacaml
+OCAMLPACKS += unix lacaml gsl
 
 NATIVE_ENABLED = true
-OCAMLFLAGS = -dtypes
+OCAMLFLAGS = -dtypes -g
 
 CLEANCMD = \
   rm -f *.o *.annot mycaml *.cm[ioxa] *.cmxa *.bc *.exe \
-	*.mpbc *.mpexe *.omc *.a *.so *.auto.mli
-
-.DEFAULT: gpr.exe
+	*.mpbc *.mpexe *.omc *.a *.so *.auto.mli \
+	x
 
 .PHONY: clean
 clean:
 	$(CLEANCMD)
+
+.SUBDIRS: lib test
