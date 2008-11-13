@@ -71,4 +71,9 @@ md5cmxo(arg) =
 
 DefineCommandVars()
 
+InstClean() =
+  .PHONY: clean
+  clean:
+	  $(CLEANCMD)
+
 .SUBDIRS: .

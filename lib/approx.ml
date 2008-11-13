@@ -1,121 +1,71 @@
-open Format
-
 open Lacaml.Impl.D
-open Lacaml.Io
 
 open Interfaces
+open Utils
 
-(* NOTE: for testing *)
-let print_float name n = printf "%s: @[%f@]@.@." name n
-let print_vec name vec = printf "%s: @[%a@]@.@." name pp_fvec vec
-let print_mat name vec = printf "%s: @[%a@]@.@." name pp_fmat vec
-
-module type FIC = sig
-  module Common : sig
-    type kernel
-
-    type t = {
-      kernel : kernel;
-      sigma2 : float;
-      inducing_points : mat;
-    }
-  end
-
-  module Trained : sig
-    type t
-
-    val train : ?jitter : float -> Common.t -> inputs : mat -> targets : vec -> t
-    val neg_log_likelihood : t -> float
-  end
-
-  module Mean_predictor : sig
-    type t = private {
-      common : Common.t;
-      coeffs : vec;
-    }
-
-    val of_trained : Trained.t -> t
-    val mean : t -> input : vec -> float
-    val means : t -> inputs : mat -> dst : vec -> unit
-  end
-
-  module Full_predictor : sig
-    type t
-    type fmt = [ `Inv | `Chols | `Packed_inv | `Packed_chols ]
-    type kind = [ `Fic | `Fitc ]
-
-    val of_trained : kind -> ?fmt : fmt -> Trained.t -> t
-    val mean_predictor : t -> Mean_predictor.t
-    val mean_variance : ?with_noise : bool -> t -> input : vec -> float * float
-    val means_variances : ?with_noise : bool -> t -> inputs : mat -> vec * vec
-    val means_covariances : ?with_noise : bool -> t -> inputs : mat -> vec * mat
-  end
+module type FIC_spec = sig
+  val jitter : float
 end
 
-module type Kernel = sig
-  type t
-
-  include Kernel_fun
-    with type input = vec
-    with type inputs = mat
+module Default_FIC_spec = struct
+  let jitter = 10e-9
 end
 
-(* Assumes Cholesky factorized matrix *)
-let log_det mat =
-  let n = Mat.dim1 mat in
-  if Mat.dim2 mat <> n then failwith "log_det: not a square matrix";
-  let rec loop acc i =
-    if i = 0 then acc
-    else loop (acc +. log mat.{i, i}) (i - 1)
-  in
-  2. *. loop 0. n
+module Make_FIC_with_spec (FIC_spec : FIC_spec) (Kernel : Kernel) :
+  Inducing_input_gpr
+    with type Spec.kernel = Kernel.t
+    with type Spec.input = Kernel.input
+    with type Spec.inputs = Kernel.inputs
+= struct
+  open FIC_spec
 
-let pi = 4. *. atan 1.
-let log_2pi = log (2. *. pi)
-
-module Make_FIC (Kernel : Kernel) : FIC with type Common.kernel = Kernel.t =
-struct
-  module Common = struct
+  module Spec = struct
     type kernel = Kernel.t
+    type input = Kernel.input
+    type inputs = Kernel.inputs
 
     type t = {
       kernel : kernel;
       sigma2 : float;
-      inducing_points : mat;
+      inducing_inputs : inputs;
     }
   end
+
+  open Spec
 
   module Trained = struct
     type t = {
-      common : Common.t;
+      spec : Spec.t;
+      km : mat;
       km_chol : mat;
       kmn_y_ : vec;
       b_chol : mat;
       neg_log_likelihood : float;
     }
 
-    let calc_kernel_mats ~inputs ~inducing_points =
-      let n_inducing_points = Mat.dim2 inducing_points in
-      let n_inputs = Mat.dim2 inputs in
+    (* TODO: workspace preallocation *)
+    (* TODO: dimension sanity checks *)
+
+    let calc_kernel_mats kernel ~inputs ~inducing_inputs =
+      let n_inducing_points = Kernel.get_n_inputs inducing_inputs in
+      let n_inputs = Kernel.get_n_inputs inputs in
       let km = Mat.create n_inducing_points n_inducing_points in
       let kmn = Mat.create n_inducing_points n_inputs in
-      Kernel.upper inducing_points ~dst:km;
-      Kernel.cross inducing_points inputs ~dst:kmn;
+      Kernel.upper kernel inducing_inputs ~dst:km;
+      Kernel.cross kernel inducing_inputs inputs ~dst:kmn;
       km, kmn
 
-    let common_train ~inputs ~targets ~sigma2 ~km_chol ~kmn =
-      let n_inputs = Mat.dim2 inputs in
+    let common_train ~spec ~inputs ~targets ~km_chol ~kmn =
+      let sigma2 = spec.sigma2 in
+      let n_inputs = Kernel.get_n_inputs inputs in
       let kn = Vec.create n_inputs in
-      Kernel.diag_vec inputs ~dst:kn;
+      Kernel.diag_vec spec.kernel inputs ~dst:kn;
       let inv_lam_sigma2 = kn in
       let sqrt_inv_lam_sigma2 = Vec.create n_inputs in
       let y_ = Vec.create n_inputs in
-      (* TODO: copying may not be necessary *)
       let kmn_ = Mat.copy kmn in
-      let km_2_kmn = Mat.copy kmn in
-      (* TODO: most expensive *)
+      let km_2_kmn = kmn in
       trtrs ~trans:`T km_chol km_2_kmn;
-      (* TODO: loop somewhat expensive *)
       let rec loop_lambda sum_log_lam_sigma2_diag i =
         if i = 0 then sum_log_lam_sigma2_diag
         else
@@ -128,50 +78,44 @@ struct
           let sqrt_alpha = sqrt alpha in
           sqrt_inv_lam_sigma2.{i} <- sqrt_alpha;
           y_.{i} <- sqrt_alpha *. targets.{i};
-          (* TODO: optimize col *)
+          (* TODO: optimize scal col *)
           scal sqrt_alpha (Mat.col kmn_ i);
           loop_lambda (sum_log_lam_sigma2_diag +. log lam_sigma2) (i - 1)
       in
       loop_lambda 0. n_inputs, y_, kmn_, inv_lam_sigma2
 
-    let train ?(jitter = 10e-9) common ~inputs ~targets =
-      let { Common.inducing_points = inducing_points } = common in
-      let km, kmn = calc_kernel_mats ~inputs ~inducing_points in
+    let train spec ~inputs ~targets =
+      let { inducing_inputs = inducing_inputs } = spec in
+      let km, kmn = calc_kernel_mats spec.kernel ~inputs ~inducing_inputs in
 
       (* TODO: copy symmetric *)
       let km_chol = Mat.copy km in
       potrf ~up:true ~jitter km_chol;
 
-      let sigma2 = common.Common.sigma2 in
-
       let log_det_lam_sigma2, y_, kmn_, inv_lam_sigma2 =
-        common_train ~inputs ~targets ~sigma2 ~km_chol ~kmn
+        common_train ~spec ~inputs ~targets ~km_chol ~kmn
       in
 
-      (* TODO: copying may not be necessary; copy symmetric *)
+      (* TODO: copy symmetric *)
       let b_chol = syrk ~beta:1. ~c:(Mat.copy km) kmn_ in
       potrf ~jitter b_chol;
 
       let ssqr_y_ = Vec.ssqr y_ in
-
       let kmn_y_ = gemv kmn_ y_ in
-
-      (* TODO: copying may not be necessary *)
       let b_kmn_y_sol_ = copy kmn_y_ in
       trsv ~trans:`T b_chol b_kmn_y_sol_;
 
       let log_det_b = log_det b_chol in
-
       let log_det_km = log_det km_chol in
       let l1_2 = log_det_b -. log_det_km +. log_det_lam_sigma2 in
       let l2_2 = ssqr_y_ -. Vec.ssqr b_kmn_y_sol_ in
 
-      let n_inputs = Mat.dim2 inputs in
-      let f_inputs = float n_inputs in
+      let f_inputs = float (Kernel.get_n_inputs inputs) in
       let neg_log_likelihood = (l1_2 +. l2_2 +. f_inputs *. log_2pi) /. 2. in
 
       {
-        common = common;
+        spec = spec;
+        km = km;
         km_chol = km_chol;
         kmn_y_ = kmn_y_;
         b_chol = b_chol;
@@ -183,7 +127,7 @@ struct
 
   module Mean_predictor = struct
     type t = {
-      common : Common.t;
+      spec : Spec.t;
       coeffs : vec;
     }
 
@@ -191,7 +135,7 @@ struct
       let
         {
           Trained.
-          common = common;
+          spec = spec;
           kmn_y_ = kmn_y_;
           b_chol = b_chol;
         } = trained
@@ -200,17 +144,23 @@ struct
       let coeffs_mat = Mat.from_col_vec coeffs in
       potrs ~factorize:false b_chol coeffs_mat;
       {
-        common = common;
+        spec = spec;
         coeffs = coeffs;
       }
 
-    let mean t ~input =
+    let mean t input =
       Kernel.weighted_eval
-        input ~coeffs:t.coeffs t.common.Common.inducing_points
+        t.spec.kernel ~coeffs:t.coeffs input t.spec.Spec.inducing_inputs
 
-    let means t ~inputs ~dst =
+    let means t inputs ~means =
       Kernel.weighted_evals
-        ~coeffs:t.coeffs t.common.Common.inducing_points inputs ~dst
+        t.spec.kernel ~coeffs:t.coeffs t.spec.Spec.inducing_inputs inputs
+        ~dst:means
+
+    let inducing_means t trained = symv trained.Trained.km t.coeffs
+
+    let spec t = t.spec
+    let coeffs t = t.coeffs
   end
 
   module Full_predictor = struct
@@ -254,7 +204,7 @@ struct
       res, inv_km
 
     let of_trained kind ?(fmt =`Inv) trained =
-      let { Trained.common = common; km_chol = km_chol; b_chol = b_chol } =
+      let { Trained.spec = spec; km_chol = km_chol; b_chol = b_chol } =
         trained
       in
       let mean_predictor = Mean_predictor.of_trained trained in
@@ -322,26 +272,26 @@ struct
       dot ks right_term
 
     let mean_variance ?(with_noise = true) t ~input =
-      let { Common.inducing_points = inducing_points } as common =
-        t.mean_predictor.Mean_predictor.common
+      let { Spec.inducing_inputs = inducing_inputs; kernel = kernel } as spec =
+        t.mean_predictor.Mean_predictor.spec
       in
-      let ks = Vec.create (Mat.dim2 inducing_points) in
-      Kernel.evals input inducing_points ~dst:ks;
+      let ks = Vec.create (Kernel.get_n_inputs inducing_inputs) in
+      Kernel.evals kernel input inducing_inputs ~dst:ks;
       let mean = dot ks t.mean_predictor.Mean_predictor.coeffs in
-      let prior_variance = Kernel.eval input input in
+      let prior_variance = Kernel.eval_one kernel input in
       let explained_variance = calc_explained_variance t ks in
       let posterior_variance = prior_variance -. explained_variance in
       let variance =
-        if with_noise then posterior_variance +. common.Common.sigma2
+        if with_noise then posterior_variance +. spec.Spec.sigma2
         else posterior_variance
       in
       mean, variance
 
-    let calc_kmt ~inducing_points ~inputs =
-      let n_inputs = Mat.dim2 inputs in
-      let n_inducing_points = Mat.dim2 inducing_points in
+    let calc_kmt kernel ~inducing_inputs ~inputs =
+      let n_inputs = Kernel.get_n_inputs inputs in
+      let n_inducing_points = Kernel.get_n_inputs inducing_inputs in
       let ks = Mat.create n_inducing_points n_inputs in
-      Kernel.cross inducing_points inputs ~dst:ks;
+      Kernel.cross kernel inducing_inputs inputs ~dst:ks;
       ks
 
     let solve_chol_mat chol mat =
@@ -383,17 +333,17 @@ struct
 
     (* TODO: pass in preallocated stuff *)
     let means_variances ?(with_noise = true) t ~inputs =
-      let { Common.inducing_points = inducing_points } as common =
-        t.mean_predictor.Mean_predictor.common
+      let { Spec.inducing_inputs = inducing_inputs; kernel = kernel } as spec =
+        t.mean_predictor.Mean_predictor.spec
       in
-      let kmt = calc_kmt ~inducing_points ~inputs in
+      let kmt = calc_kmt kernel ~inducing_inputs ~inputs in
       let means = gemv ~trans:`T kmt t.mean_predictor.Mean_predictor.coeffs in
-      let n_inputs = Mat.dim2 inputs in
+      let n_inputs = Kernel.get_n_inputs inputs in
       let variances = Vec.create n_inputs in
-      Kernel.diag_vec inputs ~dst:variances;
+      Kernel.diag_vec kernel inputs ~dst:variances;
       calc_explained_variances t ~prior:variances ~kmt;
       if with_noise then begin
-        let sigma2 = common.Common.sigma2 in
+        let sigma2 = spec.Spec.sigma2 in
         for i = 1 to n_inputs do
           variances.{i} <- variances.{i} +. sigma2
         done;
@@ -421,20 +371,20 @@ struct
           let b_chol = Mat.unpacked pchols.b_chol in
           cecs_chols ~prior ~kmt ~km_chol ~b_chol
 
-    let cov_maybe_add_noise ?(with_noise = true) common covariances =
+    let cov_maybe_add_noise ?(with_noise = true) spec covariances =
       if with_noise then
-        let sigma2 = common.Common.sigma2 in
+        let sigma2 = spec.Spec.sigma2 in
         for i = 1 to Mat.dim1 covariances do
           covariances.{i, i} <- covariances.{i, i} +. sigma2
         done
 
     let means_covariances ?with_noise t ~inputs =
-      let { Common.inducing_points = inducing_points } as common =
-        t.mean_predictor.Mean_predictor.common
+      let { Spec.inducing_inputs = inducing_inputs; kernel = kernel } as spec =
+        t.mean_predictor.Mean_predictor.spec
       in
-      let kmt = calc_kmt ~inducing_points ~inputs in
+      let kmt = calc_kmt kernel ~inducing_inputs ~inputs in
       let means = gemv kmt t.mean_predictor.Mean_predictor.coeffs in
-      let n_inputs = Mat.dim2 inputs in
+      let n_inputs = Kernel.get_n_inputs inputs in
       let prior_covariances = Mat.create n_inputs n_inputs in
       let kind =
         match t.covariance_factor with
@@ -449,7 +399,7 @@ struct
                 ~c:prior_covariances);
             `Fic
         | Fitc_inv _ | Fitc_packed_inv _ ->
-            Kernel.upper inputs ~dst:prior_covariances;
+            Kernel.upper kernel inputs ~dst:prior_covariances;
             `Fitc
         | Cf_chols (kind, { km_chol = km_chol }) ->
             ignore (syrk (solve_chol_mat km_chol kmt) ~c:prior_covariances);
@@ -460,11 +410,31 @@ struct
               ~c:prior_covariances);
             kind
       in
-      if kind = `Fic then Kernel.diag_mat inputs ~dst:prior_covariances;
+      if kind = `Fic then Kernel.diag_mat kernel inputs ~dst:prior_covariances;
       let covariances =
         calc_explained_covariances t ~prior:prior_covariances ~kmt
       in
-      cov_maybe_add_noise ?with_noise common covariances;
+      cov_maybe_add_noise ?with_noise spec covariances;
       means, covariances
+
+    let inducing_means_variances ?(with_noise = true) t trained =
+
+      let { Spec.inducing_inputs = inducing_inputs; kernel = kernel } as spec =
+        t.mean_predictor.Mean_predictor.spec
+      in
+      let kmt = calc_kmt kernel ~inducing_inputs ~inputs in
+      let means = gemv ~trans:`T kmt t.mean_predictor.Mean_predictor.coeffs in
+      let n_inputs = Kernel.get_n_inputs inputs in
+      let variances = Vec.create n_inputs in
+      Kernel.diag_vec kernel inputs ~dst:variances;
+      calc_explained_variances t ~prior:variances ~kmt;
+      if with_noise then begin
+        let sigma2 = spec.Spec.sigma2 in
+        for i = 1 to n_inputs do
+          variances.{i} <- variances.{i} +. sigma2
+        done;
+      end;
+      means, variances
+
   end
 end

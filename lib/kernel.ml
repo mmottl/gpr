@@ -1,3 +1,6 @@
+open Lacaml.Impl.D
+open Lacaml.Io
+
 module type From_vec = sig
   type input = vec
   type inputs = mat

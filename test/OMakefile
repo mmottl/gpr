@@ -1,1 +1,5 @@
-.DEFAULT: gpr.exe
+OCAML_OTHER_LIBS = gpr
+
+.DEFAULT: test_gpr.exe
+
+InstClean()

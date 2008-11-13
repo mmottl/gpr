@@ -1,39 +1,46 @@
+open Lacaml.Impl.D
+
 module type Kernel = sig
   type t
   type input
   type inputs
 
-  val eval : input -> input -> float
-  val evals : input -> inputs -> dst : vec -> unit
+  val get_n_inputs : inputs -> int
 
-  val weighted_eval : coeffs : vec -> input -> inputs -> float
-  val weighted_evals : coeffs : vec -> inputs -> inputs -> dst : vec -> unit
+  val eval_one : t -> input -> float
+  val eval : t -> input -> input -> float
+  val evals : t -> input -> inputs -> dst : vec -> unit
 
-  val upper : inputs -> dst : mat -> unit
-  val cross : inputs -> inputs -> dst : mat -> unit
-  val diag_mat : inputs -> dst : mat -> unit
-  val diag_vec : inputs -> dst : vec -> unit
+  val weighted_eval : t -> coeffs : vec -> input -> inputs -> float
+
+  val weighted_evals :
+    t -> coeffs : vec -> inputs -> inputs -> dst : vec -> unit
+
+  val upper : t -> inputs -> dst : mat -> unit
+  val cross : t -> inputs -> inputs -> dst : mat -> unit
+  val diag_mat : t -> inputs -> dst : mat -> unit
+  val diag_vec : t -> inputs -> dst : vec -> unit
 end
 
-module type Inducing_input_gp : sig
-  type kernel
-  type input
-  type inputs
+module type Vec_kernel =
+  Kernel
+    with type input = vec
+    with type inputs = mat
 
+module type Inducing_input_gpr = sig
   module Spec : sig
-    type t = private {
-      kernel : Kernel.t;
+    type kernel
+    type input
+    type inputs
+
+    type t = {
+      kernel : kernel;
       sigma2 : float;
       inducing_inputs : inputs;
     }
-
-    val make :
-      ?jitter : float ->
-      kernel ->
-      sigma2 : float ->
-      inducing_inputs : inputs
-      -> t
   end
+
+  open Spec
 
   module Trained : sig
     type t
@@ -41,14 +48,6 @@ module type Inducing_input_gp : sig
     val train : Spec.t -> inputs : inputs -> targets : vec -> t
 
     val neg_log_likelihood : t -> float
-
-    val mean_squared_error : t -> float
-
-    val inducing_means : t -> vec
-    val inducing_means_variances : t -> vec * vec
-    val inducing_means_covariances : t -> vec * mat
-    val inducing_means_covariances_packed : t -> vec * vec
-    (* TODO: etc.; can be done efficiently *)
   end
 
   module Mean_predictor : sig
@@ -58,6 +57,7 @@ module type Inducing_input_gp : sig
 
     val mean : t -> input -> float
     val means : t -> inputs -> means : vec -> unit
+    val inducing_means : t -> Trained.t -> vec
 
     val spec : t -> Spec.t
     val coeffs : t -> vec
@@ -95,6 +95,12 @@ module type Inducing_input_gp : sig
       means : vec ->
       covariances : vec
       -> unit
+
+    val inducing_means_variances :
+      ?with_noise : bool -> t -> Trained.t -> vec * vec
+
+    val inducing_means_covariances :
+      ?with_noise : bool -> t -> Trained.t -> vec * mat
   end
 end
 

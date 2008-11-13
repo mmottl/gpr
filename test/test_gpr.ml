@@ -3,6 +3,8 @@ open Format
 open Lacaml.Impl.D
 open Lacaml.Io
 
+open Gpr
+
 module FIC = Make_FIC (Kernel)
 
 let timing name f =

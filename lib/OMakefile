@@ -1,1 +1,3 @@
-.DEFAULT: gpr.exe
+OCamlPackage(gpr, interfaces kernel approx)
+OCamlLibrary(gpr, gpr)
+InstClean()
