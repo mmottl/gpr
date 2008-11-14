@@ -7,9 +7,8 @@ NATIVE_ENABLED = true
 OCAMLFLAGS = -dtypes -g
 
 CLEANCMD = \
-  rm -f *.o *.annot mycaml *.cm[ioxa] *.cmxa *.bc *.exe \
-	*.mpbc *.mpexe *.omc *.a *.so *.auto.mli \
-	x
+  rm -f *.o *.annot mycaml *.cm[ioxa] *.cmxa *.bc *.exe *.opt \
+	*.mpbc *.mpexe *.omc *.a *.so *.auto.mli
 
 .PHONY: clean
 clean:

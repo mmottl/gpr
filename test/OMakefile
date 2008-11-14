@@ -2,6 +2,6 @@ OCAML_LIBS = ../lib/gpr
 
 OCamlProgram(test_gpr, test_gpr)
 
-.DEFAULT: test_gpr
+.DEFAULT: test_gpr.opt
 
 InstClean()
