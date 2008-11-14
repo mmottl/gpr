@@ -1,3 +1,11 @@
-OCamlPackage(gpr, interfaces kernel approx)
+LIB_MLNAMES = interfaces utils kernel fitc
+
+section
+  OCAMLCFLAGS += -for-pack Gpr
+  OCAMLOPTFLAGS += -for-pack Gpr
+  $(addsuffixes $(OCAML_SUFFIXES), $(LIB_MLNAMES)):
+
+OCamlPackage(gpr, $(LIB_MLNAMES))
 OCamlLibrary(gpr, gpr)
+
 InstClean()

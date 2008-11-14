@@ -57,7 +57,7 @@ module type Inducing_input_gpr = sig
 
     val mean : t -> input -> float
     val means : t -> inputs -> means : vec -> unit
-    val inducing_means : t -> Trained.t -> vec
+    val inducing_means : t -> Trained.t -> means : vec -> unit
 
     val spec : t -> Spec.t
     val coeffs : t -> vec
@@ -87,20 +87,6 @@ module type Inducing_input_gpr = sig
       means : vec ->
       covariances : mat
       -> unit
-
-    val means_covariances_packed :
-      ?with_noise : bool ->
-      t ->
-      inputs ->
-      means : vec ->
-      covariances : vec
-      -> unit
-
-    val inducing_means_variances :
-      ?with_noise : bool -> t -> Trained.t -> vec * vec
-
-    val inducing_means_covariances :
-      ?with_noise : bool -> t -> Trained.t -> vec * mat
   end
 end
 

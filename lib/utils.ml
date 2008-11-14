@@ -20,3 +20,14 @@ let log_det mat =
 
 let pi = 4. *. atan 1.
 let log_2pi = log (2. *. pi)
+
+let inv_copy_chol_mat mat =
+  (* TODO: copy triangle *)
+  let inv = Mat.copy mat in
+  potri ~factorize:false inv;
+  inv
+
+let inv_copy_chol_vec chol vec =
+  let inv = copy vec in
+  trsv chol inv;
+  inv

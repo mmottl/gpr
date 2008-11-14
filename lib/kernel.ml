@@ -2,71 +2,74 @@ open Lacaml.Impl.D
 open Lacaml.Io
 
 module type From_vec = sig
+  type t
   type input = vec
   type inputs = mat
 
-  val eval : input -> input -> float
-  val eval_vec_col : input -> inputs -> int -> float
-  val eval_mat_cols : inputs -> int -> inputs -> int -> float
-  val eval_mat_col : inputs -> int -> float
+  val get_n_inputs : inputs -> int
+  val eval_one : t -> input -> float
+  val eval : t -> input -> input -> float
+  val eval_vec_col : t -> input -> inputs -> int -> float
+  val eval_mat_cols : t -> inputs -> int -> inputs -> int -> float
+  val eval_mat_col : t -> inputs -> int -> float
 end
 
 module Make_from_vec (From_vec : From_vec) = struct
   include From_vec
 
-  let evals vec mat ~dst =
+  let evals t vec mat ~dst =
     let n = Mat.dim2 mat in
     for col = 1 to n do
-      dst.{col} <- eval_vec_col vec mat col
+      dst.{col} <- eval_vec_col t vec mat col
     done
 
-  let weighted_eval ~coeffs vec mat =
+  let weighted_eval t ~coeffs vec mat =
     let n = Vec.dim vec in
     let res = ref 0. in
     for col = 1 to n do
-      res := !res +. coeffs.{col} *. eval_vec_col vec mat col
+      res := !res +. coeffs.{col} *. eval_vec_col t vec mat col
     done;
     !res
 
-  let weighted_evals ~coeffs inducing_inputs inputs ~dst =
+  let weighted_evals t ~coeffs inducing_inputs inputs ~dst =
     let n_inducing_inputs = Mat.dim2 inducing_inputs in
     let n_inputs = Mat.dim2 inputs in
     for i = 1 to n_inputs do
-      dst.{i} <- coeffs.{1} *. eval_mat_cols inducing_inputs 1 inputs i;
+      dst.{i} <- coeffs.{1} *. eval_mat_cols t inducing_inputs 1 inputs i;
       for j = 2 to n_inducing_inputs do
         dst.{i} <-
-          dst.{i} +. coeffs.{j} *. eval_mat_cols inputs i inducing_inputs j
+          dst.{i} +.  coeffs.{j} *. eval_mat_cols t inputs i inducing_inputs j
       done
     done
 
-  let upper mat ~dst =
+  let upper t mat ~dst =
     let n = Mat.dim2 mat in
     for i = 1 to n do
-      dst.{i, i} <- eval_mat_col mat i;
+      dst.{i, i} <- eval_mat_col t mat i;
       for j = i + 1 to n do
-        dst.{i, j} <- eval_mat_cols mat i mat j;
+        dst.{i, j} <- eval_mat_cols t mat i mat j;
       done
     done
 
-  let cross mat1 mat2 ~dst =
+  let cross t mat1 mat2 ~dst =
     let n1 = Mat.dim2 mat1 in
     let n2 = Mat.dim2 mat2 in
     for i = 1 to n1 do
       for j = 1 to n2 do
-        dst.{i, j} <- eval_mat_cols mat1 i mat2 j
+        dst.{i, j} <- eval_mat_cols t mat1 i mat2 j
       done
     done
 
-  let diag_mat mat ~dst =
+  let diag_mat t mat ~dst =
     let n = Mat.dim2 mat in
     for i = 1 to n do
-      dst.{i, i} <- eval_mat_col mat i
+      dst.{i, i} <- eval_mat_col t mat i
     done
 
-  let diag_vec mat ~dst =
+  let diag_vec t mat ~dst =
     let n = Mat.dim2 mat in
     for i = 1 to n do
-      dst.{i} <- eval_mat_col mat i
+      dst.{i} <- eval_mat_col t mat i
     done
 
 (* TODO: this is surprisingly faster; maybe implement weighted, etc.,
@@ -138,18 +141,23 @@ module Make_from_vec (From_vec : From_vec) = struct
 end
 
 module Gauss_vec = struct
+  type t = unit
   type input = vec
   type inputs = mat
 
+  let get_n_inputs inputs = Mat.dim2 inputs
+
   let eval_rbf2 r = exp (-0.5 *. r)
 
-  let eval vec1 vec2 = eval_rbf2 (Vec.ssqr_diff vec1 vec2)
+  let eval_one () vec = eval_rbf2 (Vec.ssqr vec)
+
+  let eval () vec1 vec2 = eval_rbf2 (Vec.ssqr_diff vec1 vec2)
 
   let res0 = eval_rbf2 0.
 
-  let eval_mat_col = fun _mat _col -> res0
+  let eval_mat_col = fun () _mat _col -> res0
 
-  let eval_vec_col vec mat col =
+  let eval_vec_col () vec mat col =
     let d = Vec.dim vec in
     let r2 = ref 0. in
     for i = 1 to d do
@@ -158,7 +166,7 @@ module Gauss_vec = struct
     done;
     eval_rbf2 !r2
 
-  let eval_mat_cols mat1 col1 mat2 col2 =
+  let eval_mat_cols () mat1 col1 mat2 col2 =
     let d = Mat.dim1 mat1 in
     let r2 = ref 0. in
     for i = 1 to d do
@@ -168,10 +176,4 @@ module Gauss_vec = struct
     eval_rbf2 !r2
 end
 
-module Gauss_mat = Make_from_vec (Gauss_vec)
-
-module Kernel = struct
-  type t = unit
-
-  include Gauss_mat
-end
+module Gauss = Make_from_vec (Gauss_vec)

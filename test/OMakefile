@@ -1,5 +1,7 @@
-OCAML_OTHER_LIBS = gpr
+OCAML_LIBS = ../lib/gpr
 
-.DEFAULT: test_gpr.exe
+OCamlProgram(test_gpr, test_gpr)
+
+.DEFAULT: test_gpr
 
 InstClean()

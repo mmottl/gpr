@@ -6,3 +6,6 @@
 *.a
 .RData
 .Rhistory
+test_gpr
+test_gpr.opt
+test/data/*

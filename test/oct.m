@@ -1,10 +1,11 @@
 load data/inputs
 load data/targets
-load data/inducing_points
+load data/inducing_inputs
+load data/sigma2
 
-sigma2 = 0.42;
+sigma = sqrt(sigma2);
 [dim, N] = size(inputs);
-[dim, M] = size(inducing_points);
+[dim, M] = size(inducing_inputs);
 
 function res = eval_rbf2(r2)
   res = exp(-0.5 * r2);
@@ -18,8 +19,8 @@ function res = k(x, y)
   res = eval_rbf2(r2);
 end
 
-km = k(inducing_points, inducing_points);
-kmn = k(inducing_points, inputs);
+km = k(inducing_inputs, inducing_inputs);
+kmn = k(inducing_inputs, inputs);
 kn = k(inputs, inputs);
 
 km_chol = chol(km);
@@ -50,5 +51,5 @@ neg_log_likelihood
 
 % Ed's stuff
 hyp = [0; 0; log(sigma2)];
-w = [reshape(inducing_points', M*dim, 1); hyp];
+w = [reshape(inducing_inputs', M*dim, 1); hyp];
 his_neg_log_likelihood = spgp_lik(w, y, inputs', M)
