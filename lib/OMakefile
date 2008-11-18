@@ -1,4 +1,4 @@
-LIB_MLNAMES = interfaces utils kernel fitc
+LIB_MLNAMES = interfaces utils kernel fitc experimental
 
 section
   OCAMLCFLAGS += -for-pack Gpr

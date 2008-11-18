@@ -4,7 +4,7 @@ ABORT_ON_DEPENDENCY_ERRORS = true
 OCAMLPACKS += unix lacaml gsl
 
 NATIVE_ENABLED = true
-OCAMLFLAGS = -dtypes -g
+OCAMLFLAGS = -dtypes -g -w A
 
 CLEANCMD = \
   rm -f *.o *.annot mycaml *.cm[ioxa] *.cmxa *.bc *.exe *.opt \

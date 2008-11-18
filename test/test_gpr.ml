@@ -70,9 +70,9 @@ let main () =
     printf "neg_log_likelihood: %.3f@." (FIC.Trained.neg_log_likelihood trained);
     let model = FIC.Full_predictor.of_trained trained in
 (*     let means = Vec.create n_inputs in *)
-    let means = Vec.create n_inputs in
-    let variances = Vec.create n_inputs in
-    FIC.Full_predictor.means_variances model training_inputs ~means ~variances;
+    let means, variances =
+      FIC.Full_predictor.means_variances model training_inputs
+    in
     write_vec "means" means;
     write_vec "variances" variances
 
