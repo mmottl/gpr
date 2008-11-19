@@ -14,13 +14,13 @@ module type Inducing_input_gpr = sig
     val calc : Kernel.t -> inputs -> t
   end
 
-  module Prepared : sig
+  module Reduced : sig
     type t
 
     val calc : Inducing.t -> input -> t
   end
 
-  module Prepareds : sig
+  module Reduceds : sig
     type t
 
     val calc : Inducing.t -> inputs -> t
@@ -29,7 +29,7 @@ module type Inducing_input_gpr = sig
   module Model : sig
     type t
 
-    val calc : Prepareds.t -> t
+    val calc : Reduceds.t -> t
     val neg_log_likelihood : t -> float
   end
 
@@ -51,7 +51,7 @@ module type Inducing_input_gpr = sig
     type t
 
     val calc : Weights.t -> input -> t
-    val calc_prepared : Weights.t -> Prepared.t -> t
+    val calc_reduced : Weights.t -> Reduced.t -> t
     val copy : t -> float
   end
 
@@ -61,14 +61,14 @@ module type Inducing_input_gpr = sig
     val calc_inducing : Weights.t -> Model.t -> t
     val calc_inputs : Weights.t -> Model.t -> t
     val calc : Weights.t -> inputs -> t
-    val calc_prepareds : Weights.t -> Prepareds.t -> t
+    val calc_reduceds : Weights.t -> Reduceds.t -> t
     val copy : t -> vec
   end
 
   module Variance : sig
     type t
 
-    val calc_prepared : Model.t -> Prepared.t -> t
+    val calc_reduced : Model.t -> Reduced.t -> t
     val copy : ?predictive : bool -> t -> float
   end
 
@@ -84,7 +84,7 @@ module type Inducing_input_gpr = sig
 
     val calc_inducing : Model.t -> t
     val calc_inputs : Model.t -> t
-    val calc_prepareds : Model.t -> Prepareds.t -> t
+    val calc_reduceds : Model.t -> Reduceds.t -> t
     val copy : ?predictive : bool -> t -> vec
   end
 
@@ -93,7 +93,7 @@ module type Inducing_input_gpr = sig
 
     val calc_inducing : Model.t -> t
     val calc_inputs : Model.t -> t
-    val calc_prepareds : Model.t -> Prepareds.t -> t
+    val calc_reduceds : Model.t -> Reduceds.t -> t
     val variances : t -> Variances.t
     val copy : ?predictive : bool -> t -> mat
   end
@@ -146,7 +146,7 @@ struct
       }
   end
 
-  module Prepared = struct
+  module Reduced = struct
     type t =
       {
         inducing : Inducing.t;
@@ -165,7 +165,7 @@ struct
     let get_kernel t = t.inducing.Inducing.kernel
   end
 
-  module Prepareds = struct
+  module Reduceds = struct
     type t =
       {
         inducing : Inducing.t;
@@ -193,18 +193,18 @@ struct
 
   (* Compute square root of Nystrom approximation, and diagonal of
      marginal variances *)
-  let nystrom_2_marginals prepareds =
-    let inducing = prepareds.Prepareds.inducing in
-    let kernel = Prepareds.get_kernel prepareds in
-    let kn_diag = Kernel.diag_vec kernel prepareds.Prepareds.inputs in
-    let kmn = prepareds.Prepareds.kmn in
+  let nystrom_2_marginals reduceds =
+    let inducing = reduceds.Reduceds.inducing in
+    let kernel = Reduceds.get_kernel reduceds in
+    let kn_diag = Kernel.diag_vec kernel reduceds.Reduceds.inputs in
+    let kmn = reduceds.Reduceds.kmn in
     let km_2_kmn = calc_basis_2_k inducing.Inducing.km_chol ~k:kmn in
     kn_diag, km_2_kmn, kmn
 
   module Model = struct
     type t =
       {
-        prepareds : Prepareds.t;
+        reduceds : Reduceds.t;
         kn_diag : vec;
         km_2_kmn : mat;
         lam_diag : vec;
@@ -213,11 +213,11 @@ struct
         neg_log_likelihood : float;
       }
 
-    let calc prepareds =
-      let inducing = prepareds.Prepareds.inducing in
-      let kernel = Prepareds.get_kernel prepareds in
+    let calc reduceds =
+      let inducing = reduceds.Reduceds.inducing in
+      let kernel = Reduceds.get_kernel reduceds in
       let sigma2 = get_sigma2 kernel in
-      let kn_diag, km_2_kmn, kmn = nystrom_2_marginals prepareds in
+      let kn_diag, km_2_kmn, kmn = nystrom_2_marginals reduceds in
       let kmn_= Mat.copy kmn in
       let n_inputs = Vec.dim kn_diag in
       let lam_diag = Vec.create n_inputs in
@@ -246,7 +246,7 @@ struct
       let l1_2 = log_det_b -. log_det_km +. log_det_lam_sigma2 in
       let neg_log_likelihood = (l1_2 +. float n_inputs *. log_2pi) /. 2. in
       {
-        prepareds = prepareds;
+        reduceds = reduceds;
         kn_diag = kn_diag;
         km_2_kmn = km_2_kmn;
         lam_diag = lam_diag;
@@ -257,12 +257,12 @@ struct
 
     let neg_log_likelihood model = model.neg_log_likelihood
 
-    let get_inducing model = model.prepareds.Prepareds.inducing
+    let get_inducing model = model.reduceds.Reduceds.inducing
     let get_inducing_inputs model = (get_inducing model).Inducing.inputs
-    let get_inputs model = model.prepareds.Prepareds.inputs
+    let get_inputs model = model.reduceds.Reduceds.inputs
     let get_kernel model = (get_inducing model).Inducing.kernel
     let get_sigma2 model = get_sigma2 (get_kernel model)
-    let get_kmn model = model.prepareds.Prepareds.kmn
+    let get_kmn model = model.reduceds.Reduceds.kmn
     let get_lam_diag model = model.lam_diag
     let get_km model = (get_inducing model).Inducing.km
   end
@@ -285,7 +285,7 @@ struct
         y__.{i} <- targets.{i} *. inv_lam_sigma2_diag.{i}
       done;
       let inv_b_chol_kmn_y__ = gemv (Model.get_kmn model) y__ in
-      let ssqr_y__ = Vec.ssqr y__ in
+      let ssqr_y__ = dot ~x:targets y__ in
       let b_chol = model.Model.b_chol in
       trsv ~trans:`T b_chol inv_b_chol_kmn_y__;
       let fit_neg_log_likelihood =
@@ -337,7 +337,7 @@ struct
       in
       make ~input ~mean
 
-    let calc_prepared w { Prepared.input = input; k_m = k_m } =
+    let calc_reduced w { Reduced.input = input; k_m = k_m } =
       make ~input ~mean:(dot ~x:k_m w.Weights.weights)
 
     let copy m = m.mean
@@ -366,7 +366,7 @@ struct
       in
       make ~inputs ~means
 
-    let calc_prepareds w { Prepareds.inputs = inputs; kmn = kmn } =
+    let calc_reduceds w { Reduceds.inputs = inputs; kmn = kmn } =
       make ~inputs ~means:(gemv ~trans:`T kmn w.Weights.weights)
 
     let copy m = copy m.means
@@ -375,13 +375,13 @@ struct
   module Variance = struct
     type t = { input : input; variance : float; sigma2 : float }
 
-    let calc_prepared model prepared =
-      let { Prepared.input = input; k_m = k_m } = prepared in
+    let calc_reduced model reduced =
+      let { Reduced.input = input; k_m = k_m } = reduced in
       let kernel = Model.get_kernel model in
       let prior_variance = Kernel.eval_one kernel input in
       let inv_km_chol_k_m = copy k_m in
       let inv_km_chol_k_m_mat = Mat.from_col_vec inv_km_chol_k_m in
-      let inducing = prepared.Prepared.inducing in
+      let inducing = reduced.Reduced.inducing in
       potrs ~factorize:false inducing.Inducing.km_chol inv_km_chol_k_m_mat;
       let km_arg = dot ~x:k_m inv_km_chol_k_m in
       let inv_b_chol_k_m = copy k_m ~y:inv_km_chol_k_m in
@@ -427,8 +427,8 @@ struct
       done;
       make ~inputs:(Model.get_inputs model) ~variances ~model
 
-    let calc_prepareds model prepareds =
-      let kt_diag, km_2_kmt, kmt = nystrom_2_marginals prepareds in
+    let calc_reduceds model reduceds =
+      let kt_diag, km_2_kmt, kmt = nystrom_2_marginals reduceds in
       let variances = copy kt_diag in
       let b_2_kmt = calc_b_2_k model ~k:kmt in
       let n = Mat.dim2 b_2_kmt in
@@ -439,7 +439,7 @@ struct
         in
         variances.{i} <- variances.{i} -. explained_variance
       done;
-      make ~inputs:prepareds.Prepareds.inputs ~variances ~model
+      make ~inputs:reduceds.Reduceds.inputs ~variances ~model
 
     let copy ?predictive { variances = variances; sigma2 = sigma2 } =
       match predictive with
@@ -470,7 +470,11 @@ struct
   end
 end
 
-module Make_FITC (Spec : FITC_spec) : Inducing_input_gpr = struct
+module Make_FITC (Spec : FITC_spec) :
+  Inducing_input_gpr with
+    module Kernel = Spec.Kernel
+  =
+struct
   module Loc = struct let loc = "FITC" end
 
   include Make_FITC_common (Loc) (Spec)
@@ -487,7 +491,7 @@ module Make_FITC (Spec : FITC_spec) : Inducing_input_gpr = struct
     let calc_inducing model =
       let b_2_km = calc_b_2_k model ~k:(Model.get_km model) in
       let inputs = Model.get_inducing_inputs model in
-      make ~inputs ~covariances:(syrk b_2_km) ~model
+      make ~inputs ~covariances:(syrk ~trans:`T b_2_km) ~model
 
     let calc_common ~kn_diag ~kmn ~km_2_kmn ~inputs ~model =
       let kernel = Model.get_kernel model in
@@ -495,21 +499,21 @@ module Make_FITC (Spec : FITC_spec) : Inducing_input_gpr = struct
       for i = 1 to Vec.dim kn_diag do
         covariances.{i, i} <- kn_diag.{i}
       done;
-      ignore (syrk ~alpha:(-1.) km_2_kmn ~beta:1. ~c:covariances);
+      ignore (syrk ~trans:`T ~alpha:(-1.) km_2_kmn ~beta:1. ~c:covariances);
       let b_2_kmn = calc_b_2_k model ~k:kmn in
-      ignore (syrk ~alpha:(1.) b_2_kmn ~beta:1. ~c:covariances);
+      ignore (syrk ~trans:`T ~alpha:1. b_2_kmn ~beta:1. ~c:covariances);
       make ~inputs ~covariances ~model
 
     let calc_inputs model =
       let kn_diag = model.Model.kn_diag in
-      let kmn = model.Model.prepareds.Prepareds.kmn in
+      let kmn = model.Model.reduceds.Reduceds.kmn in
       let km_2_kmn = model.Model.km_2_kmn in
       let inputs = Model.get_inputs model in
       calc_common ~kn_diag ~kmn ~km_2_kmn ~inputs ~model
 
-    let calc_prepareds model prepareds =
-      let inputs = prepareds.Prepareds.inputs in
-      let kn_diag, km_2_kmn, kmn = nystrom_2_marginals prepareds in
+    let calc_reduceds model reduceds =
+      let inputs = reduceds.Reduceds.inputs in
+      let kn_diag, km_2_kmn, kmn = nystrom_2_marginals reduceds in
       calc_common ~kn_diag ~kmn ~km_2_kmn ~inputs ~model
 
     let variances { inputs = inputs; covariances = covs; sigma2 = sigma2 } =
@@ -558,7 +562,7 @@ end
 (*
       let kn = Kernel.upper
       let b_2_kmn = calc_b_2_k model ~k:(Model.get_kmn model) in
-      let covariances = syrk b_2_kmn in
+      let covariances = syrk ~trans:`T b_2_kmn in
       let n = Vec.dim lam_diag in
       for i = 1 to n do
         covariances.{i, i} <- lam_diag.{i} +. covariances.{i, i}

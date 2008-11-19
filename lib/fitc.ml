@@ -161,8 +161,9 @@ module Make_Jitter_FIC (Jitter_spec : Jitter_spec) (Kernel : Kernel) :
     let calc_inv ~km_chol ~b_chol =
       let inv_km = inv_copy_chol_mat km_chol in
       let inv_b = inv_copy_chol_mat b_chol in
-      let inv = inv_b in
-      Mat.axpy ~x:inv_km inv;
+      (* TODO: bad hack *)
+      let inv = Mat.copy inv_km in
+      Mat.axpy ~alpha:(-1.) ~x:inv_b inv;
       { inv_km = inv_km; inv = inv }
 
     let of_trained trained =
