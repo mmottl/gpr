@@ -5,3 +5,6 @@ OCamlProgram(test_gpr, test_gpr)
 .DEFAULT: test_gpr.opt
 
 InstClean()
+
+clean:
+	rm -rf data/*
