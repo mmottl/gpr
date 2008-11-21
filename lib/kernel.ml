@@ -161,39 +161,37 @@ module Make_from_vec (From_vec : From_vec) = struct
 end
 
 module Gauss_vec = struct
-  type t = unit
+  type t = float * float
   type input = vec
   type inputs = mat
 
   let get_n_inputs inputs = Mat.dim2 inputs
 
-  let eval_rbf2 r = exp (-0.5 *. r)
+  let eval_rbf2 (a, b) r = exp (a +. b *. r)
 
-  let eval_one () vec = eval_rbf2 (Vec.ssqr vec)
+  let eval_one k vec = eval_rbf2 k (Vec.ssqr vec)
 
-  let eval () vec1 vec2 = eval_rbf2 (Vec.ssqr_diff vec1 vec2)
+  let eval k vec1 vec2 = eval_rbf2 k (Vec.ssqr_diff vec1 vec2)
 
-  let res0 = eval_rbf2 0.
+  let eval_mat_col = fun (a, _b) _mat _col -> exp a
 
-  let eval_mat_col = fun () _mat _col -> res0
-
-  let eval_vec_col () vec mat col =
+  let eval_vec_col k vec mat col =
     let d = Vec.dim vec in
     let r2 = ref 0. in
     for i = 1 to d do
       let diff = vec.{i} -. mat.{i, col} in
       r2 := !r2 +. diff *. diff
     done;
-    eval_rbf2 !r2
+    eval_rbf2 k !r2
 
-  let eval_mat_cols () mat1 col1 mat2 col2 =
+  let eval_mat_cols k mat1 col1 mat2 col2 =
     let d = Mat.dim1 mat1 in
     let r2 = ref 0. in
     for i = 1 to d do
       let diff = mat1.{i, col1} -. mat2.{i, col2} in
       r2 := !r2 +. diff *. diff
     done;
-    eval_rbf2 !r2
+    eval_rbf2 k !r2
 end
 
 module Gauss = Make_from_vec (Gauss_vec)
