@@ -37,21 +37,4 @@ let log_det mat =
 let pi = 4. *. atan 1.
 let log_2pi = log (2. *. pi)
 
-let inv_copy_chol_mat mat =
-  (* TODO: copy triangle *)
-  let inv = Mat.copy mat in
-  potri ~factorize:false inv;
-  inv
-
-let inv_copy_chol_vec chol vec =
-  let inv = copy vec in
-  trsv chol inv;
-  inv
-
-let sub_diag_transa_prod mat1 mat2 ~dst =
-  (* TODO: optimize away col, dot *)
-  for i = 1 to Vec.dim dst do
-    dst.{i} <- dst.{i} -. dot ~x:(Mat.col mat1 i) (Mat.col mat2 i)
-  done
-
 let default_rng = Gsl_rng.make (Gsl_rng.default ())

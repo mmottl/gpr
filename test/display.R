@@ -8,8 +8,11 @@ stds <- sqrt(vars)
 sigma2 <- (read.table('data/sigma2'))[,1]
 sigma <- sqrt(sigma2)
 sample1 <- read.table('data/sample1')
-sample2 <- (read.table('data/sample2'))
-sample3 <- (read.table('data/sample3'))
+sample2 <- read.table('data/sample2')
+sample3 <- read.table('data/sample3')
+fic_sample1 <- read.table('data/fic_sample1')
+fic_sample2 <- read.table('data/fic_sample2')
+fic_sample3 <- read.table('data/fic_sample3')
 
 pred_vars <- vars + sigma2
 pred_stds <- sqrt(pred_vars)
@@ -34,12 +37,18 @@ plot_means_stds <- function (means, mlty, stds, slty, col) {
 plot(inputs, targets, type='p', lwd=1, pch=20, col='blue')
 
 plot_means_stds(f(inputs), 1, sigma, 1, 'green')
+plot_means_stds(means, 1, stds, 1, 'red')
 plot_means_stds(means, 1, pred_stds, 1, 'red')
 
 plot_sample <- function (sample) {
   plot_means(sample, 1, 1, 'black')
 }
 
+plot_fic_sample <- function (sample) {
+  plot_means(sample, 1, 1, 'violet')
+}
+
 lapply(list(sample1, sample2, sample3), plot_sample)
+lapply(list(fic_sample1, fic_sample2, fic_sample3), plot_fic_sample)
 
 points(inducing, inducing_means, lwd=10, col='orange')

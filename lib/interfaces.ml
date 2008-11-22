@@ -30,48 +30,104 @@ module type Vec_kernel =
     with type inputs = mat
 
 module type Inducing_input_gpr = sig
-  module Spec : sig
-    type kernel
-    type input
-    type inputs
+  module Kernel : Kernel
 
-    type t = {
-      kernel : kernel;
-      sigma2 : float;
-      inducing_inputs : inputs;
-    }
+  open Kernel
+
+  module Inducing : sig
+    type t
+
+    val calc : Kernel.t -> inputs -> t
   end
 
-  open Spec
+  module Induced : sig
+    type t
+
+    val calc : Inducing.t -> input -> t
+  end
+
+  module Induceds : sig
+    type t
+
+    val calc : Inducing.t -> inputs -> t
+  end
+
+  module Model : sig
+    type t
+
+    val calc : Induceds.t -> t
+    val neg_log_likelihood : t -> float
+  end
 
   module Trained : sig
     type t
 
-    val train : Spec.t -> inputs : inputs -> targets : vec -> t
-
+    val calc : Model.t -> targets : vec -> t
     val neg_log_likelihood : t -> float
   end
 
-  module Mean_predictor : sig
+  module Weights : sig
     type t
 
-    val of_trained : Trained.t -> t
-
-    val mean : t -> input -> float
-    val means : t -> inputs -> vec
-    val inducing_means : t -> Trained.t -> vec
-
-    val spec : t -> Spec.t
-    val weights : t -> vec
+    val calc : Trained.t -> t
+    val copy : t -> vec
   end
 
-  module Full_predictor : sig
+  module Mean : sig
     type t
 
-    val of_trained : Trained.t -> t
-    val mean_predictor : t -> Mean_predictor.t
-    val mean_variance : ?with_noise : bool -> t -> input -> float * float
-    val means_variances : ?with_noise : bool -> t -> inputs -> vec * vec
-    val means_covariances : ?with_noise : bool -> t -> inputs -> vec * mat
+    val calc : Weights.t -> input -> t
+    val calc_induced : Weights.t -> Induced.t -> t
+    val copy : t -> float
+  end
+
+  module Means : sig
+    type t
+
+    val calc_inducing : Weights.t -> Model.t -> t
+    val calc_inputs : Weights.t -> Model.t -> t
+    val calc : Weights.t -> inputs -> t
+    val calc_induceds : Weights.t -> Induceds.t -> t
+    val copy : t -> vec
+  end
+
+  module Variance : sig
+    type t
+
+    val calc_induced : Model.t -> Induced.t -> t
+    val copy : ?predictive : bool -> t -> float
+  end
+
+  module Variances : sig
+    type t
+
+    val calc_inducing : Model.t -> t
+    val calc_inputs : Model.t -> t
+    val calc_induceds : Model.t -> Induceds.t -> t
+    val copy : ?predictive : bool -> t -> vec
+  end
+
+  module Covariances : sig
+    type t
+
+    val calc_inducing : Model.t -> t
+    val calc_inputs : Model.t -> t
+    val calc_induceds : Model.t -> Induceds.t -> t
+    val variances : t -> Variances.t
+    val copy : ?predictive : bool -> t -> mat
+  end
+
+  module Sampler : sig
+    type t
+
+    val calc : ?predictive : bool -> Mean.t -> Variance.t -> t
+    val sample : ?rng : Gsl_rng.t -> t -> float
+  end
+
+  module Samplers : sig
+    type t
+
+    val calc : ?predictive : bool -> Means.t -> Covariances.t -> t
+    val sample : ?rng : Gsl_rng.t -> t -> vec
   end
 end
