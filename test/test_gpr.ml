@@ -15,7 +15,7 @@ let noise_sigma = 2.
 let noise_sigma2 = noise_sigma *. noise_sigma
 
 module FITC_spec = struct
-  module Kernel = Kernel.Gauss
+  module Eval_spec = Kernel.Gauss_all_vec
 
   let get_sigma2 _ = noise_sigma2
   let jitter = 10e-9
@@ -55,31 +55,46 @@ let get_training () =
 let main () =
   let training_inputs, training_targets, inducing_inputs = get_training () in
   let inducing = FITC.Inducing.calc k inducing_inputs in
-  let reduceds = FITC.Induceds.calc inducing training_inputs in
+  let reduceds = FITC.Inputs.calc inducing training_inputs in
+
   let model = FITC.Model.calc reduceds in
+
   let trained = FITC.Trained.calc model ~targets:training_targets in
-  printf "neg_log_likelihood: %.3f@." (FITC.Trained.neg_log_likelihood trained);
+
+  printf "negative log marginal likelihood: %.3f@."
+    (FITC.Trained.neg_log_marginal_likelihood trained);
   let weights = FITC.Weights.calc trained in
-  let means = FITC.Means.calc_inputs weights model in
+
+  let means = FITC.Means.calc_model_inputs weights in
   let inducing_means =
-    FITC.Means.copy (FITC.Means.calc_inducing weights model)
+    FITC.Means.Inducing.get (FITC.Means.Inducing.calc weights)
   in
   write_vec "inducing_means" inducing_means;
-  let means_vec = FITC.Means.copy means in
+  let means_vec = FITC.Means.get means in
   write_vec "means" means_vec;
+
   let variances =
-    FITC.Variances.copy ~predictive:false (FITC.Variances.calc_inputs model)
+    FITC.Variances.get ~predictive:false
+      (FITC.Variances.calc_model_inputs model)
   in
   write_vec "variances" variances;
-  let covariances = FITC.Covariances.calc_inputs model in
-  let samplers = FITC.Samplers.calc ~predictive:false means covariances in
-  write_vec "sample1" (FITC.Samplers.sample samplers);
-  write_vec "sample2" (FITC.Samplers.sample samplers);
-  write_vec "sample3" (FITC.Samplers.sample samplers);
-  let fic_covariances = FIC.Covariances.calc_inputs model in
-  let fic_samplers = FIC.Samplers.calc ~predictive:false means fic_covariances in
-  write_vec "fic_sample1" (FIC.Samplers.sample fic_samplers);
-  write_vec "fic_sample2" (FIC.Samplers.sample fic_samplers);
-  write_vec "fic_sample3" (FIC.Samplers.sample fic_samplers)
+
+  let fitc_covariances = FITC.Covariances.calc_model_inputs model in
+  let fitc_sampler =
+    FITC.Cov_sampler.calc ~predictive:false means fitc_covariances
+  in
+  let fitc_samples = FITC.Cov_sampler.samples fitc_sampler ~n:3 in
+  write_vec "sample1" (Mat.col fitc_samples 1);
+  write_vec "sample2" (Mat.col fitc_samples 2);
+  write_vec "sample3" (Mat.col fitc_samples 3);
+
+  let fic_covariances = FIC.Covariances.calc_model_inputs model in
+  let fic_sampler =
+    FIC.Cov_sampler.calc ~predictive:false means fic_covariances
+  in
+  let fic_samples = FIC.Cov_sampler.samples fic_sampler ~n:3 in
+  write_vec "fic_sample1" (Mat.col fic_samples 1);
+  write_vec "fic_sample2" (Mat.col fic_samples 2);
+  write_vec "fic_sample3" (Mat.col fic_samples 3)
 
 let () = main ()
