@@ -8,24 +8,37 @@ open Utils
 
 open Fitc
 
-let n_inputs = 500
+let n_inputs = 1000
 let n_inducing_inputs = 10
-let k = -0.5, -0.5
-let noise_sigma = 2.
+let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
-module FITC_spec = struct
-  module Eval_spec = Kernel.Gauss_all_vec
+module Gauss = struct
+  include Fitc.Make (struct
+    module Eval_spec = Kernel.Gauss_all_vec
+    let get_sigma2 _ = noise_sigma2
+    let jitter = 10e-9
+  end)
 
-  let get_sigma2 _ = noise_sigma2
-  let jitter = 10e-9
+  let k = -0.5, -1.0
 end
 
-module All = Fitc.Make (FITC_spec)
+module Wiener = struct
+  include Fitc.Make (struct
+    module Eval_spec = Kernel.Wiener_all_vec
+    let get_sigma2 _ = noise_sigma2
+    let jitter = 10e-9
+  end)
+
+  let k = 0.
+end
+
+module All = Gauss
+
 open All
 
 let f ?(with_noise = false) x =
-  let v = 2. *. sin x /. x +. (x -. 3.) /. (x *. x +. 1.) in
+  let v = sin (3. *. x) /. x +. (x -. 3.) /. (x *. x +. 1.) in
   if with_noise then v +. Gsl_randist.gaussian default_rng ~sigma:noise_sigma
   else v
 

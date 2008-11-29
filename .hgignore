@@ -1,3 +1,5 @@
 (^|/)\.bzr($|/)
 (^|/)\.hg($|/)
 (^|/)\.hgtags($|/)
+.omakedb
+.omakedb.lock

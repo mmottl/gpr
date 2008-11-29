@@ -191,3 +191,20 @@ module Gauss_all_vec_spec = struct
 end
 
 module Gauss_all_vec = Make_from_all_vec (Gauss_all_vec_spec)
+
+module Wiener_all_vec_spec = struct
+  type kernel = float
+
+  let eval_one k vec = exp k *. sqrt (Vec.ssqr vec)
+
+  let eval k vec1 vec2 = exp k *. sqrt (min (Vec.ssqr vec1) (Vec.ssqr vec2))
+
+  let eval_mat_col k mat col = eval_one k (Mat.col mat col)
+
+  let eval_vec_col k vec mat col = eval k vec (Mat.col mat col)
+
+  let eval_mat_cols k mat1 col1 mat2 col2 =
+    eval k (Mat.col mat1 col1) (Mat.col mat2 col2)
+end
+
+module Wiener_all_vec = Make_from_all_vec (Wiener_all_vec_spec)
