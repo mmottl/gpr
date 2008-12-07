@@ -8,4 +8,6 @@ section
 OCamlPackage(gpr, $(LIB_MLNAMES))
 OCamlLibrary(gpr, gpr)
 
+OCamlProgram(spgp_impl, utils spgp_impl)
+
 InstClean()
