@@ -154,7 +154,7 @@ module Make_common (FITC_spec : Spec) = struct
         lam_diag = lam_diag;
         inv_lam_sigma2_diag = inv_lam_sigma2_diag;
         b_chol = b_chol;
-        neg_log_marginal_likelihood = (l1_2 +. float n_inputs *. log_2pi) /. 2.;
+        neg_log_marginal_likelihood = 0.5 *. (l1_2 +. float n_inputs *. log_2pi);
       }
 
     let neg_log_marginal_likelihood model = model.neg_log_marginal_likelihood
@@ -179,15 +179,11 @@ module Make_common (FITC_spec : Spec) = struct
           neg_log_marginal_likelihood = neg_log_marginal_likelihood;
         } as model = calc inputs
       in
-      let n = Vec.dim lam_diag in
-      let trace_term = ref 0. in
-      for i = 1 to n do
-        trace_term := !trace_term +. lam_diag.{i} *. inv_lam_sigma2_diag.{i}
-      done;
       {
         model with
         neg_log_marginal_likelihood =
-          neg_log_marginal_likelihood +. 0.5 *. !trace_term;
+          neg_log_marginal_likelihood +.
+            0.5 *. dot inv_lam_sigma2_diag lam_diag;
       }
   end
 
@@ -211,7 +207,7 @@ module Make_common (FITC_spec : Spec) = struct
       let b_chol = model.Common_model.b_chol in
       trsv ~trans:`T b_chol inv_b_chol_kmn_y__;
       let fit_neg_log_marginal_likelihood =
-        (ssqr_y__ -. Vec.ssqr inv_b_chol_kmn_y__) /. 2.
+        0.5 *. (ssqr_y__ -. Vec.ssqr inv_b_chol_kmn_y__)
       in
       {
         model = model;

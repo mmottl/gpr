@@ -20,7 +20,7 @@ let sigma2_deriv ~inv_lam_sigma2_diag ~kmn ~b_chol ~inv_b_chol_kmn_y__ ~y__ =
   trsv b_chol inv_b_kmn_y__;
   let knm_inv_b_kmn_y__ = gemv ~trans:`T kmn inv_b_kmn_y__ in
   let rec loop res i =
-    if i = 0 then res /. 2.
+    if i = 0 then 0.5 *. res
     else
       let new_res =
         (* TODO: optimize ssqr and col *)
