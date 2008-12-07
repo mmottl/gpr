@@ -8,7 +8,7 @@ sigma = sqrt(sigma2);
 [dim, M] = size(inducing_inputs);
 
 function res = eval_rbf2(r2)
-  res = exp(-0.5 * r2);
+  res = exp(-0.5 - 1.0 * r2);
 end
 
 function res = k(x, y)
@@ -38,7 +38,11 @@ b = km + kmn * inv_lam_sigma2 * kmn';
 b_chol = chol(b);
 kmn_y_ = kmn_ * y_;
 
-l1_2 = log(det(b)) - log(det(km)) + log(det(lam_sigma2))
+log_det_b = log(det(b));
+log_det_km = log(det(km));
+log_det_lam_sigma2 = log(det(lam_sigma2));
+
+l1_2 = log_det_b - log_det_km + log_det_lam_sigma2
 l2_2 = y' * inv(qn + lam_sigma2) * y
 
 neg_log_likelihood = (l1_2 + l2_2 + N * log(2*pi)) / 2
@@ -50,6 +54,8 @@ b_chol
 neg_log_likelihood
 
 % Ed's stuff
-hyp = [0; 0; log(sigma2)];
+hyp = [-log(0.5); -1 / 2; log(sigma2)];
 w = [reshape(inducing_inputs', M*dim, 1); hyp];
-his_neg_log_likelihood = spgp_lik(w, y, inputs', M)
+[eds_neg_log_likelihood, dfw] = spgp_lik(w, y, inputs', M);
+eds_neg_log_likelihood
+eds_dsigma2 = dfw(end) / sigma2
