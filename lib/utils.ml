@@ -4,7 +4,7 @@ open Lacaml.Impl.D
 open Lacaml.Io
 
 (* NOTE: for testing *)
-let print_float name n = printf "%s: @[%f@]@.@." name n
+let print_float name n = printf "%s: @[%.9f@]@.@." name n
 let print_vec name vec = printf "%s: @[%a@]@.@." name pp_fvec vec
 let print_mat name vec = printf "%s: @[%a@]@.@." name pp_fmat vec
 
