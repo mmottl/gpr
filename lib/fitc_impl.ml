@@ -4,6 +4,7 @@ open Interfaces
 open Utils
 
 (* TODO: dimension sanity checks *)
+(* TODO: consistency checks; also finite differences *)
 
 module type Spec = sig
   module Eval_spec : Inducing_input_gpr.Specs.Eval
@@ -204,7 +205,8 @@ module Make_common (FITC_spec : Spec) = struct
       for i = 1 to n_targets do
         y__.{i} <- targets.{i} *. inv_lam_sigma2_diag.{i}
       done;
-      let inv_b_chol_kmn_y__ = gemv (Common_model.get_kmn model) y__ in
+      let kmn = Common_model.get_kmn model in
+      let inv_b_chol_kmn_y__ = gemv kmn y__ in
       let ssqr_y__ = dot ~x:targets y__ in
       let b_chol = model.Common_model.b_chol in
       trsv ~trans:`T b_chol inv_b_chol_kmn_y__;
