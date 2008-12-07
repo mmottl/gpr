@@ -73,9 +73,9 @@ let main () =
   let model = FITC.Model.calc reduceds in
 
   let trained = FITC.Trained.calc model ~targets:training_targets in
-
-  printf "negative log marginal likelihood: %.3f@."
+  printf "negative log marginal likelihood: %.9f@."
     (FITC.Trained.neg_log_marginal_likelihood trained);
+
   let weights = FITC.Weights.calc trained in
 
   let means = FITC.Means.calc_model_inputs weights in
