@@ -183,7 +183,7 @@ module Make_common (FITC_spec : Spec) = struct
         model with
         neg_log_marginal_likelihood =
           neg_log_marginal_likelihood +.
-            0.5 *. dot inv_lam_sigma2_diag lam_diag;
+            0.5 *. dot ~x:inv_lam_sigma2_diag lam_diag;
       }
   end
 
