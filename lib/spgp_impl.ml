@@ -4,14 +4,16 @@ open Interfaces
 open Utils
 open Fitc_impl
 
+(*
 module type Spec = sig
-  include Fitc_impl.Spec
+  include Inducing_input_gpr.Specs.Eval
 
-  val update_sigma2 : Eval_spec.kernel -> float -> Eval_spec.kernel
+  val update_sigma2 : Kernel.t -> float -> Kernel.t
 end
 
 module type Sig = functor (SPGP_spec : Spec) ->
   Inducing_input_gpr.Sigs.Eval with module Spec = SPGP_spec.Eval_spec
+*)
 
 let sigma2_deriv ~inv_lam_sigma2_diag ~kmn ~b_chol ~inv_b_chol_kmn_y__ ~y__ =
   let inv_b_chol_kmn = Mat.copy kmn in

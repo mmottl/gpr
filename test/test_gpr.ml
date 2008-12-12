@@ -4,33 +4,36 @@ open Lacaml.Impl.D
 open Lacaml.Io
 
 open Gpr
+open Kernel_impl
 open Utils
-
 open Fitc
 
-let n_inputs = 1000
-let n_inducing_inputs = 10
+let n_inputs = 10
+let n_inducing_inputs = 5
 let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
 module Gauss = struct
-  include Fitc.Make (struct
-    module Eval_spec = Kernel.Gauss_all_vec
-    let get_sigma2 _ = noise_sigma2
-    let jitter = 10e-9
-  end)
+  include Fitc.Make (Gauss_all_vec)
 
-  let k = -0.5, -1.0
+  let k =
+    {
+      Gauss_all_vec_spec.Kernel.
+      a = -0.5;
+      b = -1.0;
+      sigma2 = noise_sigma2;
+    }
 end
 
 module Wiener = struct
-  include Fitc.Make (struct
-    module Eval_spec = Kernel.Wiener_all_vec
-    let get_sigma2 _ = noise_sigma2
-    let jitter = 10e-9
-  end)
+  include Fitc.Make (Wiener_all_vec)
 
-  let k = 0.
+  let k =
+    {
+      Wiener_all_vec_spec.Kernel.
+      a = 0.;
+      sigma2 = noise_sigma2;
+    }
 end
 
 module All = Gauss
@@ -73,8 +76,7 @@ let main () =
   let model = FITC.Model.calc reduceds in
 
   let trained = FITC.Trained.calc model ~targets:training_targets in
-  printf "negative log marginal likelihood: %.9f@."
-    (FITC.Trained.neg_log_marginal_likelihood trained);
+  printf "evidence: %.9f@." (FITC.Trained.calc_evidence trained);
 
   let weights = FITC.Weights.calc trained in
 

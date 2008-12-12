@@ -38,3 +38,5 @@ let pi = 4. *. atan 1.
 let log_2pi = log (2. *. pi)
 
 let default_rng = Gsl_rng.make (Gsl_rng.default ())
+
+let cholesky_jitter = ref 10e-9

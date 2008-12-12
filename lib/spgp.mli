@@ -1,15 +1,24 @@
+(*
 open Interfaces
 
-module type Sig = functor (Spec : Inducing_input_gpr.Specs.Eval) ->
-  Inducing_input_gpr.Sigs.Eval with module Spec = Spec
+module type Spec = sig
+  module Eval_spec : Inducing_input_gpr.Specs.Eval
+
+  val get_sigma2 : Eval_spec.kernel -> float
+  val jitter : float
+end
+
+module type Sig = functor (Spec : Spec) ->
+  Inducing_input_gpr.Sigs.Eval with module Spec = Spec.Eval_spec
 
 module Make_FITC : Sig
 module Make_FIC : Sig
 module Make_variational_FITC : Sig
 module Make_variational_FIC : Sig
 
-module Make (Spec : Inducing_input_gpr.Specs.Eval) : sig
-  module type Sig = Inducing_input_gpr.Sigs.Eval with module Spec = Spec
+module Make (Spec : Spec) : sig
+  module type Sig =
+    Inducing_input_gpr.Sigs.Eval with module Spec = Spec.Eval_spec
 
   module FITC : Sig
 
@@ -47,3 +56,4 @@ module Make (Spec : Inducing_input_gpr.Specs.Eval) : sig
       with module Variances = Variational_FITC.Variances
       with module Sampler = Variational_FITC.Sampler
 end
+*)

@@ -2,17 +2,26 @@ open Lacaml.Impl.D
 open Lacaml.Io
 
 module type From_all_vec = sig
-  type kernel
+  module Kernel : sig
+    type t
 
-  val eval_one : kernel -> vec -> float
-  val eval : kernel -> vec -> vec -> float
-  val eval_vec_col : kernel -> vec -> mat -> int -> float
-  val eval_mat_cols : kernel -> mat -> int -> mat -> int -> float
-  val eval_mat_col : kernel -> mat -> int -> float
+    val get_sigma2 : t -> float
+  end
+
+  val eval_one : Kernel.t -> vec -> float
+  val eval : Kernel.t -> vec -> vec -> float
+  val eval_vec_col : Kernel.t -> vec -> mat -> int -> float
+  val eval_mat_cols : Kernel.t -> mat -> int -> mat -> int -> float
+  val eval_mat_col : Kernel.t -> mat -> int -> float
 end
 
 module Make_from_all_vec (Spec : From_all_vec) = struct
-  include Spec
+  module Kernel = Spec.Kernel
+
+  let eval_mat_col = Spec.eval_mat_col
+  let eval_mat_cols = Spec.eval_mat_cols
+  let eval_one = Spec.eval_one
+  let eval_vec_col = Spec.eval_vec_col
 
   module Inducing = struct
     type t = mat
@@ -64,7 +73,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
         dst.{i} <- coeffs.{1} *. eval_mat_cols kernel inducing 1 inputs i;
         for j = 2 to n_inducing_inputs do
           dst.{i} <-
-            dst.{i} +.  coeffs.{j} *. eval_mat_cols kernel inputs i inducing j
+            dst.{i} +. coeffs.{j} *. eval_mat_cols kernel inputs i inducing j
         done
       done;
       dst
@@ -161,15 +170,25 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
 end
 
 module Gauss_all_vec_spec = struct
-  type kernel = float * float
+  module Kernel = struct
+    type t = {
+      a : float;
+      b : float;
+      sigma2 : float;
+    }
 
-  let eval_rbf2 (a, b) r = exp (a +. b *. r)
+    let get_sigma2 k = k.sigma2
+  end
+
+  open Kernel
+
+  let eval_rbf2 k r = exp (k.a +. k.b *. r)
 
   let eval_one k vec = eval_rbf2 k (Vec.ssqr vec)
 
   let eval k vec1 vec2 = eval_rbf2 k (Vec.ssqr_diff vec1 vec2)
 
-  let eval_mat_col = fun (a, _b) _mat _col -> exp a
+  let eval_mat_col = fun k _mat _col -> exp k.a
 
   let eval_vec_col k vec mat col =
     let d = Vec.dim vec in
@@ -193,11 +212,20 @@ end
 module Gauss_all_vec = Make_from_all_vec (Gauss_all_vec_spec)
 
 module Wiener_all_vec_spec = struct
-  type kernel = float
+  module Kernel = struct
+    type t = {
+      a : float;
+      sigma2 : float;
+    }
 
-  let eval_one k vec = exp k *. sqrt (Vec.ssqr vec)
+    let get_sigma2 k = k.sigma2
+  end
 
-  let eval k vec1 vec2 = exp k *. sqrt (min (Vec.ssqr vec1) (Vec.ssqr vec2))
+  open Kernel
+
+  let eval_one k vec = exp k.a *. sqrt (Vec.ssqr vec)
+
+  let eval k vec1 vec2 = exp k.a *. sqrt (min (Vec.ssqr vec1) (Vec.ssqr vec2))
 
   let eval_mat_col k mat col = eval_one k (Mat.col mat col)
 

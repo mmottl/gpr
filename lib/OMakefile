@@ -1,4 +1,12 @@
-LIB_MLNAMES = interfaces utils kernel fitc_impl fitc spgp_impl experimental
+LIB_MLNAMES[] =
+  interfaces
+  utils
+  kernel_impl
+  fitc_impl
+  fitc
+  spgp_impl
+  spgp
+  experimental
 
 section
   OCAMLCFLAGS += -for-pack Gpr

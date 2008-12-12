@@ -5,53 +5,57 @@ open Lacaml.Impl.D
 module Inducing_input_gpr = struct
   module Specs = struct
     module type Eval = sig
-      type kernel
+      module Kernel : sig
+        type t
+
+        val get_sigma2 : t -> float
+      end
 
       module Inducing : sig
         type t
 
-        val size : t -> int
-        val upper : kernel -> t -> mat
+        val upper : Kernel.t -> t -> mat
       end
 
       module Input : sig
         type t
 
-        val eval_one : kernel -> t -> float
+        val eval_one : Kernel.t -> t -> float
 
-        val eval : kernel -> inducing : Inducing.t -> input : t -> vec
+        val eval : Kernel.t -> inducing : Inducing.t -> input : t -> vec
 
         val weighted_eval :
-          kernel -> coeffs : vec -> inducing : Inducing.t -> input : t -> float
+          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> input : t -> float
       end
 
       module Inputs : sig
         type t
 
-        val size : t -> int
-
         val weighted_eval :
-          kernel -> coeffs : vec -> inducing : Inducing.t -> inputs : t -> vec
+          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> inputs : t -> vec
 
-        val upper : kernel -> t -> mat
-        val upper_no_diag : kernel -> t -> mat
-        val diag : kernel -> t -> vec
-        val cross : kernel -> inducing : Inducing.t -> inputs : t -> mat
+        val upper : Kernel.t -> t -> mat
+        val upper_no_diag : Kernel.t -> t -> mat
+        val diag : Kernel.t -> t -> vec
+        val cross : Kernel.t -> inducing : Inducing.t -> inputs : t -> mat
       end
     end
 
     module type Deriv = sig
       module Kernel : sig
         type t
+      end
 
-        val get_n_hypers : t -> int
+      module Hyper : sig
+        type t
       end
 
       module Inducing : sig
         type t
-        type upper
+        type shared
 
-        val shared_upper : Kernel.t -> t -> upper
+        val calc_shared : Kernel.t -> t -> mat * shared
+        val calc_deriv : shared -> Hyper.t -> mat -> int array -> int
       end
 
       module Inputs : sig
@@ -60,22 +64,16 @@ module Inducing_input_gpr = struct
         type diag
         type cross
 
-        val get_n_hypers : t -> int array
+        val calc_shared_upper : Kernel.t -> t -> mat * upper
 
-        val shared_upper : Kernel.t -> t -> upper
+        val calc_shared_diag : Kernel.t -> t -> vec * diag
 
-        val shared_cross :
-          Kernel.t -> inducing : Inducing.t -> inputs : t -> cross
+        val calc_shared_cross :
+          Kernel.t -> inducing : Inducing.t -> inputs : t -> mat * cross
 
-        val shared_diag : Kernel.t -> t -> diag
-
-        val eval_upper : upper -> mat
-        val eval_cross : upper -> mat
-        val eval_diag : upper -> vec
-
-        val deriv_upper : upper -> int -> mat
-        val deriv_cross : cross -> int -> mat
-        val deriv_diag : diag -> int -> vec
+        val calc_deriv_upper : upper -> Hyper.t -> mat option
+        val calc_deriv_diag : diag -> Hyper.t -> vec option
+        val calc_deriv_cross : cross -> Hyper.t -> mat * int array * int
       end
     end
   end
@@ -83,12 +81,13 @@ module Inducing_input_gpr = struct
   module Sigs = struct
     module type Eval = sig
       module Spec : Specs.Eval
+
       open Spec
 
       module Inducing : sig
         type t
 
-        val calc : kernel -> Spec.Inducing.t -> t
+        val calc : Kernel.t -> Spec.Inducing.t -> t
       end
 
       module Input : sig
@@ -107,14 +106,14 @@ module Inducing_input_gpr = struct
         type t
 
         val calc : Inputs.t -> t
-        val neg_log_marginal_likelihood : t -> float
+        val calc_evidence : t -> float
       end
 
       module Trained : sig
         type t
 
         val calc : Model.t -> targets : vec -> t
-        val neg_log_marginal_likelihood : t -> float
+        val calc_evidence : t -> float
       end
 
       module Weights : sig
@@ -122,7 +121,7 @@ module Inducing_input_gpr = struct
 
         val calc : Trained.t -> t
 
-        val get_kernel : t -> kernel
+        val get_kernel : t -> Kernel.t
         val get_inducing_points : t -> Spec.Inducing.t
         val get_coeffs : t -> vec
       end
@@ -210,48 +209,50 @@ module Inducing_input_gpr = struct
         val samples : ?rng : Gsl_rng.t -> t -> n : int -> mat
       end
     end
-  end
 
-(*
     module type Deriv = sig
       module Eval : Eval
 
       module Deriv : sig
-        module Kernel :
-          Deriv_kernel
-            with type t = Eval.Kernel.t
-            with type inputs = Eval.Kernel.inputs
+        module Spec :
+          Specs.Deriv
+            with type Kernel.t = Eval.Spec.Kernel.t
+            with type Inputs.t = Eval.Spec.Inputs.t
+
+        open Spec
 
         module Inducing : sig
           type t
 
-          val calc : Kernel.t -> Kernel.inputs -> t
-          val to_eval : t -> Eval.Inducing.t
+          val calc : Kernel.t -> Inputs.t -> t
+          val calc_eval : t -> Eval.Inducing.t
         end
 
-        module Induceds : sig
+        module Inputs : sig
           type t
 
-          val calc : Inducing.t -> Kernel.inputs -> t
-          val to_eval : t -> Eval.Induceds.t
+          val calc : Inducing.t -> Inputs.t -> t
+          val calc_eval : t -> Eval.Inputs.t
         end
 
         module Model : sig
           type t
 
-          val calc : Induceds.t -> t
-          val neg_log_marginal_likelihood : t -> vec
-          val to_eval : t -> Eval.Model.t
+          val calc : Inputs.t -> t
+          val calc_eval : t -> Eval.Model.t
+          val calc_evidence : t -> Hyper.t -> float
+          val calc_evidence_sigma2 : t -> float
         end
 
         module Trained : sig
           type t
 
           val calc : Model.t -> targets : vec -> t
-          val neg_log_marginal_likelihood : t -> vec
-          val to_eval : t -> Eval.Trained.t
+          val calc_eval : t -> Eval.Trained.t
+          val calc_evidence : t -> Hyper.t -> float
+          val calc_evidence_sigma2 : t -> float
         end
       end
     end
-*)
+  end
 end

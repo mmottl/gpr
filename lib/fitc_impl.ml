@@ -1,39 +1,32 @@
 open Lacaml.Impl.D
 
-open Interfaces
 open Utils
+open Interfaces
+open Inducing_input_gpr
 
 (* TODO: dimension sanity checks *)
 (* TODO: consistency checks; also finite differences *)
 
-module type Spec = sig
-  module Eval_spec : Inducing_input_gpr.Specs.Eval
+module type Sig = functor (Spec : Specs.Eval) ->
+  Sigs.Eval with module Spec = Spec
 
-  val get_sigma2 : Eval_spec.kernel -> float
-  val jitter : float
-end
-
-module type Sig = functor (FITC_spec : Spec) ->
-  Inducing_input_gpr.Sigs.Eval with module Spec = FITC_spec.Eval_spec
-
-module Make_common (FITC_spec : Spec) = struct
-  open FITC_spec
-
-  module Spec = FITC_spec.Eval_spec
+module Make_common (Spec : Specs.Eval) = struct
+  module Spec = Spec
 
   open Spec
 
+  let jitter = !cholesky_jitter
+
   module Inducing = struct
     type t = {
-      kernel : kernel;
-      points : Eval_spec.Inducing.t;
+      kernel : Kernel.t;
+      points : Spec.Inducing.t;
       km : mat;
       km_chol : mat;
       log_det_km : float;
     }
 
-    let calc kernel points =
-      let km = Eval_spec.Inducing.upper kernel points in
+    let calc_internal kernel points km =
       (* TODO: copy upper triangle only *)
       let km_chol = Mat.copy km in
       potrf ~jitter km_chol;
@@ -45,12 +38,18 @@ module Make_common (FITC_spec : Spec) = struct
         km_chol = km_chol;
         log_det_km = log_det_km;
       }
+
+    let calc kernel points =
+      let km = Spec.Inducing.upper kernel points in
+      calc_internal kernel points km
+
+    let get_kernel inducing = inducing.kernel
   end
 
   module Input = struct
     type t = {
       inducing : Inducing.t;
-      point : Eval_spec.Input.t;
+      point : Spec.Input.t;
       k_m : vec;
     }
 
@@ -60,7 +59,7 @@ module Make_common (FITC_spec : Spec) = struct
         inducing = inducing;
         point = point;
         k_m =
-          Eval_spec.Input.eval
+          Spec.Input.eval
             kernel ~inducing:inducing.Inducing.points ~input:point;
       }
 
@@ -80,29 +79,31 @@ module Make_common (FITC_spec : Spec) = struct
       kmn : mat;
     }
 
-    let calc inducing points =
-      let kernel = inducing.Inducing.kernel in
-      let kmn =
-        Inputs.cross kernel ~inducing:inducing.Inducing.points ~inputs:points
-      in
+    let calc_internal inducing points kmn =
       {
         inducing = inducing;
         points = points;
         kmn = kmn;
       }
 
+    let calc inducing points =
+      let kernel = inducing.Inducing.kernel in
+      let kmn =
+        Inputs.cross kernel ~inducing:inducing.Inducing.points ~inputs:points
+      in
+      calc_internal inducing points kmn
+
     let get_kernel t = t.inducing.Inducing.kernel
     let get_inducing_points t = t.inducing.Inducing.points
 
-    (* Compute square root of Nystrom approximation, and diagonal of
-       marginal variances *)
+    (* Compute square root of Nystrom approximation, cross gramian,
+       and the diagonal of marginal variances *)
     let nystrom_2_marginals inputs =
       let inducing = inputs.inducing in
       let kernel = get_kernel inputs in
       let kn_diag = Inputs.diag kernel inputs.points in
-      let kmn = inputs.kmn in
-      let km_2_kmn = calc_basis_2_k inducing.Inducing.km_chol ~k:kmn in
-      km_2_kmn, kmn, kn_diag
+      let km_2_kmn = calc_basis_2_k inducing.Inducing.km_chol ~k:inputs.kmn in
+      km_2_kmn, kn_diag
   end
 
   module Common_model = struct
@@ -113,14 +114,14 @@ module Make_common (FITC_spec : Spec) = struct
       lam_diag : vec;
       inv_lam_sigma2_diag : vec;
       b_chol : mat;
-      neg_log_marginal_likelihood : float;
+      evidence : float;
     }
 
-    let calc inputs =
+    let calc_internal inputs km_2_kmn kn_diag =
       let inducing = inputs.Inputs.inducing in
       let kernel = Inputs.get_kernel inputs in
-      let sigma2 = get_sigma2 kernel in
-      let km_2_kmn, kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
+      let sigma2 = Kernel.get_sigma2 kernel in
+      let kmn = inputs.Inputs.kmn in
       let kmn_= Mat.copy kmn in
       let n_inputs = Vec.dim kn_diag in
       let lam_diag = Vec.create n_inputs in
@@ -146,7 +147,7 @@ module Make_common (FITC_spec : Spec) = struct
       potrf ~jitter b_chol;
       let log_det_km = inducing.Inducing.log_det_km in
       let log_det_b = log_det b_chol in
-      let l1_2 = log_det_b -. log_det_km +. log_det_lam_sigma2 in
+      let l1_2 = log_det_km -. log_det_b -. log_det_lam_sigma2 in
       {
         inputs = inputs;
         kn_diag = kn_diag;
@@ -154,15 +155,19 @@ module Make_common (FITC_spec : Spec) = struct
         lam_diag = lam_diag;
         inv_lam_sigma2_diag = inv_lam_sigma2_diag;
         b_chol = b_chol;
-        neg_log_marginal_likelihood = 0.5 *. (l1_2 +. float n_inputs *. log_2pi);
+        evidence = 0.5 *. (l1_2 -. float n_inputs *. log_2pi);
       }
 
-    let neg_log_marginal_likelihood model = model.neg_log_marginal_likelihood
+    let calc inputs =
+      let km_2_kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
+      calc_internal inputs km_2_kmn kn_diag
+
+    let calc_evidence model = model.evidence
     let get_inducing model = model.inputs.Inputs.inducing
     let get_inducing_points model = (get_inducing model).Inducing.points
     let get_input_points model = model.inputs.Inputs.points
     let get_kernel model = (get_inducing model).Inducing.kernel
-    let get_sigma2 model = get_sigma2 (get_kernel model)
+    let get_sigma2 model = Kernel.get_sigma2 (get_kernel model)
     let get_kmn model = model.inputs.Inputs.kmn
     let get_lam_diag model = model.lam_diag
     let get_km model = (get_inducing model).Inducing.km
@@ -175,23 +180,18 @@ module Make_common (FITC_spec : Spec) = struct
       let
         {
           lam_diag = lam_diag;
-          inv_lam_sigma2_diag = inv_lam_sigma2_diag;
-          neg_log_marginal_likelihood = neg_log_marginal_likelihood;
+          inv_lam_sigma2_diag = x;
+          evidence = evidence;
         } as model = calc inputs
       in
-      {
-        model with
-        neg_log_marginal_likelihood =
-          neg_log_marginal_likelihood +.
-            0.5 *. dot ~x:inv_lam_sigma2_diag lam_diag;
-      }
+      { model with evidence = evidence +. 0.5 *. dot ~x lam_diag }
   end
 
   module Trained = struct
     type t = {
       model : Common_model.t;
       inv_b_chol_kmn_y__ : vec;
-      neg_log_marginal_likelihood : float;
+      evidence : float;
     }
 
     let calc model ~targets =
@@ -206,19 +206,14 @@ module Make_common (FITC_spec : Spec) = struct
       let ssqr_y__ = dot ~x:targets y__ in
       let b_chol = model.Common_model.b_chol in
       trsv ~trans:`T b_chol inv_b_chol_kmn_y__;
-      let fit_neg_log_marginal_likelihood =
-        0.5 *. (ssqr_y__ -. Vec.ssqr inv_b_chol_kmn_y__)
-      in
+      let fit_evidence = 0.5 *. (Vec.ssqr inv_b_chol_kmn_y__ -. ssqr_y__) in
       {
         model = model;
         inv_b_chol_kmn_y__ = inv_b_chol_kmn_y__;
-        neg_log_marginal_likelihood =
-          model.Common_model.neg_log_marginal_likelihood +.
-          fit_neg_log_marginal_likelihood;
+        evidence = model.Common_model.evidence +. fit_evidence;
       }
 
-    let neg_log_marginal_likelihood trained =
-      trained.neg_log_marginal_likelihood
+    let calc_evidence trained = trained.evidence
   end
 
   module Weights = struct
@@ -242,7 +237,7 @@ module Make_common (FITC_spec : Spec) = struct
   end
 
   module Mean = struct
-    type t = { point : Eval_spec.Input.t; value : float }
+    type t = { point : Spec.Input.t; value : float }
 
     let make ~point ~value = { point = point; value = value }
 
@@ -251,7 +246,7 @@ module Make_common (FITC_spec : Spec) = struct
       let kernel = Weights.get_kernel weights in
       let coeffs = Weights.get_coeffs weights in
       let value =
-        Eval_spec.Input.weighted_eval
+        Spec.Input.weighted_eval
           kernel ~coeffs ~inducing:inducing_points ~input:point
       in
       make ~point ~value
@@ -268,7 +263,7 @@ module Make_common (FITC_spec : Spec) = struct
   end
 
   module Means = struct
-    type t = { points : Eval_spec.Inputs.t; values : vec }
+    type t = { points : Spec.Inputs.t; values : vec }
 
     let make ~points ~values = { points = points; values = values }
 
@@ -282,7 +277,7 @@ module Make_common (FITC_spec : Spec) = struct
       let coeffs = Weights.get_coeffs weights in
       let inducing_points = Weights.get_inducing_points weights in
       let values =
-        Eval_spec.Inputs.weighted_eval
+        Spec.Inputs.weighted_eval
           kernel ~coeffs ~inducing:inducing_points ~inputs:points
       in
       make ~points ~values
@@ -298,7 +293,7 @@ module Make_common (FITC_spec : Spec) = struct
     let get means = means.values
 
     module Inducing = struct
-      type t = { points : Eval_spec.Inducing.t; values : vec }
+      type t = { points : Spec.Inducing.t; values : vec }
 
       let make ~points ~values = { points = points; values = values }
 
@@ -312,12 +307,12 @@ module Make_common (FITC_spec : Spec) = struct
   end
 
   module Variance = struct
-    type t = { point : Eval_spec.Input.t; variance : float; sigma2 : float }
+    type t = { point : Spec.Input.t; variance : float; sigma2 : float }
 
     let calc_induced model induced =
       let { Input.point = point; k_m = k_m } = induced in
       let kernel = Common_model.get_kernel model in
-      let prior_variance = Eval_spec.Input.eval_one kernel point in
+      let prior_variance = Spec.Input.eval_one kernel point in
       let inv_km_chol_k_m = copy k_m in
       let inv_km_chol_k_m_mat = Mat.from_col_vec inv_km_chol_k_m in
       let inducing = induced.Input.inducing in
@@ -344,7 +339,7 @@ module Make_common (FITC_spec : Spec) = struct
   let calc_b_2_k model ~k = calc_basis_2_k model.Common_model.b_chol ~k
 
   module Variances = struct
-    type t = { points : Eval_spec.Inputs.t; variances : vec; sigma2 : float }
+    type t = { points : Spec.Inputs.t; variances : vec; sigma2 : float }
 
     let make ~points ~variances ~model =
       let sigma2 = Common_model.get_sigma2 model in
@@ -365,7 +360,8 @@ module Make_common (FITC_spec : Spec) = struct
         failwith
           "Fitc.Make_common.Variances.calc_induced: \
           model and inputs disagree about inducing points";
-      let km_2_kmt, kmt, kt_diag = Inputs.nystrom_2_marginals inputs in
+      let kmt = inputs.Inputs.kmn in
+      let km_2_kmt, kt_diag = Inputs.nystrom_2_marginals inputs in
       let variances = copy kt_diag in
       let b_2_kmt = calc_b_2_k model ~k:kmt in
       let n = Mat.dim2 b_2_kmt in
@@ -391,7 +387,7 @@ module Make_common (FITC_spec : Spec) = struct
 
     module Inducing = struct
       type t = {
-        points : Eval_spec.Inducing.t;
+        points : Spec.Inducing.t;
         variances : vec;
         sigma2 : float;
       }
@@ -416,7 +412,7 @@ module Make_common (FITC_spec : Spec) = struct
   end
 
   module Common_covariances = struct
-    type t = { points : Eval_spec.Inputs.t; covariances : mat; sigma2 : float }
+    type t = { points : Spec.Inputs.t; covariances : mat; sigma2 : float }
 
     let make ~points ~covariances ~model =
       let sigma2 = Common_model.get_sigma2 model in
@@ -442,7 +438,7 @@ module Make_common (FITC_spec : Spec) = struct
 
     module Inducing = struct
       type t = {
-        points : Eval_spec.Inducing.t;
+        points : Spec.Inducing.t;
         covariances : mat;
         sigma2 : float;
       }
@@ -472,7 +468,7 @@ module Make_common (FITC_spec : Spec) = struct
 
     let calc_common ~kn_diag ~kmn ~km_2_kmn ~points ~model =
       let kernel = Common_model.get_kernel model in
-      let covariances = Eval_spec.Inputs.upper_no_diag kernel points in
+      let covariances = Spec.Inputs.upper_no_diag kernel points in
       for i = 1 to Vec.dim kn_diag do
         covariances.{i, i} <- kn_diag.{i}
       done;
@@ -493,7 +489,8 @@ module Make_common (FITC_spec : Spec) = struct
         failwith (
           "Make_common.FITC_covariances.calc_induced: \
           model and inputs disagree about inducing points");
-      let km_2_kmn, kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
+      let kmn = inputs.Inputs.kmn in
+      let km_2_kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
       let points = inputs.Inputs.points in
       calc_common ~kn_diag ~kmn ~km_2_kmn ~points ~model
   end
@@ -591,12 +588,12 @@ module Make_common (FITC_spec : Spec) = struct
   end
 end
 
-module Make_traditional (Spec : Spec) = struct
+module Make_traditional (Spec : Specs.Eval) = struct
   include Make_common (Spec)
   module Model = Common_model
 end
 
-module Make_variational (Spec : Spec) = struct
+module Make_variational (Spec : Specs.Eval) = struct
   include Make_common (Spec)
   module Model = Variational_model
 end
@@ -610,7 +607,7 @@ let fic_loc = "FIC"
 let variational_fitc_loc = "Variational_FITC"
 let variational_fic_loc = "Variational_FIC"
 
-module Make_FITC (Spec : Spec) = struct
+module Make_FITC (Spec : Specs.Eval) = struct
   include Make_traditional (Spec)
   module Covariances = FITC_covariances
 
@@ -625,7 +622,7 @@ module Make_FITC (Spec : Spec) = struct
   end
 end
 
-module Make_FIC (Spec : Spec) = struct
+module Make_FIC (Spec : Specs.Eval) = struct
   include Make_traditional (Spec)
   module Covariances = FIC_covariances
 
@@ -640,7 +637,7 @@ module Make_FIC (Spec : Spec) = struct
   end
 end
 
-module Make_variational_FITC (Spec : Spec) = struct
+module Make_variational_FITC (Spec : Specs.Eval) = struct
   include Make_variational (Spec)
   module Covariances = FITC_covariances
 
@@ -655,7 +652,7 @@ module Make_variational_FITC (Spec : Spec) = struct
   end
 end
 
-module Make_variational_FIC (Spec : Spec) = struct
+module Make_variational_FIC (Spec : Specs.Eval) = struct
   include Make_variational (Spec)
   module Covariances = FIC_covariances
 
@@ -670,9 +667,8 @@ module Make_variational_FIC (Spec : Spec) = struct
   end
 end
 
-module Make (Spec : Spec) = struct
-  module type Sig =
-    Inducing_input_gpr.Sigs.Eval with module Spec = Spec.Eval_spec
+module Make (Spec : Specs.Eval) = struct
+  module type Sig = Sigs.Eval with module Spec = Spec
 
   module Common = Make_common (Spec)
 
@@ -744,13 +740,133 @@ end
 
 (* Derivable *)
 
-(*
-module type Deriv_spec = sig
-  module Eval : Spec
-  module Deriv_kernel : Deriv_kernel
-  module Inducing_deriv :
-end
+module Make_common_deriv
+  (Eval_spec : Specs.Eval)
+  (Deriv_spec :
+    Specs.Deriv
+      with type Kernel.t = Eval_spec.Kernel.t
+      with type Inducing.t = Eval_spec.Inducing.t
+      with type Inputs.t = Eval_spec.Inputs.t) =
+struct
+  module Eval_common = Make_common (Eval_spec)
 
-module Make_common_deriv (Spec : Deriv_spec) = struct
+  open Eval_common
+
+  module Deriv_common = struct
+    module Spec = Deriv_spec
+
+    open Spec
+
+    module Inducing = struct
+      type t = {
+        eval_inducing : Eval_common.Inducing.t;
+        shared : Spec.Inducing.shared;
+      }
+
+      let calc kernel points =
+        let km, shared = Spec.Inducing.calc_shared kernel points in
+        let eval_inducing =
+          Eval_common.Inducing.calc_internal kernel points km
+        in
+        {
+          eval_inducing = eval_inducing;
+          shared = shared;
+        }
+
+      let calc_eval inducing = inducing.eval_inducing
+    end
+
+    module Inputs = struct
+      type t = {
+        inducing : Eval_common.Inducing.t;
+        eval_inputs : Eval_common.Inputs.t;
+        shared_cross : Spec.Inputs.cross;
+      }
+
+      let calc inducing points =
+        let kernel = inducing.Eval_common.Inducing.kernel in
+        let kmn, shared_cross =
+          Spec.Inputs.calc_shared_cross kernel
+            ~inducing:inducing.Eval_common.Inducing.points ~inputs:points
+        in
+        let eval_inputs =
+          Eval_common.Inputs.calc_internal inducing points kmn
+        in
+        {
+          inducing = inducing;
+          eval_inputs = eval_inputs;
+          shared_cross = shared_cross;
+        }
+
+      let get_kernel inputs = Eval_common.Inducing.get_kernel inputs.inducing
+    end
+
+    module Common_model = struct
+      type t = {
+        inputs : Inputs.t;
+        eval_model : Eval_common.Common_model.t;
+        shared_diag : Spec.Inputs.diag;
+        calc_evidence : Hyper.t -> float;
+        calc_evidence_sigma2 : unit -> float;
+      }
+
+      module Eval_inducing = Eval_common.Inducing
+      module Eval_inputs = Eval_common.Inputs
+
+      let calc inputs =
+        let kernel = Inputs.get_kernel inputs in
+        let eval_inputs = inputs.Inputs.eval_inputs in
+        let kn_diag, shared_diag =
+          Spec.Inputs.calc_shared_diag kernel
+            eval_inputs.Eval_common.Inputs.points
+        in
+        let km_2_kmn =
+          calc_basis_2_k
+            eval_inputs.Eval_inputs.inducing.Eval_inducing.km_chol
+            ~k:eval_inputs.Eval_inputs.kmn
+        in
+        let eval_model =
+          Eval_common.Common_model.calc_internal
+            inputs.Inputs.eval_inputs km_2_kmn kn_diag
+        in
+        let calc_evidence _hyper =
+          (assert false (* XXX *))
+        in
+        let calc_evidence_sigma2 () =
+          (assert false (* XXX *))
+        in
+        {
+          inputs = inputs;
+          eval_model = eval_model;
+          shared_diag = shared_diag;
+          calc_evidence = calc_evidence;
+          calc_evidence_sigma2 = calc_evidence_sigma2;
+        }
+
+      let calc_evidence model hyper = model.calc_evidence hyper
+      let calc_evidence_sigma2 model = model.calc_evidence_sigma2 ()
+    end
+
+    module Variational_model = struct
+      include Common_model
+
+      let calc inputs =
+        let model = calc inputs in
+        let calc_evidence hyper =
+          model.Common_model.calc_evidence hyper
+          +.
+          (assert false (* XXX *))
+        in
+        let calc_evidence_sigma2 () =
+          model.Common_model.calc_evidence_sigma2 ()
+          +.
+          (assert false (* XXX *))
+        in
+        {
+          model with
+          calc_evidence = calc_evidence;
+          calc_evidence_sigma2 = calc_evidence_sigma2;
+        }
+    end
+  end
 end
-*)
