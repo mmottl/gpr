@@ -1,5 +1,6 @@
 (^|/)\.bzr($|/)
 (^|/)\.hg($|/)
 (^|/)\.hgtags($|/)
-.omakedb
-.omakedb.lock
+\.omakedb
+\.omakedb.lock
+.*\.(cm[iox]|o|a)
