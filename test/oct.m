@@ -23,6 +23,10 @@ km = k(inducing_inputs, inducing_inputs);
 kmn = k(inducing_inputs, inputs);
 kn = k(inputs, inputs);
 
+jitter = 10e-9;
+km = km + jitter*eye(M);
+kn = kn + jitter*eye(N);
+
 km_chol = chol(km);
 
 qn = kmn' * inv(km) * kmn;
@@ -42,20 +46,18 @@ log_det_b = log(det(b));
 log_det_km = log(det(km));
 log_det_lam_sigma2 = log(det(lam_sigma2));
 
-l1_2 = log_det_b - log_det_km + log_det_lam_sigma2
-l2_2 = y' * inv(qn + lam_sigma2) * y
+l1_2 = log_det_b - log_det_km + log_det_lam_sigma2;
+l2_2 = y' * inv(qn + lam_sigma2) * y;
 
-neg_log_likelihood = (l1_2 + l2_2 + N * log(2*pi)) / 2
+neg_log_likelihood = (l1_2 + l2_2 + N * log(2*pi)) / 2;
+evidence = - neg_log_likelihood;
 
 % Trained
-km_chol
-kmn_y_
-b_chol
-neg_log_likelihood
+evidence
 
 % Ed's stuff
 hyp = [-log(0.5); -1 / 2; log(sigma2)];
 w = [reshape(inducing_inputs', M*dim, 1); hyp];
 [eds_neg_log_likelihood, dfw] = spgp_lik(w, y, inputs', M);
-eds_neg_log_likelihood
+eds_evidence = -eds_neg_log_likelihood
 eds_dsigma2 = dfw(end) / sigma2
