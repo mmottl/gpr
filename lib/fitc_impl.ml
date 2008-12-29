@@ -1,3 +1,5 @@
+open Printf
+
 open Lacaml.Impl.D
 
 open Utils
@@ -66,12 +68,6 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_kernel t = t.inducing.Inducing.kernel
   end
 
-  let calc_basis_2_k basis_chol ~k =
-    (* TODO: consider symmetric matrices *)
-    let b_2_k = Mat.copy k in
-    trtrs ~trans:`T basis_chol b_2_k;
-    b_2_k
-
   module Inputs = struct
     type t = {
       inducing : Inducing.t;
@@ -94,34 +90,38 @@ module Make_common (Spec : Specs.Eval) = struct
       calc_internal inducing points kmn
 
     let get_kernel t = t.inducing.Inducing.kernel
+    let get_sigma2 t = Kernel.get_sigma2 t.inducing.Inducing.kernel
     let get_inducing_points t = t.inducing.Inducing.points
 
-    (* Compute square root of Nystrom approximation, cross gramian,
-       and the diagonal of marginal variances *)
-    let nystrom_2_marginals inputs =
+    (* TODO: move *)
+    let nystrom_chol_marginals inputs =
       let inducing = inputs.inducing in
       let kernel = get_kernel inputs in
       let kn_diag = Inputs.diag kernel inputs.points in
-      let km_2_kmn = calc_basis_2_k inducing.Inducing.km_chol ~k:inputs.kmn in
-      km_2_kmn, kn_diag
+      let inv_km_chol_kmn =
+        solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:inputs.kmn
+      in
+      inv_km_chol_kmn, kn_diag
   end
 
   module Common_model = struct
     type t = {
       inputs : Inputs.t;
       kn_diag : vec;
-      km_2_kmn : mat;
+      inv_km_chol_kmn : mat;
       lam_diag : vec;
       inv_lam_sigma2_diag : vec;
       b_chol : mat;
       evidence : float;
     }
 
-    let calc_internal inputs km_2_kmn kn_diag =
+    let calc_internal inputs kn_diag =
       let inducing = inputs.Inputs.inducing in
-      let kernel = Inputs.get_kernel inputs in
-      let sigma2 = Kernel.get_sigma2 kernel in
+      let sigma2 = Inputs.get_sigma2 inputs in
       let kmn = inputs.Inputs.kmn in
+      let inv_km_chol_kmn =
+        solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:kmn
+      in
       let kmn_= Mat.copy kmn in
       let n_inputs = Vec.dim kn_diag in
       let lam_diag = Vec.create n_inputs in
@@ -131,7 +131,7 @@ module Make_common (Spec : Specs.Eval) = struct
         else
           let kn_diag_i = kn_diag.{i} in
           (* TODO: optimize ssqr and col *)
-          let qn_diag_i = Vec.ssqr (Mat.col km_2_kmn i) in
+          let qn_diag_i = Vec.ssqr (Mat.col inv_km_chol_kmn i) in
           let lam_i = kn_diag_i -. qn_diag_i in
           lam_diag.{i} <- lam_i;
           let lam_sigma2_i = lam_i +. sigma2 in
@@ -151,7 +151,7 @@ module Make_common (Spec : Specs.Eval) = struct
       {
         inputs = inputs;
         kn_diag = kn_diag;
-        km_2_kmn = km_2_kmn;
+        inv_km_chol_kmn = inv_km_chol_kmn;
         lam_diag = lam_diag;
         inv_lam_sigma2_diag = inv_lam_sigma2_diag;
         b_chol = b_chol;
@@ -159,8 +159,9 @@ module Make_common (Spec : Specs.Eval) = struct
       }
 
     let calc inputs =
-      let km_2_kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
-      calc_internal inputs km_2_kmn kn_diag
+      let kernel = Inputs.get_kernel inputs in
+      let kn_diag = Spec.Inputs.diag kernel inputs.Inputs.points in
+      calc_internal inputs kn_diag
 
     let calc_evidence model = model.evidence
     let get_inducing model = model.inputs.Inputs.inducing
@@ -336,7 +337,8 @@ module Make_common (Spec : Specs.Eval) = struct
       | Some false -> t.variance
   end
 
-  let calc_b_2_k model ~k = calc_basis_2_k model.Common_model.b_chol ~k
+  let solve_b_chol model ~k =
+    solve_triangular ~trans:`T model.Common_model.b_chol ~k
 
   module Variances = struct
     type t = { points : Spec.Inputs.t; variances : vec; sigma2 : float }
@@ -347,11 +349,11 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_model_inputs model =
       let variances = copy (Common_model.get_lam_diag model) in
-      let b_2_kmn = calc_b_2_k model ~k:(Common_model.get_kmn model) in
-      let n = Mat.dim2 b_2_kmn in
+      let inv_b_chol_kmn = solve_b_chol model ~k:(Common_model.get_kmn model) in
+      let n = Mat.dim2 inv_b_chol_kmn in
       for i = 1 to n do
         (* TODO: optimize ssqr and col *)
-        variances.{i} <- variances.{i} +. Vec.ssqr (Mat.col b_2_kmn i)
+        variances.{i} <- variances.{i} +. Vec.ssqr (Mat.col inv_b_chol_kmn i)
       done;
       make ~points:(Common_model.get_input_points model) ~variances ~model
 
@@ -361,14 +363,15 @@ module Make_common (Spec : Specs.Eval) = struct
           "Fitc.Make_common.Variances.calc_induced: \
           model and inputs disagree about inducing points";
       let kmt = inputs.Inputs.kmn in
-      let km_2_kmt, kt_diag = Inputs.nystrom_2_marginals inputs in
+      let inv_km_chol_kmt, kt_diag = Inputs.nystrom_chol_marginals inputs in
       let variances = copy kt_diag in
-      let b_2_kmt = calc_b_2_k model ~k:kmt in
-      let n = Mat.dim2 b_2_kmt in
+      let inv_b_chol_kmt = solve_b_chol model ~k:kmt in
+      let n = Mat.dim2 inv_b_chol_kmt in
       for i = 1 to n do
         let explained_variance =
           (* TODO: optimize ssqr and col *)
-          Vec.ssqr (Mat.col km_2_kmt i) -. Vec.ssqr (Mat.col b_2_kmt i)
+          Vec.ssqr (Mat.col inv_km_chol_kmt i) -.
+            Vec.ssqr (Mat.col inv_b_chol_kmt i)
         in
         variances.{i} <- variances.{i} -. explained_variance
       done;
@@ -397,12 +400,12 @@ module Make_common (Spec : Specs.Eval) = struct
         { points = points; variances = variances; sigma2 = sigma2 }
 
       let calc model =
-        let b_2_km = calc_b_2_k model ~k:(Common_model.get_km model) in
-        let m = Mat.dim2 b_2_km in
+        let inv_b_chol_km = solve_b_chol model ~k:(Common_model.get_km model) in
+        let m = Mat.dim2 inv_b_chol_km in
         let variances = Vec.create m in
         for i = 1 to m do
           (* TODO: optimize ssqr and col *)
-          variances.{i} <- Vec.ssqr (Mat.col b_2_km i)
+          variances.{i} <- Vec.ssqr (Mat.col inv_b_chol_km i)
         done;
         make ~points:(Common_model.get_inducing_points model) ~variances ~model
 
@@ -418,8 +421,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let sigma2 = Common_model.get_sigma2 model in
       { points = points; covariances = covariances; sigma2 = sigma2 }
 
-    let make_b_only ~points ~b_2_k ~model =
-      make ~points ~covariances:(syrk ~trans:`T b_2_k) ~model
+    let make_b_only ~points ~inv_b_chol_k ~model =
+      make ~points ~covariances:(syrk ~trans:`T inv_b_chol_k) ~model
 
     let get_common ?predictive ~covariances ~sigma2 =
       match predictive with
@@ -445,8 +448,8 @@ module Make_common (Spec : Specs.Eval) = struct
 
       let calc model =
         let points = Common_model.get_inducing_points model in
-        let b_2_k = calc_b_2_k model ~k:(Common_model.get_km model) in
-        let covariances = syrk ~trans:`T b_2_k in
+        let inv_b_chol_k = solve_b_chol model ~k:(Common_model.get_km model) in
+        let covariances = syrk ~trans:`T inv_b_chol_k in
         let sigma2 = Common_model.get_sigma2 model in
         { points = points; covariances = covariances; sigma2 = sigma2 }
 
@@ -466,23 +469,23 @@ module Make_common (Spec : Specs.Eval) = struct
   module FITC_covariances = struct
     include Common_covariances
 
-    let calc_common ~kn_diag ~kmn ~km_2_kmn ~points ~model =
+    let calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model =
       let kernel = Common_model.get_kernel model in
       let covariances = Spec.Inputs.upper_no_diag kernel points in
       for i = 1 to Vec.dim kn_diag do
         covariances.{i, i} <- kn_diag.{i}
       done;
-      ignore (syrk ~trans:`T ~alpha:(-1.) km_2_kmn ~beta:1. ~c:covariances);
-      let b_2_kmn = calc_b_2_k model ~k:kmn in
-      ignore (syrk ~trans:`T ~alpha:1. b_2_kmn ~beta:1. ~c:covariances);
+      ignore (syrk ~trans:`T ~alpha:(-1.) inv_km_chol_kmn ~beta:1. ~c:covariances);
+      let inv_b_chol_kmn = solve_b_chol model ~k:kmn in
+      ignore (syrk ~trans:`T ~alpha:1. inv_b_chol_kmn ~beta:1. ~c:covariances);
       make ~points ~covariances ~model
 
     let calc_model_inputs model =
       let kn_diag = model.Common_model.kn_diag in
       let kmn = model.Common_model.inputs.Inputs.kmn in
-      let km_2_kmn = model.Common_model.km_2_kmn in
+      let inv_km_chol_kmn = model.Common_model.inv_km_chol_kmn in
       let points = Common_model.get_input_points model in
-      calc_common ~kn_diag ~kmn ~km_2_kmn ~points ~model
+      calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model
 
     let calc_induced model inputs =
       if Common_model.get_inducing model <> inputs.Inputs.inducing then
@@ -490,9 +493,9 @@ module Make_common (Spec : Specs.Eval) = struct
           "Make_common.FITC_covariances.calc_induced: \
           model and inputs disagree about inducing points");
       let kmn = inputs.Inputs.kmn in
-      let km_2_kmn, kn_diag = Inputs.nystrom_2_marginals inputs in
+      let inv_km_chol_kmn, kn_diag = Inputs.nystrom_chol_marginals inputs in
       let points = inputs.Inputs.points in
-      calc_common ~kn_diag ~kmn ~km_2_kmn ~points ~model
+      calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model
   end
 
   module FIC_covariances = struct
@@ -502,8 +505,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let points = Common_model.get_input_points model in
       let lam_diag = model.Common_model.lam_diag in
       let kmn = model.Common_model.inputs.Inputs.kmn in
-      let b_2_kmn = calc_b_2_k model ~k:kmn in
-      let covariances = syrk ~trans:`T ~alpha:1. b_2_kmn in
+      let inv_b_chol_kmn = solve_b_chol model ~k:kmn in
+      let covariances = syrk ~trans:`T ~alpha:1. inv_b_chol_kmn in
       for i = 1 to Vec.dim lam_diag do
         covariances.{i, i} <- lam_diag.{i} +. covariances.{i, i}
       done;
@@ -516,7 +519,7 @@ module Make_common (Spec : Specs.Eval) = struct
           model and inputs disagree about inducing points");
       let kmt = inputs.Inputs.kmn in
       let points = inputs.Inputs.points in
-      make_b_only ~points ~b_2_k:(calc_b_2_k model ~k:kmt) ~model
+      make_b_only ~points ~inv_b_chol_k:(solve_b_chol model ~k:kmt) ~model
   end
 
   module Common_sampler = struct
@@ -740,14 +743,14 @@ end
 
 (* Derivable *)
 
-module Make_common_deriv
-  (Eval_spec : Specs.Eval)
-  (Deriv_spec :
-    Specs.Deriv
-      with type Kernel.t = Eval_spec.Kernel.t
-      with type Inducing.t = Eval_spec.Inducing.t
-      with type Inputs.t = Eval_spec.Inputs.t) =
-struct
+module type Deriv_sig = functor (Spec : Specs.Eval_deriv) ->
+  Sigs.Deriv
+    with module Eval.Spec = Spec.Eval_spec
+    with module Deriv.Spec = Spec.Deriv_spec
+
+module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
+  open Spec
+
   module Eval_common = Make_common (Eval_spec)
 
   open Eval_common
@@ -774,23 +777,27 @@ struct
         }
 
       let calc_eval inducing = inducing.eval_inducing
+
+      let get_kernel inducing =
+        Eval_common.Inducing.get_kernel inducing.eval_inducing
     end
 
     module Inputs = struct
       type t = {
-        inducing : Eval_common.Inducing.t;
+        inducing : Inducing.t;
         eval_inputs : Eval_common.Inputs.t;
         shared_cross : Spec.Inputs.cross;
       }
 
       let calc inducing points =
-        let kernel = inducing.Eval_common.Inducing.kernel in
+        let eval_inducing = inducing.Inducing.eval_inducing in
+        let kernel = eval_inducing.Eval_common.Inducing.kernel in
         let kmn, shared_cross =
           Spec.Inputs.calc_shared_cross kernel
-            ~inducing:inducing.Eval_common.Inducing.points ~inputs:points
+            ~inducing:eval_inducing.Eval_common.Inducing.points ~inputs:points
         in
         let eval_inputs =
-          Eval_common.Inputs.calc_internal inducing points kmn
+          Eval_common.Inputs.calc_internal eval_inducing points kmn
         in
         {
           inducing = inducing;
@@ -798,20 +805,106 @@ struct
           shared_cross = shared_cross;
         }
 
-      let get_kernel inputs = Eval_common.Inducing.get_kernel inputs.inducing
+      let calc_eval t = t.eval_inputs
+
+      let get_kernel inputs = Inducing.get_kernel inputs.inducing
     end
 
     module Common_model = struct
+      type hyper =
+        [
+        | `Hyper of Hyper.t * vec
+        | `Sigma2
+        ]
+
+      type evidence = {
+        hyper : hyper;
+        evidence : float;
+(*         dkm : mat; *)
+      }
+
       type t = {
         inputs : Inputs.t;
         eval_model : Eval_common.Common_model.t;
         shared_diag : Spec.Inputs.diag;
-        calc_evidence : Hyper.t -> float;
-        calc_evidence_sigma2 : unit -> float;
+        calc_evidence : Hyper.t -> evidence;
+        calc_evidence_sigma2 : unit -> evidence;
       }
 
       module Eval_inducing = Eval_common.Inducing
       module Eval_inputs = Eval_common.Inputs
+      module Eval_model = Eval_common.Common_model
+
+      (* Checks whether a sparse row matrix is sane *)
+      let check_sparse_sane mat = function
+        | None -> ()
+        | Some rows ->
+            let m = Mat.dim1 mat in
+            let n_rows = Array.length rows in
+            if n_rows <> m then
+              failwith (
+                sprintf
+                  "check_sparse_sane: number of rows in sparse matrix (%d) \
+                  disagrees with size of row array (%d)" m n_rows);
+            let rec loop ~i ~next =
+              if i >= 0 then
+                let rows_i = rows.(i) in
+                if rows_i <= 0 then
+                  failwith (
+                    sprintf
+                      "check_sparse_sane: sparse row %d contains \
+                      illegal negative real row index %d" (i + 1) rows_i)
+                else if rows_i >= next then
+                  failwith (
+                    sprintf
+                      "check_sparse_sane: sparse row %d associated with \
+                      real row index %d violates strict ordering (next: %d)"
+                      (i + 1) rows_i next)
+                else loop ~i:(i - 1) ~next:rows_i
+            in
+            loop ~i:(n_rows - 1) ~next:(Mat.dim2 mat + 1)
+
+      (* Detriangularize sparse row matrix to make it symmetric *)
+      let detri_sparse mat rows =
+        let m = Mat.dim1 mat in
+        let n = Mat.dim2 mat in
+        if n < rows.(m - 1) then
+          failwith "detri_sparse: sparse matrix cannot be square"
+        else
+          let rec loop r =
+            if r > 1 then
+              let r_1 = r - 1 in
+              let real_r = rows.(r_1) in
+              for r' = 1 to r_1 do
+                mat.{r', real_r} <- mat.{r, rows.(r' - 1)}
+              done;
+              loop r_1
+          in
+          loop m
+
+      (* Computes the symmetric additive decomposition of symmetric
+         sparse matrices (in place) *)
+      let symm_add_decomp_sparse mat rows =
+        (* TODO: for not so sparse matrices we may want to multiply the
+           non-shared elements by two instead.  Dependent algorithms
+           need to be adapted as required.
+
+           Cutoff:
+
+             if m*m + n > real_m*real_m - m*m then
+               multiply
+             else
+               devide
+        *)
+        let m = Mat.dim1 mat in
+        let n = Mat.dim2 mat in
+        let m_1 = m - 1 in
+        for c = 1 to n do
+          for i = 0 to m_1 do
+            let r = rows.(i) in
+            mat.{r, c} <- 0.5 *. mat.{r, c}
+          done
+        done
 
       let calc inputs =
         let kernel = Inputs.get_kernel inputs in
@@ -820,21 +913,139 @@ struct
           Spec.Inputs.calc_shared_diag kernel
             eval_inputs.Eval_common.Inputs.points
         in
-        let km_2_kmn =
-          calc_basis_2_k
-            eval_inputs.Eval_inputs.inducing.Eval_inducing.km_chol
-            ~k:eval_inputs.Eval_inputs.kmn
-        in
         let eval_model =
-          Eval_common.Common_model.calc_internal
-            inputs.Inputs.eval_inputs km_2_kmn kn_diag
+          Eval_model.calc_internal inputs.Inputs.eval_inputs kn_diag
         in
-        let calc_evidence _hyper =
-          (assert false (* XXX *))
+
+        let km_chol = eval_inputs.Eval_inputs.inducing.Eval_inducing.km_chol in
+        let inv_km_chol_kmn = eval_model.Eval_model.inv_km_chol_kmn in
+        let inv_km_kmn = solve_triangular km_chol ~k:inv_km_chol_kmn in
+        let inv_km = inv_chol km_chol in
+
+        let b_chol = eval_model.Eval_model.b_chol in
+        let kmn = eval_inputs.Eval_inputs.kmn in
+        let inv_b_chol_kmn = solve_triangular ~trans:`T b_chol ~k:kmn in
+        let inv_b_kmn = solve_triangular b_chol ~k:inv_b_chol_kmn in
+        let inv_b_minus_inv_km = inv_chol b_chol in
+        (* TODO: manipulate upper triangle only *)
+        Mat.axpy ~alpha:(-1.) ~x:inv_km inv_b_minus_inv_km;
+        Mat.detri inv_b_minus_inv_km;
+
+        let m = Mat.dim1 inv_km_chol_kmn in
+        let n = Mat.dim2 inv_km_chol_kmn in
+        let inducing = inputs.Inputs.inducing in
+        let inducing_shared = inducing.Inducing.shared in
+        let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
+
+        let update_prod_diag dst fact mat1 mat2 =
+          for i = 1 to n do
+            (* TODO: optimize dot and col *)
+            let diag_i = dot ~x:(Mat.col mat1 i) (Mat.col mat2 i) in
+            dst.{i} <- dst.{i} +. fact *. diag_i
+          done
         in
+
+        let calc_prod_trace mat1 mat2 =
+          let rec loop trace i =
+            if i = 0 then trace
+            else
+              (* TODO: optimize dot and col *)
+              let diag_i = dot ~x:(Mat.col mat1 i) (Mat.col mat2 i) in
+              loop (trace +. diag_i) (i - 1)
+          in
+          loop 0. (Mat.dim2 mat1)
+        in
+
+        let calc_evidence hyper =
+          let dkm, dkm_rows = Spec.Inducing.calc_deriv inducing_shared hyper in
+          check_sparse_sane dkm dkm_rows;
+          let dkmn, dkmn_rows =
+            Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
+          in
+          check_sparse_sane dkmn dkmn_rows;
+          let dlam_diag__ =
+            match Spec.Inputs.calc_deriv_diag shared_diag hyper with
+            | Some deriv_diag -> deriv_diag
+            | None -> Vec.make0 n
+          in
+          let dkm_trace =
+            match dkm_rows with
+            | Some dkm_rows when Array.length dkm_rows <> m ->
+                (* Only some inducing inputs depend on variable *)
+                let _dkm_inv_km_kmn =
+                  detri_sparse dkm dkm_rows;
+                  symm_add_decomp_sparse dkm dkm_rows;
+                  gemm dkm inv_km_kmn
+                in
+                (assert false (* XXX *))
+            | _ ->
+                (* All inducing inputs depend on variable *)
+                let dkm_inv_km_kmn =
+                  Mat.detri dkm;
+                  symm dkm inv_km_kmn
+                in
+                update_prod_diag dlam_diag__ 1. inv_km_kmn dkm_inv_km_kmn;
+                calc_prod_trace inv_b_minus_inv_km dkm
+          in
+          begin
+            match dkmn_rows with
+            | Some dkmn_rows when Array.length dkmn_rows <> m ->
+                (assert false (* XXX *))
+            | _ -> update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
+          end;
+          let dlam__trace =
+            let rec loop trace i =
+              if i = 0 then trace
+              else
+                let new_dlam_diag__ =
+                  dlam_diag__.{i} *. inv_lam_sigma2_diag.{i}
+                in
+                dlam_diag__.{i} <- new_dlam_diag__;
+                let new_trace = trace +. new_dlam_diag__ in
+                loop new_trace (i - 1)
+            in
+            loop 0. n
+          in
+          let kmn_trace =
+            match dkmn_rows with
+            | Some dkmn_rows when Array.length dkmn_rows <> m ->
+                (assert false (* XXX *))
+            | _ ->
+                let combined = Mat.create m n in
+                for c = 1 to n do
+                  let dlam__c = dlam_diag__.{c} in
+                  for r = 1 to m do
+                    combined.{r, c} <- 2. *. dkmn.{r, c} -. kmn.{r, c} *. dlam__c
+                  done;
+                done;
+                calc_prod_trace inv_b_kmn combined
+          in
+          let trace_sum = kmn_trace +. dkm_trace +. dlam__trace in
+          {
+            hyper = `Hyper (hyper, dlam_diag__);
+            evidence = 0.5 *. trace_sum;
+          }
+        in
+
         let calc_evidence_sigma2 () =
-          (assert false (* XXX *))
+          let rec loop trace i =
+            if i = 0 then
+              {
+                hyper = `Sigma2;
+                evidence = 0.5 *. trace;
+              }
+            else
+              let el =
+                let inv_lam_sigma2_diag_i = inv_lam_sigma2_diag.{i} in
+                (* TODO: optimize ssqr and col *)
+                inv_lam_sigma2_diag_i *.
+                  (1. -. Vec.ssqr (Mat.col inv_b_chol_kmn i))
+              in
+              loop (trace +. el) (i - 1)
+          in
+          loop 0. n
         in
+
         {
           inputs = inputs;
           eval_model = eval_model;
@@ -843,30 +1054,117 @@ struct
           calc_evidence_sigma2 = calc_evidence_sigma2;
         }
 
+      let calc_eval t = t.eval_model
       let calc_evidence model hyper = model.calc_evidence hyper
       let calc_evidence_sigma2 model = model.calc_evidence_sigma2 ()
+      let evidence e = e.evidence
     end
 
     module Variational_model = struct
       include Common_model
 
       let calc inputs =
-        let model = calc inputs in
+        let common_model = calc inputs in
+        let
+          {
+            Eval_model.
+            inv_lam_sigma2_diag = inv_lam_sigma2_diag;
+            lam_diag = lam_diag;
+          } = common_model.Common_model.eval_model
+        in
+        let n = Vec.dim lam_diag in
+        let update_trace_term traditional_evidence trace_term =
+          {
+            traditional_evidence with
+            Common_model.evidence =
+              traditional_evidence.Common_model.evidence -.
+                0.5 *. trace_term;
+          }
+        in
         let calc_evidence hyper =
-          model.Common_model.calc_evidence hyper
-          +.
-          (assert false (* XXX *))
+          let traditional_evidence =
+            common_model.Common_model.calc_evidence hyper
+          in
+          match traditional_evidence.Common_model.hyper with
+          | `Sigma2 -> assert false  (* impossible *)
+          | `Hyper (_, dlam_diag__) ->
+              let rec loop trace i =
+                if i = 0 then update_trace_term traditional_evidence trace
+                else
+                  let el =
+                    (1. -. lam_diag.{i} *. inv_lam_sigma2_diag.{i})
+                      *. dlam_diag__.{i}
+                  in
+                  loop (trace +. el) (i - 1)
+              in
+              loop 0. n
         in
         let calc_evidence_sigma2 () =
-          model.Common_model.calc_evidence_sigma2 ()
-          +.
-          (assert false (* XXX *))
+          let traditional_evidence =
+            common_model.Common_model.calc_evidence_sigma2 ()
+          in
+          let rec loop trace i =
+            if i = 0 then update_trace_term traditional_evidence trace
+            else
+              let el =
+                let inv_lam_sigma2_diag_i = inv_lam_sigma2_diag.{i} in
+                (* NOTE: keep parenthesis for numeric stability *)
+                inv_lam_sigma2_diag_i *.
+                  (inv_lam_sigma2_diag_i *. lam_diag.{i})
+              in
+              loop (trace +. el) (i - 1)
+          in
+          loop 0. n
         in
         {
-          model with
+          common_model with
           calc_evidence = calc_evidence;
           calc_evidence_sigma2 = calc_evidence_sigma2;
         }
     end
+
+    module Trained = struct
+    end
+  end
+end
+
+module Make_traditional_deriv (Spec : Specs.Eval_deriv) = struct
+  include Make_common_deriv (Spec)
+
+  module Eval = struct
+    include Eval_common
+    module Model = Common_model
+  end
+
+  module Deriv = struct
+    include Deriv_common
+    module Model = Common_model
+  end
+end
+
+module Make_FITC_deriv (Spec : Specs.Eval_deriv) = struct
+  include Make_common_deriv (Spec)
+
+  module Eval = struct
+    include Eval_common
+
+    module Model = Common_model
+
+    module Covariances = FITC_covariances
+
+    module Sampler = struct
+      include Common_sampler
+      let calc = calc ~loc:fitc_loc
+    end
+
+    module Cov_sampler = struct
+      include Common_cov_sampler
+      let calc = calc ~loc:fitc_loc
+    end
+  end
+
+  module Deriv = struct
+    include Deriv_common
+    module Model = Common_model
   end
 end

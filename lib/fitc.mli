@@ -1,15 +1,16 @@
 open Interfaces
+open Inducing_input_gpr
 
-module type Sig = functor (Spec : Inducing_input_gpr.Specs.Eval) ->
-  Inducing_input_gpr.Sigs.Eval with module Spec = Spec
+module type Sig = functor (Spec : Specs.Eval) ->
+  Sigs.Eval with module Spec = Spec
 
 module Make_FITC : Sig
 module Make_FIC : Sig
 module Make_variational_FITC : Sig
 module Make_variational_FIC : Sig
 
-module Make (Spec : Inducing_input_gpr.Specs.Eval) : sig
-  module type Sig = Inducing_input_gpr.Sigs.Eval with module Spec = Spec
+module Make (Spec : Specs.Eval) : sig
+  module type Sig = Sigs.Eval with module Spec = Spec
 
   module FITC : Sig
 
@@ -47,3 +48,10 @@ module Make (Spec : Inducing_input_gpr.Specs.Eval) : sig
       with module Variances = Variational_FITC.Variances
       with module Sampler = Variational_FITC.Sampler
 end
+
+module type Deriv_sig = functor (Spec : Specs.Eval_deriv) ->
+  Sigs.Deriv
+    with module Eval.Spec = Spec.Eval_spec
+    with module Deriv.Spec = Spec.Deriv_spec
+
+module Make_FITC_deriv : Deriv_sig

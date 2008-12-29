@@ -71,9 +71,10 @@ let get_training () =
 let main () =
   let training_inputs, training_targets, inducing_inputs = get_training () in
   let inducing = FITC.Inducing.calc k inducing_inputs in
-  let reduceds = FITC.Inputs.calc inducing training_inputs in
+  let inputs = FITC.Inputs.calc inducing training_inputs in
 
-  let model = FITC.Model.calc reduceds in
+  let model = FITC.Model.calc inputs in
+  printf "model evidence: %.9f@." (FITC.Model.calc_evidence model);
 
   let trained = FITC.Trained.calc model ~targets:training_targets in
   printf "evidence: %.9f@." (FITC.Trained.calc_evidence trained);
@@ -111,5 +112,33 @@ let main () =
   write_vec "fic_sample1" (Mat.col fic_samples 1);
   write_vec "fic_sample2" (Mat.col fic_samples 2);
   write_vec "fic_sample3" (Mat.col fic_samples 3)
+
+module Gauss_deriv = struct
+  include Make_FITC_deriv (Gauss_deriv_all_vec)
+
+  let k =
+    {
+      Gauss_all_vec_spec.Kernel.
+      a = -0.5;
+      b = -1.0;
+      sigma2 = noise_sigma2;
+    }
+end
+
+open Gauss_deriv
+
+let main () =
+  let training_inputs, _, inducing_inputs = get_training () in
+  let inducing = Deriv.Inducing.calc k inducing_inputs in
+  let inputs = Deriv.Inputs.calc inducing training_inputs in
+  let model = Deriv.Model.calc inputs in
+  let eval_model = Deriv.Model.calc_eval model in
+  let eval_model_evidence = Eval.Model.calc_evidence eval_model in
+  printf "eval model evidence: %.9f@." eval_model_evidence;
+  let model_evidence =
+    Deriv.Model.evidence
+      (Deriv.Model.calc_evidence model Gauss_deriv_all_vec.Deriv_spec.Hyper.A)
+  in
+  printf "deriv model evidence: %.9f@." model_evidence
 
 let () = main ()

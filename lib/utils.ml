@@ -6,7 +6,7 @@ open Lacaml.Io
 (* NOTE: for testing *)
 let print_float name n = printf "%s: @[%.9f@]@.@." name n
 let print_vec name vec = printf "%s: @[%a@]@.@." name pp_fvec vec
-let print_mat name vec = printf "%s: @[%a@]@.@." name pp_fmat vec
+let print_mat name mat = printf "%s: @[%a@]@.@." name pp_fmat mat
 
 let timing name f =
   let t1 = Unix.times () in
@@ -40,3 +40,15 @@ let log_2pi = log (2. *. pi)
 let default_rng = Gsl_rng.make (Gsl_rng.default ())
 
 let cholesky_jitter = ref 10e-9
+
+let solve_triangular ?trans chol ~k =
+  (* TODO: special case for copying symmetric matrices? *)
+  let inv_chol_k = Mat.copy k in
+  trtrs ?trans chol inv_chol_k;
+  inv_chol_k
+
+let inv_chol chol =
+  (* TODO: copy upper triangle only *)
+  let inv = Mat.copy chol in
+  potri ~factorize:false inv;
+  inv

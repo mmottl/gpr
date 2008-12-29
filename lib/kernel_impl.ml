@@ -1,6 +1,8 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
+open Utils
+
 module type From_all_vec = sig
   module Kernel : sig
     type t
@@ -209,7 +211,93 @@ module Gauss_all_vec_spec = struct
     eval_rbf2 k !r2
 end
 
-module Gauss_all_vec = Make_from_all_vec (Gauss_all_vec_spec)
+module Gauss_all_vec = struct
+  module X = Make_from_all_vec (Gauss_all_vec_spec)
+
+  module Kernel = X.Kernel
+  module Inducing = X.Inducing
+  module Input = X.Input
+
+  module Inputs = struct
+    include X.Inputs
+
+    open Gauss_all_vec_spec.Kernel
+
+    let diag kernel mat = Vec.make (Mat.dim2 mat) (exp kernel.a)
+  end
+end
+
+module Gauss_deriv_all_vec = struct
+  module Eval_spec = Gauss_all_vec
+
+  open Gauss_all_vec_spec.Kernel
+
+  module Deriv_spec = struct
+    module Kernel = Eval_spec.Kernel
+
+    module Hyper = struct
+      type t = A | B
+    end
+
+    module Inducing = struct
+      type t = Eval_spec.Inducing.t
+      type shared = Kernel.t * t
+
+      let calc_shared k inducing =
+        let cov = Eval_spec.Inducing.upper k inducing in
+        cov, (k, cov)
+
+      let calc_deriv (k, cov) = function
+        | Hyper.A -> cov, None
+        | Hyper.B ->
+            let m = Mat.dim1 cov in
+            let n = Mat.dim2 cov in
+            let res = Mat.create m n in
+            for c = 1 to n do
+              for r = 1 to c do
+                res.{r, c} <-
+                  cov.{r, c} *. (log cov.{r, c} -. k.a) /. k.b
+              done;
+            done;
+            res, None
+    end
+
+    module Inputs = struct
+      type t = Eval_spec.Inputs.t
+      type diag = Kernel.t * vec
+      type cross = Kernel.t * t
+
+      let calc_shared_diag k inputs =
+        let vars = Eval_spec.Inputs.diag k inputs in
+        vars, (k, vars)
+
+      let calc_shared_cross k ~inducing ~inputs =
+        let cross = Eval_spec.Inputs.cross k ~inducing ~inputs in
+        cross, (k, cross)
+
+      let deriv_b_mat k cov =
+        let m = Mat.dim1 cov in
+        let n = Mat.dim2 cov in
+        let res = Mat.create m n in
+        for c = 1 to n do
+          for r = 1 to m do
+            res.{r, c} <-
+              cov.{r, c} *. (log cov.{r, c} -. k.a) /. k.b
+          done;
+        done;
+        res
+
+      let calc_deriv_diag (k, vars) = function
+        | Hyper.A -> Some vars
+        | Hyper.B ->
+            Some (Mat.col (deriv_b_mat k (Mat.of_col_vecs [| vars |])) 1)
+
+      let calc_deriv_cross (k, cross) = function
+        | Hyper.A -> cross, None
+        | Hyper.B -> deriv_b_mat k cross, None
+    end
+  end
+end
 
 module Wiener_all_vec_spec = struct
   module Kernel = struct
