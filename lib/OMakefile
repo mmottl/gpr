@@ -2,7 +2,6 @@ SOURCES[] =
   interfaces
   utils
   kernel_impl
-  fitc_impl
   fitc
 
 section
