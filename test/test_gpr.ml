@@ -127,18 +127,33 @@ end
 
 open Gauss_deriv
 
-let main () =
-  let training_inputs, _, inducing_inputs = get_training () in
+let training_inputs, training_targets, inducing_inputs = get_training ()
+
+let with_k k =
   let inducing = Deriv.Inducing.calc k inducing_inputs in
   let inputs = Deriv.Inputs.calc inducing training_inputs in
   let model = Deriv.Model.calc inputs in
-  let eval_model = Deriv.Model.calc_eval model in
-  let eval_model_evidence = Eval.Model.calc_evidence eval_model in
-  printf "eval model evidence: %.9f@." eval_model_evidence;
-  let model_evidence =
-    Deriv.Model.evidence
-      (Deriv.Model.calc_evidence model Gauss_deriv_all_vec.Deriv_spec.Hyper.A)
+  let trained = Deriv.Trained.calc model ~targets:training_targets in
+  let eval_trained = Deriv.Trained.calc_eval trained in
+  let eval_trained_evidence = Eval.Trained.calc_evidence eval_trained in
+  printf "eval trained evidence: %.9f@." eval_trained_evidence;
+  let deriv_evidence =
+    Deriv.Trained.calc_evidence trained (Deriv.Model.calc_evidence_sigma2 model)
   in
-  printf "deriv model evidence: %.9f@." model_evidence
+  printf "eval deriv evidence: %.9f@." deriv_evidence;
+  eval_trained_evidence
+
+let main () =
+  let e1 = with_k k in
+  let epsilon = 10e-10 in
+  let new_k =
+    {
+      k with
+      Gauss_all_vec_spec.Kernel.
+      sigma2 = k.Gauss_all_vec_spec.Kernel.sigma2 +. epsilon;
+    }
+  in
+  let e2 = with_k new_k in
+  printf "finite: %.9f\n" ((e2 -. e1) /. epsilon)
 
 let () = main ()

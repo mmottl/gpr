@@ -252,7 +252,6 @@ module Inducing_input_gpr = struct
           val evidence : evidence -> float
         end
 
-(*
         module Trained : sig
           type t
 
@@ -260,9 +259,7 @@ module Inducing_input_gpr = struct
           val calc_eval : t -> Eval.Trained.t
 
           val calc_evidence : t -> Model.evidence -> float
-          val calc_evidence_model : Model.evidence -> float
         end
-*)
       end
     end
   end
