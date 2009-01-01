@@ -1,21 +1,16 @@
-LIB_MLNAMES[] =
+SOURCES[] =
   interfaces
   utils
   kernel_impl
   fitc_impl
   fitc
-  spgp_impl
-  spgp
-  experimental
 
 section
   OCAMLCFLAGS += -for-pack Gpr
   OCAMLOPTFLAGS += -for-pack Gpr
-  $(addsuffixes $(OCAML_SUFFIXES), $(LIB_MLNAMES)):
+  $(addsuffixes $(OCAML_SUFFIXES), $(SOURCES)):
 
-OCamlPackage(gpr, $(LIB_MLNAMES))
+OCamlPackage(gpr, $(SOURCES))
 OCamlLibrary(gpr, gpr)
-
-OCamlProgram(spgp_impl, utils spgp_impl)
 
 InstClean()

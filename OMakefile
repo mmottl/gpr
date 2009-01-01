@@ -6,14 +6,20 @@ OCAMLPACKS += unix lacaml gsl
 NATIVE_ENABLED = true
 OCAMLFLAGS = -annot -g -w A
 
+OCAMLINCLUDES += $(dir lib)
+
 CLEANCMD = \
-  rm -f *.o *.annot mycaml *.cm[ioxa] *.cmxa *.bc *.exe *.opt \
-	*.mpbc *.mpexe *.omc *.a *.so *.auto.mli
+  rm -f *.[oa] *.annot *.cm[ioxa] *.cmxa *.opt *.omc *.so
 
 .PHONY: clean
 clean:
 	$(CLEANCMD)
 
-OCAMLINCLUDES += $(dir lib)
+OCAML_SUFFIXES = .cmi .cmo .cmx .o .exe .bc
+
+InstClean() =
+  .PHONY: clean
+  clean:
+	  $(CLEANCMD)
 
 .SUBDIRS: lib test

@@ -1,0 +1,88 @@
+(*
+type ('data_spec, 'data) kernel =
+  {
+    get_num_hyps : 'data_spec -> int;
+    eval : 'data ->
+  }
+
+let add_kernels k1 k2 =
+  {
+    get_num_hyps = fun data_spec ->
+      k1.get_num_hyps data_spec + k2.get_num_hyps data_spec;
+    eval = fun hyper ->
+  }
+
+
+module type Kernel = sig
+  type t
+end
+
+module Squared_Hyp = struct
+  type t
+end
+
+type k =
+  | SqConst
+  | EuclidianProd
+  | Prod of k * k
+  | Sum of k * k
+  | Exp of any
+
+type any =
+  | Const of float
+
+type kernel =
+  | `SqConst of float
+  | `Sum of kernel * kernel
+  | `Prod of kernel * kernel
+  | `InnerProd
+  | `WeightedInnerProd
+
+type env =
+  | `SqConst of float
+  | `Sum of env * env
+  | `Prod of env * env
+  | `InnerProd
+  | `WeightedInnerProd
+
+module type KERNEL = sig
+  type hyper
+  type data_set
+  type data_point
+  type kernel
+
+  val prod : kernel -> kernel -> kernel
+  val sum : kernel -> kernel -> kernel
+
+  val create_hyper :
+end
+
+
+
+val prod :
+  ('hyper1, 'data1) kernel -> ('hyper2, 'data2) kernel
+  -> ('hyper1 * 'hyper2, 'data1 * 'data2) kernel
+
+val sum :
+  ('hyper1, 'data1) kernel -> ('hyper2, 'data2) kernel
+  -> ('hyper1 * 'hyper2, 'data1 * 'data2) kernel
+
+val sq_const : float -> (unit, 'a) kernel
+
+val sq_var : unit -> (float, 'a) kernel
+
+val inner_prod : 'ip_space -> (unit, 'ip_space) kernel
+
+val weighted_inner_prod : unit kernel
+
+val create :
+  ?upper : (hyper : 'hyper -> data : 'data -> dst : mat)
+  ?single : (hyper : 'hyper -> data : 'data -> dst : mat)
+
+
+let _ =
+  prod (sq_const 1.3)
+    (inner_prod
+
+(* Autom. generate OCaml-code from kernel spec *)
+*)

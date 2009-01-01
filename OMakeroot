@@ -1,79 +1,7 @@
 open build/OCaml
 
-# -*- Makefile -*-
-# Include standard OMakeroot
 include $(STDROOT)
 
-# Include standard OMakeroot
-EXT_SHD = .so
-
-# Define lazy helper variables
-CMXAFILES = $`(addsuffix .cmxa, $(OCAML_LIBS))
-CMAFILES = $`(addsuffix .cma, $(OCAML_LIBS))
-
-# Define suffixes of OCaml-generated files
-OCAML_SUFFIXES = .cmi .cmo .cmx .o .exe .bc
-
-OCAMLDOC = ocamldoc
-
-# Determine OCaml version
-static. =
-  OCAML_VERSION = $(shell $(OCAMLC) -version)
-  USE_FOR_PACK = $(match "$(OCAML_VERSION)", .*3.09.*, true)
-
-# Define the C-linker used by OCaml
-OCAML_CLINKER = $(CC)
-OCAML_CLINKER_FLAGS = -Wl,-E
-
-# Define default C-objects (without suffix) to link
-OCAML_COBJS =
-
-# Get local non-leaf dependencies of a target
-GetLocalDeps(name) =
-  return $(intersection $(dependencies-proper $(name)), $(ls .))
-
-# Get local non-leaf .cmo-dependencies of a target
-GetLocalCmoDeps(name) =
-  return $(filter %.cmo, $(replacesuffixes .cmx, .cmo, $(GetLocalDeps $(name))))
-
-%.dot: %.cmi %.cmo
-  $(OCAMLFIND) $(OCAMLDOC) -dot -dot-include-all -dot-reduce \
-    -I $(LIBDIR) $(LAZY_OCAMLFINDFLAGS) $(PREFIXED_OCAMLPACKS) \
-    $(OCAMLPPFLAGS) $(PREFIXED_OCAMLINCLUDES) *.mli *.ml -o $@
-
-# Generate byte code executable with automatic link dependencies
-%.bc: %.cmo :value: $(digest $(GetLocalCmoDeps $*.cmo))
-  $(OCAMLFIND) $(OCAMLLINK) -cc $(OCAML_CLINKER) $(LAZY_OCAMLFINDFLAGS) \
-    $(PREFIXED_OCAMLPACKS) $(OCAMLFLAGS) $(OCAMLCFLAGS) \
-    $(PREFIXED_OCAMLINCLUDES) $(OCAML_BYTE_LINK_FLAGS) -o $@ \
-    $(addsuffix .cma, $(OCAML_OTHER_LIBS)) $(CMAFILES) \
-    $(file-sort .OCAMLLINK, $(filter %.cmo, $(GetLocalCmoDeps $*.cmo))) \
-    $(addsuffix $(EXT_LIB), $(OCAML_CLIBS)) $(addsuffix $(EXT_LIB), $(LIBS)) \
-    $(OCAML_LINK_FLAGS) $(addsuffix $(EXT_OBJ), $(OCAML_COBJS))
-
-# Return MD5-checksum of all .cmx and .cmo dependencies of a target
-md5cmxo(arg) =
-  cmx = $(filter %.cmx, $(GetLocalDeps $(arg)))
-  cmxo = $(cmx) $(replacesuffixes .cmx, .o, $(cmx))
-  dig = $(digest $(cmxo))
-  return $(dig)
-
-# Generate native code executable with automatic link dependencies
-%.exe: %.cmx %$(EXT_OBJ) :value: $(md5cmxo $*.cmx)
-  $(OCAMLFIND) $(OCAMLOPTLINK) -cc $(OCAML_CLINKER) $(LAZY_OCAMLFINDFLAGS) \
-    $(PREFIXED_OCAMLPACKS) $(OCAMLFLAGS) $(OCAMLOPTFLAGS) \
-    $(PREFIXED_OCAMLINCLUDES) $(OCAML_NATIVE_LINK_FLAGS) -o $@ \
-    $(addsuffix .cmxa, $(OCAML_OTHER_LIBS)) $(CMXAFILES) \
-    $(file-sort .OCAMLLINK, $(filter %.cmx, $(GetLocalDeps $*.cmx))) \
-    $(addsuffix $(EXT_LIB), $(OCAML_CLIBS)) \
-    $(addsuffix $(EXT_LIB), $(LIBS)) \
-    $(OCAML_LINK_FLAGS) $(addsuffix $(EXT_OBJ), $(OCAML_COBJS))
-
 DefineCommandVars()
-
-InstClean() =
-  .PHONY: clean
-  clean:
-	  $(CLEANCMD)
 
 .SUBDIRS: .
