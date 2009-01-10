@@ -5,11 +5,7 @@ open Lacaml.Impl.D
 module Inducing_input_gpr = struct
   module Specs = struct
     module type Eval = sig
-      module Kernel : sig
-        type t
-
-        val get_sigma2 : t -> float
-      end
+      module Kernel : sig type t end
 
       module Inducing : sig
         type t
@@ -25,7 +21,8 @@ module Inducing_input_gpr = struct
         val eval : Kernel.t -> inducing : Inducing.t -> input : t -> vec
 
         val weighted_eval :
-          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> input : t -> float
+          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> input : t
+          -> float
       end
 
       module Inputs : sig
@@ -55,7 +52,14 @@ module Inducing_input_gpr = struct
         type shared
 
         val calc_shared : Kernel.t -> t -> mat * shared
-        val calc_deriv : shared -> Hyper.t -> mat * int array option
+
+        val calc_deriv : shared -> Hyper.t ->
+          [
+          | `Dense of mat
+          | `Sparse_rows of mat * int array
+          | `Diag_vec of vec
+          | `Diag_const of float
+          ]
       end
 
       module Inputs : sig
@@ -68,8 +72,14 @@ module Inducing_input_gpr = struct
         val calc_shared_cross :
           Kernel.t -> inducing : Inducing.t -> inputs : t -> mat * cross
 
-        val calc_deriv_diag : diag -> Hyper.t -> vec option
-        val calc_deriv_cross : cross -> Hyper.t -> mat * int array option
+        val calc_deriv_diag :
+          diag -> Hyper.t -> [ `Vec of vec | `Const of float ]
+
+        val calc_deriv_cross : cross -> Hyper.t ->
+          [
+          | `Dense of mat
+          | `Sparse_rows of mat * int array
+          ]
       end
     end
 
@@ -110,7 +120,8 @@ module Inducing_input_gpr = struct
       module Model : sig
         type t
 
-        val calc : Inputs.t -> t
+        val calc : Inputs.t -> sigma2 : float -> t
+        val update_sigma2 : t -> float -> t
         val calc_evidence : t -> float
       end
 
@@ -241,24 +252,32 @@ module Inducing_input_gpr = struct
 
         module Model : sig
           type t
+          type hyper_t
+
+          type evidence_sigma2
           type evidence
 
-          val calc : Inputs.t -> t
+          val calc : Inputs.t -> sigma2 : float -> t
+          val update_sigma2 : t -> float -> t
           val calc_eval : t -> Eval.Model.t
 
-          val calc_evidence : t -> Hyper.t -> evidence
-          val calc_evidence_sigma2 : t -> evidence
+          val calc_evidence_sigma2 : t -> float * evidence_sigma2
 
-          val evidence : evidence -> float
+          val prepare_hyper : t -> hyper_t
+          val calc_evidence : hyper_t -> Hyper.t -> float * evidence
         end
 
         module Trained : sig
           type t
+          type hyper_t
 
           val calc : Model.t -> targets : vec -> t
           val calc_eval : t -> Eval.Trained.t
 
-          val calc_evidence : t -> Model.evidence -> float
+          val calc_evidence_sigma2 : t -> Model.evidence_sigma2 -> float
+
+          val prepare_hyper : t -> Model.hyper_t -> hyper_t
+          val calc_evidence : hyper_t -> Model.evidence -> float
         end
       end
     end

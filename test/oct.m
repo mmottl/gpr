@@ -7,23 +7,44 @@ sigma = sqrt(sigma2);
 [dim, N] = size(inputs);
 [dim, M] = size(inducing_inputs);
 
-function res = eval_rbf2(r2)
-  res = exp(-0.5 - 1.0 * r2);
+function res = eval_rbf2(r2, a, b)
+  res = exp(a + b * r2);
 end
 
-function res = k(x, y)
+function res = kf(x, y, a, b)
   [dim, n1] = size(x);
   n2 = size(y, 2);
   repmat(sum(y' .* y', 2), 1, n1);
   r2 = repmat(sum(x' .* x', 2), 1, n2) - 2 * x' * y + repmat(sum(y' .* y', 2)', n1, 1);
-  res = eval_rbf2(r2);
+  res = eval_rbf2(r2, a, b);
+end
+
+function res = k(x, y)
+  a = -0.5;
+  b = -1.0;
+  res = kf(x, y, a, b);
+end
+
+function res = k_e(x, y)
+  a = -0.5;
+  b = -1.0;
+  epsilon = 10e-6;
+  res = kf(x, y, a + epsilon, b);
 end
 
 km = k(inducing_inputs, inducing_inputs);
-kmn = k(inducing_inputs, inputs);
-kn = k(inputs, inputs);
+km_e = k_e(inducing_inputs, inducing_inputs);
+dkm = (km_e - km) / 10e-6;
 
-jitter = 10e-9;
+kmn = k(inducing_inputs, inputs);
+kmn_e = k_e(inducing_inputs, inputs);
+dkmn = (kmn_e - kmn) / 10e-6;
+
+kn = k(inputs, inputs);
+kn_e = k_e(inputs, inputs);
+dkn = (kn_e - kn) / 10e-6;
+
+jitter = 10e-6;
 km = km + jitter*eye(M);
 kn = kn + jitter*eye(N);
 
@@ -42,11 +63,33 @@ b = km + kmn * inv_lam_sigma2 * kmn';
 b_chol = chol(b);
 kmn_y_ = kmn_ * y_;
 
+%
+
+dlam__ = diag(inv_lam_sigma2 * diag(dkn - 2*dkmn'*inv(km)*kmn + kmn'*inv(km)*dkm*inv(km)*kmn));
+dkmn_trace = trace(inv_lam_sigma2 * kmn' * inv(b)*(2*dkmn - kmn * dlam__));
+dlam__trace = trace(dlam__);
+dkm_trace = trace(((inv(b) - inv(km)) * dkm));
+trace_sum = dkmn_trace + dlam__trace + dkm_trace
+
+y__=inv_lam_sigma2*y;
+x=inv(b)*kmn*y__;
+z=kmn'*x;
+
+dlam_factor = ((2*z - y).*y__ - inv_lam_sigma2*z.*z)
+dkmn_factor = 2*(inv_lam_sigma2*z - y__)
+dkm_nll = x'*dkm*x
+dkmn_nll = x'*dkmn*dkmn_factor
+dlam_nll = dlam_factor'*diag(dlam__)
+dl2 = 0.5*(dkm_nll + dkmn_nll + dlam_nll);
+
+
+%
+
 log_det_b = log(det(b));
 log_det_km = log(det(km));
 log_det_lam_sigma2 = log(det(lam_sigma2));
 
-model_nll = (log_det_b - log_det_km + log_det_lam_sigma2 + N * log(2*pi)) / 2;
+model_nll = (log_det_b - log_det_km + log_det_lam_sigma2 + N * log(2*pi)) / 2
 trained_nll = (y' * inv(qn + lam_sigma2) * y) / 2;
 
 nll = (model_nll + trained_nll);

@@ -4,11 +4,7 @@ open Lacaml.Io
 open Utils
 
 module type From_all_vec = sig
-  module Kernel : sig
-    type t
-
-    val get_sigma2 : t -> float
-  end
+  module Kernel : sig type t end
 
   val eval_one : Kernel.t -> vec -> float
   val eval : Kernel.t -> vec -> vec -> float
@@ -172,15 +168,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
 end
 
 module Gauss_all_vec_spec = struct
-  module Kernel = struct
-    type t = {
-      a : float;
-      b : float;
-      sigma2 : float;
-    }
-
-    let get_sigma2 k = k.sigma2
-  end
+  module Kernel = struct type t = { a : float; b : float } end
 
   open Kernel
 
@@ -248,7 +236,7 @@ module Gauss_deriv_all_vec = struct
         cov, (k, cov)
 
       let calc_deriv (k, cov) = function
-        | Hyper.A -> cov, None
+        | Hyper.A -> `Dense cov
         | Hyper.B ->
             let m = Mat.dim1 cov in
             let n = Mat.dim2 cov in
@@ -259,7 +247,7 @@ module Gauss_deriv_all_vec = struct
                   cov.{r, c} *. (log cov.{r, c} -. k.a) /. k.b
               done;
             done;
-            res, None
+            `Dense res
     end
 
     module Inputs = struct
@@ -288,26 +276,19 @@ module Gauss_deriv_all_vec = struct
         res
 
       let calc_deriv_diag (k, vars) = function
-        | Hyper.A -> Some vars
+        | Hyper.A -> `Vec vars
         | Hyper.B ->
-            Some (Mat.col (deriv_b_mat k (Mat.of_col_vecs [| vars |])) 1)
+            `Vec (Mat.col (deriv_b_mat k (Mat.of_col_vecs [| vars |])) 1)
 
       let calc_deriv_cross (k, cross) = function
-        | Hyper.A -> cross, None
-        | Hyper.B -> deriv_b_mat k cross, None
+        | Hyper.A -> `Dense cross
+        | Hyper.B -> `Dense (deriv_b_mat k cross)
     end
   end
 end
 
 module Wiener_all_vec_spec = struct
-  module Kernel = struct
-    type t = {
-      a : float;
-      sigma2 : float;
-    }
-
-    let get_sigma2 k = k.sigma2
-  end
+  module Kernel = struct type t = { a : float } end
 
   open Kernel
 
