@@ -1,95 +1,108 @@
 open Lacaml.Impl.D
 
-(* TODO: consider loghyper variables *)
-
 module Inducing_input_gpr = struct
   module Specs = struct
+    module type Kernel = sig
+      type t
+      type params
+
+      val create : params -> t
+    end
+
     module type Eval = sig
-      module Kernel : sig type t end
+      module Kernel : Kernel
 
       module Inducing : sig
         type t
 
-        val upper : Kernel.t -> t -> mat
+        module Prepared : sig
+          type upper
+
+          val calc_upper : t -> upper
+        end
+
+        val calc_upper : Kernel.t -> Prepared.upper -> mat
       end
 
       module Input : sig
         type t
 
+        module Prepared : sig
+          type cross
+
+          val calc_cross : Inducing.Prepared.upper -> t -> cross
+        end
+
+        val eval : Kernel.t -> Prepared.cross -> vec
+        val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> float
         val eval_one : Kernel.t -> t -> float
-
-        val eval : Kernel.t -> inducing : Inducing.t -> input : t -> vec
-
-        val weighted_eval :
-          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> input : t
-          -> float
       end
 
       module Inputs : sig
         type t
 
-        val weighted_eval :
-          Kernel.t -> coeffs : vec -> inducing : Inducing.t -> inputs : t -> vec
+        module Prepared : sig
+          type cross
 
-        val upper : Kernel.t -> t -> mat
-        val upper_no_diag : Kernel.t -> t -> mat
-        val diag : Kernel.t -> t -> vec
-        val cross : Kernel.t -> inducing : Inducing.t -> inputs : t -> mat
+          val calc_cross : Inducing.Prepared.upper -> t -> cross
+        end
+
+        val calc_upper : Kernel.t -> t -> mat
+        val calc_diag : Kernel.t -> t -> vec
+        val calc_cross : Kernel.t -> Prepared.cross -> mat
+
+        val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> vec
       end
     end
 
-    module type Deriv = sig
-      module Kernel : sig
-        type t
-      end
+    type mat_deriv = [
+      | `Dense of mat
+      | `Sparse_rows of mat * int array
+      | `Const of float
+      ]
 
-      module Hyper : sig
-        type t
-      end
+    type symm_mat_deriv = [
+      | mat_deriv
+      | `Diag_vec of vec
+      | `Diag_const of float
+      ]
+
+    type vec_deriv = [ `Vec of vec | `Const of float ]
+
+    module type Deriv = sig
+      module Eval : Eval
+
+      module Hyper : sig type t end
 
       module Inducing : sig
-        type t
+        module Prepared : sig
+          type upper
+
+          val calc_upper : Eval.Inducing.Prepared.upper -> upper
+        end
+
         type shared
 
-        val calc_shared : Kernel.t -> t -> mat * shared
-
-        val calc_deriv : shared -> Hyper.t ->
-          [
-          | `Dense of mat
-          | `Sparse_rows of mat * int array
-          | `Diag_vec of vec
-          | `Diag_const of float
-          ]
+        val calc_shared_upper : Eval.Kernel.t -> Prepared.upper -> mat * shared
+        val calc_deriv_upper : shared -> Hyper.t -> symm_mat_deriv
       end
 
       module Inputs : sig
-        type t
+        module Prepared : sig
+          type cross
+
+          val calc_cross :
+            Inducing.Prepared.upper -> Eval.Inputs.Prepared.cross -> cross
+        end
+
         type diag
         type cross
 
-        val calc_shared_diag : Kernel.t -> t -> vec * diag
-
-        val calc_shared_cross :
-          Kernel.t -> inducing : Inducing.t -> inputs : t -> mat * cross
-
-        val calc_deriv_diag :
-          diag -> Hyper.t -> [ `Vec of vec | `Const of float ]
-
-        val calc_deriv_cross : cross -> Hyper.t ->
-          [
-          | `Dense of mat
-          | `Sparse_rows of mat * int array
-          ]
+        val calc_shared_diag : Eval.Kernel.t -> Eval.Inputs.t -> vec * diag
+        val calc_shared_cross : Eval.Kernel.t -> Prepared.cross -> mat * cross
+        val calc_deriv_diag : diag -> Hyper.t -> vec_deriv
+        val calc_deriv_cross : cross -> Hyper.t -> mat_deriv
       end
-    end
-
-    module type Eval_deriv = sig
-      module Eval_spec : Eval
-      module Deriv_spec :
-        Deriv
-          with type Kernel.t = Eval_spec.Kernel.t
-          with type Inducing.t = Eval_spec.Inducing.t
-          with type Inputs.t = Eval_spec.Inputs.t
     end
   end
 
@@ -97,24 +110,40 @@ module Inducing_input_gpr = struct
     module type Eval = sig
       module Spec : Specs.Eval
 
-      open Spec
-
       module Inducing : sig
+        module Prepared : sig
+          type t
+
+          val calc : Spec.Inducing.t -> t
+        end
+
         type t
 
-        val calc : Kernel.t -> Spec.Inducing.t -> t
+        val calc : Spec.Kernel.t -> Prepared.t -> t
       end
 
       module Input : sig
+        module Prepared : sig
+          type t
+
+          val calc : Inducing.Prepared.t -> Spec.Input.t -> t
+        end
+
         type t
 
-        val calc : Inducing.t -> Spec.Input.t -> t
+        val calc : Inducing.t -> Prepared.t -> t
       end
 
       module Inputs : sig
+        module Prepared : sig
+          type t
+
+          val calc : Inducing.Prepared.t -> Spec.Inputs.t -> t
+        end
+
         type t
 
-        val calc : Inducing.t -> Spec.Inputs.t -> t
+        val calc : Inducing.t -> Prepared.t -> t
       end
 
       module Model : sig
@@ -229,24 +258,31 @@ module Inducing_input_gpr = struct
       module Eval : Eval
 
       module Deriv : sig
-        module Spec :
-          Specs.Deriv
-            with type Kernel.t = Eval.Spec.Kernel.t
-            with type Inputs.t = Eval.Spec.Inputs.t
-
-        open Spec
+        module Spec : Specs.Deriv with module Eval = Eval.Spec
 
         module Inducing : sig
+          module Prepared : sig
+            type t
+
+            val calc : Eval.Inducing.Prepared.t -> t
+          end
+
           type t
 
-          val calc : Kernel.t -> Spec.Inducing.t -> t
+          val calc : Eval.Spec.Kernel.t -> Prepared.t -> t
           val calc_eval : t -> Eval.Inducing.t
         end
 
         module Inputs : sig
+          module Prepared : sig
+            type t
+
+            val calc : Inducing.Prepared.t -> Eval.Inputs.Prepared.t -> t
+          end
+
           type t
 
-          val calc : Inducing.t -> Spec.Inputs.t -> t
+          val calc : Inducing.t -> Prepared.t -> t
           val calc_eval : t -> Eval.Inputs.t
         end
 
@@ -264,7 +300,7 @@ module Inducing_input_gpr = struct
           val calc_evidence_sigma2 : t -> float * evidence_sigma2
 
           val prepare_hyper : t -> hyper_t
-          val calc_evidence : hyper_t -> Hyper.t -> float * evidence
+          val calc_evidence : hyper_t -> Spec.Hyper.t -> float * evidence
         end
 
         module Trained : sig

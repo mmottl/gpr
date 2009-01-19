@@ -3,11 +3,12 @@ open Lacaml.Io
 
 open Utils
 
+(*
 module type From_all_vec = sig
   module Kernel : sig type t end
 
-  val eval_one : Kernel.t -> vec -> float
   val eval : Kernel.t -> vec -> vec -> float
+  val eval_one : Kernel.t -> vec -> float
   val eval_vec_col : Kernel.t -> vec -> mat -> int -> float
   val eval_mat_cols : Kernel.t -> mat -> int -> mat -> int -> float
   val eval_mat_col : Kernel.t -> mat -> int -> float
@@ -24,9 +25,13 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
   module Inducing = struct
     type t = mat
 
-    let size points = Mat.dim2 points
+    module Prepared = struct
+      type upper = t
 
-    let upper kernel mat =
+      let calc_upper mat = mat
+    end
+
+    let calc_upper kernel mat =
       let n = Mat.dim2 mat in
       let dst = Mat.create n n in
       for i = 1 to n do
@@ -41,9 +46,13 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
   module Input = struct
     type t = vec
 
-    let eval_one = eval_one
+    module Prepared = struct
+      type cross = Inducing.t * t
 
-    let eval kernel ~inducing ~input =
+      let calc_cross ~inducing ~input = inducing, input
+    end
+
+    let eval kernel (inducing, input) =
       let n = Mat.dim2 inducing in
       let dst = Vec.create n in
       for col = 1 to n do
@@ -51,19 +60,29 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done;
       dst
 
-    let weighted_eval kernel ~coeffs ~inducing ~input =
+    let weighted_eval kernel ~coeffs (inducing, input) =
       let n = Vec.dim input in
       let res = ref 0. in
       for col = 1 to n do
         res := !res +. coeffs.{col} *. eval_vec_col kernel input inducing col
       done;
       !res
+
+    let eval_one = eval_one
   end
 
   module Inputs = struct
-    include Inducing
+    type t = mat
 
-    let weighted_eval kernel ~coeffs ~inducing ~inputs =
+    let calc_upper = Inducing.calc_upper
+
+    module Prepared = struct
+      type cross = Inducing.t * mat
+
+      let calc_cross ~inducing ~inputs = inducing, inputs
+    end
+
+    let weighted_eval kernel ~coeffs (inducing, inputs) =
       let n_inducing_inputs = Mat.dim2 inducing in
       let n_inputs = Mat.dim2 inputs in
       let dst = Vec.create n_inputs in
@@ -76,17 +95,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done;
       dst
 
-    let upper_no_diag kernel mat =
-      let n = Mat.dim2 mat in
-      let dst = Mat.create n n in
-      for i = 1 to n do
-        for j = i + 1 to n do
-          dst.{i, j} <- eval_mat_cols kernel mat i mat j;
-        done
-      done;
-      dst
-
-    let cross kernel ~inducing ~inputs =
+    let calc_cross kernel (inducing, inputs) =
       let n1 = Mat.dim2 inducing in
       let n2 = Mat.dim2 inputs in
       let dst = Mat.create n1 n2 in
@@ -97,7 +106,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done;
       dst
 
-    let diag kernel mat =
+    let calc_diag kernel mat =
       let n = Mat.dim2 mat in
       let dst = Vec.create n in
       for i = 1 to n do
@@ -137,7 +146,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done
     done
 
-  let upper mat ~dst =
+  let calc_upper mat ~dst =
     let n = Mat.dim2 mat in
     for i = 1 to n do
       let vec1 = Mat.col mat i in
@@ -147,7 +156,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done
     done
 
-  let cross mat1 mat2 ~dst =
+  let calc_cross mat1 mat2 ~dst =
     let n1 = Mat.dim2 mat1 in
     let n2 = Mat.dim2 mat2 in
     for i = 1 to n1 do
@@ -158,7 +167,7 @@ module Make_from_all_vec (Spec : From_all_vec) = struct
       done
     done
 
-  let diag mat ~dst =
+  let calc_diag mat ~dst =
     let n = Mat.dim2 mat in
     for i = 1 to n do
       let vec = Mat.col mat i in
@@ -174,9 +183,9 @@ module Gauss_all_vec_spec = struct
 
   let eval_rbf2 k r = exp (k.a +. k.b *. r)
 
-  let eval_one k vec = eval_rbf2 k (Vec.ssqr vec)
-
   let eval k vec1 vec2 = eval_rbf2 k (Vec.ssqr_diff vec1 vec2)
+
+  let eval_one k vec = eval_rbf2 k (Vec.ssqr vec)
 
   let eval_mat_col = fun k _mat _col -> exp k.a
 
@@ -211,11 +220,45 @@ module Gauss_all_vec = struct
 
     open Gauss_all_vec_spec.Kernel
 
-    let diag kernel mat = Vec.make (Mat.dim2 mat) (exp kernel.a)
+    let calc_diag kernel mat = Vec.make (Mat.dim2 mat) (exp kernel.a)
   end
 end
 
-module Gauss_deriv_all_vec = struct
+module Squared_exponential_isotropic = struct
+  module Kernel = struct
+    type t = {
+      signal_variance : float;
+      length_scale : float;
+    }
+  end
+
+  open Kernel
+
+  module Inducing = struct
+    type t
+
+    module Prepared = struct
+      type upper = mat
+
+      let calc_upper points = syrk ~trans:`T points
+    end
+
+      let calc_upper k prepared =
+        let { signal_variance = signal_variance; length_scale = length_scale } =
+          k
+        in
+        let m = Mat.dim1 prepared in
+        let res = Mat.create m m in
+        for c = 1 to m do
+          for r = 1 to c do
+            res.{r, c} <-
+              exp (signal_variance +. length_scale prepared.{r, c})
+          done;
+        done
+  end
+end
+
+module Squared_exponential_isotropic_deriv = struct
   module Eval_spec = Gauss_all_vec
 
   open Gauss_all_vec_spec.Kernel
@@ -231,11 +274,17 @@ module Gauss_deriv_all_vec = struct
       type t = Eval_spec.Inducing.t
       type shared = Kernel.t * t
 
-      let calc_shared k inducing =
-        let cov = Eval_spec.Inducing.upper k inducing in
+      module Prepared = struct
+        type upper = mat
+
+        let calc_upper mat = mat
+      end
+
+      let calc_shared_upper k inducing =
+        let cov = Eval_spec.Inducing.calc_upper k inducing in
         cov, (k, cov)
 
-      let calc_deriv (k, cov) = function
+      let calc_deriv_upper (k, cov) = function
         | Hyper.A -> `Dense cov
         | Hyper.B ->
             let m = Mat.dim1 cov in
@@ -255,12 +304,18 @@ module Gauss_deriv_all_vec = struct
       type diag = Kernel.t * vec
       type cross = Kernel.t * t
 
+      module Prepared = struct
+        type cross = Inducing.t * mat
+
+        let calc_cross ~inducing ~inputs = inducing, inputs
+      end
+
       let calc_shared_diag k inputs =
-        let vars = Eval_spec.Inputs.diag k inputs in
+        let vars = Eval_spec.Inputs.calc_diag k inputs in
         vars, (k, vars)
 
-      let calc_shared_cross k ~inducing ~inputs =
-        let cross = Eval_spec.Inputs.cross k ~inducing ~inputs in
+      let calc_shared_cross k prepared =
+        let cross = Eval_spec.Inputs.calc_cross k prepared in
         cross, (k, cross)
 
       let deriv_b_mat k cov =
@@ -292,9 +347,9 @@ module Wiener_all_vec_spec = struct
 
   open Kernel
 
-  let eval_one k vec = exp k.a *. sqrt (Vec.ssqr vec)
-
   let eval k vec1 vec2 = exp k.a *. sqrt (min (Vec.ssqr vec1) (Vec.ssqr vec2))
+
+  let eval_one k vec = exp k.a *. sqrt (Vec.ssqr vec)
 
   let eval_mat_col k mat col = eval_one k (Mat.col mat col)
 
@@ -305,3 +360,4 @@ module Wiener_all_vec_spec = struct
 end
 
 module Wiener_all_vec = Make_from_all_vec (Wiener_all_vec_spec)
+*)

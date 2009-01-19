@@ -5,9 +5,9 @@ open Lacaml.Impl.D
 open Utils
 open Interfaces
 open Inducing_input_gpr
+open Specs
 
 (* TODO: dimension sanity checks *)
-(* TODO: consistency checks; also finite differences *)
 
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec
@@ -20,55 +20,106 @@ module Make_common (Spec : Specs.Eval) = struct
   let jitter = !cholesky_jitter
 
   module Inducing = struct
+    module Prepared = struct
+      type t =
+        {
+          points : Spec.Inducing.t;
+          upper : Spec.Inducing.Prepared.upper;
+        }
+
+      let calc points =
+        {
+          points = points;
+          upper = Spec.Inducing.Prepared.calc_upper points;
+        }
+    end
+
     type t = {
       kernel : Kernel.t;
-      points : Spec.Inducing.t;
+      prepared : Prepared.t;
       km : mat;
       km_chol : mat;
       log_det_km : float;
     }
 
-    let calc_internal kernel points km =
+    let calc_internal kernel prepared km =
       (* TODO: copy upper triangle only *)
       let km_chol = Mat.copy km in
       potrf ~jitter km_chol;
       let log_det_km = log_det km_chol in
       {
         kernel = kernel;
-        points = points;
+        prepared = prepared;
         km = km;
         km_chol = km_chol;
         log_det_km = log_det_km;
       }
 
-    let calc kernel points =
-      let km = Spec.Inducing.upper kernel points in
-      calc_internal kernel points km
+    let calc kernel prepared =
+      let km = Spec.Inducing.calc_upper kernel prepared.Prepared.upper in
+      calc_internal kernel prepared km
 
     let get_kernel inducing = inducing.kernel
+    let get_points inducing = inducing.prepared.Prepared.points
+    let get_upper inducing = inducing.prepared.Prepared.upper
   end
 
   module Input = struct
+    module Prepared = struct
+      type t =
+        {
+          point : Spec.Input.t;
+          inducing_points : Spec.Inducing.t;
+          cross : Spec.Input.Prepared.cross;
+        }
+
+      let calc ind_prep input =
+        let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
+        {
+          point = input;
+          inducing_points = points;
+          cross = Spec.Input.Prepared.calc_cross upper input;
+        }
+    end
+
     type t = {
       inducing : Inducing.t;
       point : Spec.Input.t;
       k_m : vec;
     }
 
-    let calc inducing point =
-      let kernel = inducing.Inducing.kernel in
+    let calc inducing prepared =
+      if Inducing.get_points inducing != prepared.Prepared.inducing_points then
+        failwith
+          "Input.calc: inducing points incompatible with \
+          those used for prepared";
       {
         inducing = inducing;
-        point = point;
-        k_m =
-          Spec.Input.eval
-            kernel ~inducing:inducing.Inducing.points ~input:point;
+        point = prepared.Prepared.point;
+        k_m = Spec.Input.eval inducing.Inducing.kernel prepared.Prepared.cross;
       }
 
     let get_kernel t = t.inducing.Inducing.kernel
   end
 
   module Inputs = struct
+    module Prepared = struct
+      type t =
+        {
+          points : Spec.Inputs.t;
+          inducing_points : Spec.Inducing.t;
+          cross : Spec.Inputs.Prepared.cross;
+        }
+
+      let calc ind_prep inputs =
+        let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
+        {
+          points = inputs;
+          inducing_points = points;
+          cross = Spec.Inputs.Prepared.calc_cross upper inputs;
+        }
+    end
+
     type t = {
       inducing : Inducing.t;
       points : Inputs.t;
@@ -82,21 +133,23 @@ module Make_common (Spec : Specs.Eval) = struct
         kmn = kmn;
       }
 
-    let calc inducing points =
+    let calc inducing prepared =
+      if Inducing.get_points inducing != prepared.Prepared.inducing_points
+      then
+        failwith
+          "Inputs.calc: inducing points incompatible with \
+          those used for prepared";
       let kernel = inducing.Inducing.kernel in
-      let kmn =
-        Inputs.cross kernel ~inducing:inducing.Inducing.points ~inputs:points
-      in
-      calc_internal inducing points kmn
+      let kmn = Inputs.calc_cross kernel prepared.Prepared.cross in
+      calc_internal inducing prepared.Prepared.points kmn
 
     let get_kernel t = t.inducing.Inducing.kernel
-    let get_inducing_points t = t.inducing.Inducing.points
 
-    (* TODO: move *)
+    (* TODO: (re?)move *)
     let nystrom_chol_marginals inputs =
       let inducing = inputs.inducing in
       let kernel = get_kernel inputs in
-      let kn_diag = Inputs.diag kernel inputs.points in
+      let kn_diag = Inputs.calc_diag kernel inputs.points in
       let inv_km_chol_kmn =
         solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:inputs.kmn
       in
@@ -164,7 +217,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc inputs ~sigma2 =
       let kernel = Inputs.get_kernel inputs in
-      let kn_diag = Spec.Inputs.diag kernel inputs.Inputs.points in
+      let kn_diag = Spec.Inputs.calc_diag kernel inputs.Inputs.points in
       calc_internal inputs sigma2 kn_diag
 
     let update_sigma2 model sigma2 =
@@ -172,7 +225,8 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_evidence model = model.evidence
     let get_inducing model = model.inputs.Inputs.inducing
-    let get_inducing_points model = (get_inducing model).Inducing.points
+    let get_inducing_points model = Inducing.get_points (get_inducing model)
+    let get_upper model = Inducing.get_upper (get_inducing model)
     let get_input_points model = model.inputs.Inputs.points
     let get_kernel model = (get_inducing model).Inducing.kernel
     let get_sigma2 model = model.sigma2
@@ -249,10 +303,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let get_kernel weights = Common_model.get_kernel weights.model
     let get_inducing weights = Common_model.get_inducing weights.model
-
-    let get_inducing_points weights =
-      Common_model.get_inducing_points weights.model
-
+    let get_upper weights = Common_model.get_upper weights.model
     let get_coeffs weights = weights.coeffs
 
     let calc trained =
@@ -262,6 +313,9 @@ module Make_common (Spec : Specs.Eval) = struct
         model = trained.Trained.model;
         coeffs = coeffs;
       }
+
+    let get_inducing_points weights =
+      Common_model.get_inducing_points weights.model
   end
 
   module Mean = struct
@@ -270,13 +324,11 @@ module Make_common (Spec : Specs.Eval) = struct
     let make ~point ~value = { point = point; value = value }
 
     let calc_input weights point =
-      let inducing_points = Weights.get_inducing_points weights in
+      let upper = Weights.get_upper weights in
       let kernel = Weights.get_kernel weights in
       let coeffs = Weights.get_coeffs weights in
-      let value =
-        Spec.Input.weighted_eval
-          kernel ~coeffs ~inducing:inducing_points ~input:point
-      in
+      let prepared = Spec.Input.Prepared.calc_cross upper point in
+      let value = Spec.Input.weighted_eval kernel ~coeffs prepared in
       make ~point ~value
 
     let calc_induced weights input =
@@ -303,11 +355,9 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_inputs weights points =
       let kernel = Weights.get_kernel weights in
       let coeffs = Weights.get_coeffs weights in
-      let inducing_points = Weights.get_inducing_points weights in
-      let values =
-        Spec.Inputs.weighted_eval
-          kernel ~coeffs ~inducing:inducing_points ~inputs:points
-      in
+      let upper = Weights.get_upper weights in
+      let prepared = Spec.Inputs.Prepared.calc_cross upper points in
+      let values = Spec.Inputs.weighted_eval kernel ~coeffs prepared in
       make ~points ~values
 
     let calc_induced weights inputs =
@@ -496,23 +546,19 @@ module Make_common (Spec : Specs.Eval) = struct
   module FITC_covariances = struct
     include Common_covariances
 
-    let calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model =
+    let calc_common ~kmn ~inv_km_chol_kmn ~points ~model =
       let kernel = Common_model.get_kernel model in
-      let covariances = Spec.Inputs.upper_no_diag kernel points in
-      for i = 1 to Vec.dim kn_diag do
-        covariances.{i, i} <- kn_diag.{i}
-      done;
+      let covariances = Spec.Inputs.calc_upper kernel points in
       ignore (syrk ~trans:`T ~alpha:(-1.) inv_km_chol_kmn ~beta:1. ~c:covariances);
       let inv_b_chol_kmn = solve_b_chol model ~k:kmn in
       ignore (syrk ~trans:`T ~alpha:1. inv_b_chol_kmn ~beta:1. ~c:covariances);
       make ~points ~covariances ~model
 
     let calc_model_inputs model =
-      let kn_diag = model.Common_model.kn_diag in
       let kmn = model.Common_model.inputs.Inputs.kmn in
       let inv_km_chol_kmn = model.Common_model.inv_km_chol_kmn in
       let points = Common_model.get_input_points model in
-      calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model
+      calc_common ~kmn ~inv_km_chol_kmn ~points ~model
 
     let calc_induced model inputs =
       if Common_model.get_inducing model <> inputs.Inputs.inducing then
@@ -520,9 +566,9 @@ module Make_common (Spec : Specs.Eval) = struct
           "FITC_covariances.calc_induced: \
           model and inputs disagree about inducing points");
       let kmn = inputs.Inputs.kmn in
-      let inv_km_chol_kmn, kn_diag = Inputs.nystrom_chol_marginals inputs in
+      let inv_km_chol_kmn, _ = Inputs.nystrom_chol_marginals inputs in
       let points = inputs.Inputs.points in
-      calc_common ~kn_diag ~kmn ~inv_km_chol_kmn ~points ~model
+      calc_common ~kmn ~inv_km_chol_kmn ~points ~model
   end
 
   module FIC_covariances = struct
@@ -618,16 +664,6 @@ module Make_common (Spec : Specs.Eval) = struct
   end
 end
 
-module Make_traditional (Spec : Specs.Eval) = struct
-  include Make_common (Spec)
-  module Model = Common_model
-end
-
-module Make_variational (Spec : Specs.Eval) = struct
-  include Make_common (Spec)
-  module Model = Variational_model
-end
-
 module FIC_Loc = struct let loc = "FIC" end
 module Variational_FITC_Loc = struct let loc = "Variational_FITC" end
 module Variational_FIC_Loc = struct let loc = "Variational_FIC" end
@@ -638,7 +674,9 @@ let variational_fitc_loc = "Variational_FITC"
 let variational_fic_loc = "Variational_FIC"
 
 module Make_FITC (Spec : Specs.Eval) = struct
-  include Make_traditional (Spec)
+  include Make_common (Spec)
+
+  module Model = Common_model
   module Covariances = FITC_covariances
 
   module Sampler = struct
@@ -653,7 +691,9 @@ module Make_FITC (Spec : Specs.Eval) = struct
 end
 
 module Make_FIC (Spec : Specs.Eval) = struct
-  include Make_traditional (Spec)
+  include Make_common (Spec)
+
+  module Model = Common_model
   module Covariances = FIC_covariances
 
   module Sampler = struct
@@ -668,7 +708,9 @@ module Make_FIC (Spec : Specs.Eval) = struct
 end
 
 module Make_variational_FITC (Spec : Specs.Eval) = struct
-  include Make_variational (Spec)
+  include Make_common (Spec)
+
+  module Model = Variational_model
   module Covariances = FITC_covariances
 
   module Sampler = struct
@@ -683,7 +725,9 @@ module Make_variational_FITC (Spec : Specs.Eval) = struct
 end
 
 module Make_variational_FIC (Spec : Specs.Eval) = struct
-  include Make_variational (Spec)
+  include Make_common (Spec)
+
+  module Model = Variational_model
   module Covariances = FIC_covariances
 
   module Sampler = struct
@@ -770,65 +814,112 @@ end
 
 (* Derivable *)
 
-module type Deriv_sig = functor (Spec : Specs.Eval_deriv) ->
+module type Deriv_sig = functor (Spec : Specs.Deriv) ->
   Sigs.Deriv
-    with module Eval.Spec = Spec.Eval_spec
-    with module Deriv.Spec = Spec.Deriv_spec
+    with module Eval.Spec = Spec.Eval
+    with module Deriv.Spec = Spec
 
-module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
+module Make_common_deriv (Spec : Specs.Deriv) = struct
   open Spec
 
-  module Eval_common = Make_common (Eval_spec)
+  module Eval_common = Make_common (Spec.Eval)
   module Eval_inducing = Eval_common.Inducing
   module Eval_inputs = Eval_common.Inputs
   module Eval_model = Eval_common.Common_model
   module Eval_trained = Eval_common.Trained
 
   module Deriv_common = struct
-    module Spec = Deriv_spec
-
-    open Spec
+    module Spec = Spec
 
     module Inducing = struct
+      module Prepared = struct
+        type t = {
+          eval : Eval_inducing.Prepared.t;
+          upper : Spec.Inducing.Prepared.upper;
+        }
+
+        let calc eval =
+          {
+            eval = eval;
+            upper =
+              Spec.Inducing.Prepared.calc_upper
+                eval.Eval_inducing.Prepared.upper;
+          }
+
+        let get_points prepared = prepared.eval.Eval_inducing.Prepared.points
+      end
+
       type t = {
-        eval_inducing : Eval_inducing.t;
+        eval : Eval_inducing.t;
         shared : Spec.Inducing.shared;
       }
 
-      let calc kernel points =
-        let km, shared = Spec.Inducing.calc_shared kernel points in
-        let eval_inducing = Eval_inducing.calc_internal kernel points km in
+      let calc kernel { Prepared.eval = eval; upper = upper } =
+        let km, shared = Spec.Inducing.calc_shared_upper kernel upper in
         {
-          eval_inducing = eval_inducing;
+          eval = Eval_inducing.calc_internal kernel eval km;
           shared = shared;
         }
 
-      let calc_eval inducing = inducing.eval_inducing
-      let get_kernel inducing = Eval_inducing.get_kernel inducing.eval_inducing
+      let calc_eval inducing = inducing.eval
+      let get_kernel inducing = Eval_inducing.get_kernel inducing.eval
+      let get_points inducing = Eval_inducing.get_points inducing.eval
     end
 
     module Inputs = struct
+      module Prepared = struct
+        type t = {
+          inducing_prepared : Inducing.Prepared.t;
+          eval : Eval_inputs.Prepared.t;
+          cross : Spec.Inputs.Prepared.cross;
+        }
+
+        let calc inducing_prepared eval =
+          if
+            Inducing.Prepared.get_points inducing_prepared
+              != eval.Eval_inputs.Prepared.inducing_points
+          then
+            failwith
+              "Deriv.Inputs.Prepared.calc: prepared inducing points \
+              incompatible with those used for prepared inputs";
+          {
+            inducing_prepared = inducing_prepared;
+            eval = eval;
+            cross =
+              Spec.Inputs.Prepared.calc_cross
+                inducing_prepared.Inducing.Prepared.upper
+                eval.Eval_inputs.Prepared.cross;
+          }
+
+        let get_inducing_points prepared =
+          Inducing.Prepared.get_points prepared.inducing_prepared
+      end
+
       type t = {
         inducing : Inducing.t;
-        eval_inputs : Eval_inputs.t;
+        eval : Eval_inputs.t;
         shared_cross : Spec.Inputs.cross;
       }
 
-      let calc inducing points =
-        let eval_inducing = inducing.Inducing.eval_inducing in
-        let kernel = eval_inducing.Eval_inducing.kernel in
+      let calc inducing prepared =
+        if Inducing.get_points inducing != Prepared.get_inducing_points prepared
+        then
+          failwith
+            "Deriv.Inputs.calc: inducing points \
+            incompatible with those used for prepared inputs";
+        let kernel = Inducing.get_kernel inducing in
         let kmn, shared_cross =
-          Spec.Inputs.calc_shared_cross kernel
-            ~inducing:eval_inducing.Eval_inducing.points ~inputs:points
+          Spec.Inputs.calc_shared_cross kernel prepared.Prepared.cross
         in
-        let eval_inputs = Eval_inputs.calc_internal eval_inducing points kmn in
-        {
-          inducing = inducing;
-          eval_inputs = eval_inputs;
-          shared_cross = shared_cross;
-        }
+        let eval =
+          Eval_inputs.calc_internal
+            inducing.Inducing.eval
+            prepared.Prepared.eval.Eval_inputs.Prepared.points
+            kmn
+        in
+        { inducing = inducing; eval = eval; shared_cross = shared_cross; }
 
-      let calc_eval t = t.eval_inputs
+      let calc_eval t = t.eval
 
       let get_kernel inputs = Inducing.get_kernel inputs.inducing
     end
@@ -836,7 +927,6 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
     type model_kind = Traditional | Variational
 
     module Common_model = struct
-
       type t = {
         inputs : Inputs.t;
         shared_diag : Spec.Inputs.diag;
@@ -847,7 +937,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
       }
 
       let calc_internal inputs eval_model shared_diag model_kind =
-        let eval_inputs = inputs.Inputs.eval_inputs in
+        let eval_inputs = inputs.Inputs.eval in
         let b_chol = eval_model.Eval_model.b_chol in
         let kmn = eval_inputs.Eval_inputs.kmn in
         let inv_b_chol_kmn = solve_triangular ~trans:`T b_chol ~k:kmn in
@@ -863,17 +953,17 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
 
       let calc_common model_kind inputs sigma2 =
         let kernel = Inputs.get_kernel inputs in
-        let eval_inputs = inputs.Inputs.eval_inputs in
+        let eval_inputs = inputs.Inputs.eval in
         let kn_diag, shared_diag =
           Spec.Inputs.calc_shared_diag kernel eval_inputs.Eval_inputs.points
         in
         let eval_model =
           match model_kind with
           | Traditional ->
-              Eval_model.calc_internal inputs.Inputs.eval_inputs sigma2 kn_diag
+              Eval_model.calc_internal inputs.Inputs.eval sigma2 kn_diag
           | Variational ->
               Eval_common.Variational_model.calc_internal
-                inputs.Inputs.eval_inputs sigma2 kn_diag
+                inputs.Inputs.eval sigma2 kn_diag
         in
         calc_internal inputs eval_model shared_diag model_kind
 
@@ -932,7 +1022,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
 
       let prepare_hyper model =
         let { inputs = inputs; eval_model = eval_model } = model in
-        let eval_inputs = inputs.Inputs.eval_inputs in
+        let eval_inputs = inputs.Inputs.eval in
         let km_chol = eval_inputs.Eval_inputs.inducing.Eval_inducing.km_chol in
         let inv_km_chol_kmn = eval_model.Eval_model.inv_km_chol_kmn in
         let inv_km_kmn = solve_triangular km_chol ~k:inv_km_chol_kmn in
@@ -953,15 +1043,9 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
       type evidence = {
         hyper_model : hyper_t;
         var : Hyper.t;
-        deriv :
-          [
-          | `Dense of mat
-          | `Sparse_rows of mat * int array
-          | `Diag_vec of vec
-          | `Diag_const of float
-          ];
+        deriv_upper : symm_mat_deriv;
         dlam_diag__ : vec;
-        deriv_cross : [ `Dense of mat | `Sparse_rows of mat * int array ];
+        deriv_cross : mat_deriv;
         evidence_hyper : float;
       }
 
@@ -979,7 +1063,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
             inv_km_minus_inv_b = inv_km_minus_inv_b;
           } = hyper_model
         in
-        let kmn = inputs.Inputs.eval_inputs.Eval_inputs.kmn in
+        let kmn = inputs.Inputs.eval.Eval_inputs.kmn in
         let m = Mat.dim1 kmn in
         let n = Mat.dim2 kmn in
         let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
@@ -989,9 +1073,11 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
           | `Vec deriv_diag -> deriv_diag
           | `Const c -> Vec.make n c
         in
-        let deriv = Spec.Inducing.calc_deriv inducing_shared hyper in
+        let deriv_upper =
+          Spec.Inducing.calc_deriv_upper inducing_shared hyper
+        in
         let dkm_trace =
-          match deriv with
+          match deriv_upper with
           | `Dense dkm ->
               (* All inducing inputs depend on variable *)
               Mat.detri dkm;
@@ -1021,6 +1107,8 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
               (assert false (* XXX *))
           | `Diag_const _c ->
               (assert false (* XXX *))
+          | `Const _c ->
+              (assert false (* XXX *))
         in
         let deriv_cross =
           match
@@ -1033,6 +1121,8 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
               check_sparse_sane dkmn dkmn_rows;
               (* TODO: update dlam_diag__ *)
               deriv_cross
+          | `Const _c ->
+              (assert false (* XXX *))
         in
         let dlam__trace =
           let rec loop trace i =
@@ -1063,6 +1153,8 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
               calc_prod_trace inv_b_kmn combined
           | `Sparse_rows (_dkmn, _dkmn_rows) ->
               (assert false (* XXX *))
+          | `Const _c ->
+              (assert false (* XXX *))
         in
         let evidence_hyper = 0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace) in
         (
@@ -1070,7 +1162,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
           {
             hyper_model = hyper_model;
             var = hyper;
-            deriv = deriv;
+            deriv_upper = deriv_upper;
             dlam_diag__ = dlam_diag__;
             deriv_cross = deriv_cross;
             evidence_hyper = evidence_hyper;
@@ -1183,7 +1275,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
       let raise_incompatible_model loc =
         failwith (
           sprintf
-            "Deriv.Trained.%s: model used for training \
+            "Deriv.Trained.%s: model used for training evidence \
             and model used for model evidence are not the same" loc)
 
       let calc_evidence_sigma2 trained model_evidence_sigma2 =
@@ -1245,15 +1337,17 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
         if hyper_trained.hyper_model != model_evidence.Cm.hyper_model then
           raise_incompatible_model "calc_evidence";
         let inv_b_kmn_y__ = hyper_trained.trained.inv_b_kmn_y__ in
-        let deriv = model_evidence.Cm.deriv in
+        let deriv_upper = model_evidence.Cm.deriv_upper in
         let dkm_nll =
-          match deriv with
+          match deriv_upper with
           | `Dense dkm -> dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
           | `Sparse_rows _ ->
               (assert false (* XXX *))
           | `Diag_vec _ ->
               (assert false (* XXX *))
           | `Diag_const _ ->
+              (assert false (* XXX *))
+          | `Const _ ->
               (assert false (* XXX *))
         in
         let deriv_cross = model_evidence.Cm.deriv_cross in
@@ -1264,6 +1358,8 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
               dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
           | `Sparse_rows _ ->
               (assert false (* XXX *))
+          | `Const _ ->
+              (assert false (* XXX *))
         in
         let dlam_diag__ = model_evidence.Cm.dlam_diag__ in
         let dlam_nll = dot ~x:hyper_trained.dlam_factor dlam_diag__ in
@@ -1273,21 +1369,7 @@ module Make_common_deriv (Spec : Specs.Eval_deriv) = struct
   end
 end
 
-module Make_traditional_deriv (Spec : Specs.Eval_deriv) = struct
-  include Make_common_deriv (Spec)
-
-  module Eval = struct
-    include Eval_common
-    module Model = Common_model
-  end
-
-  module Deriv = struct
-    include Deriv_common
-    module Model = Common_model
-  end
-end
-
-module Make_FITC_deriv (Spec : Specs.Eval_deriv) = struct
+module Make_FITC_deriv (Spec : Specs.Deriv) = struct
   include Make_common_deriv (Spec)
 
   module Eval = struct
@@ -1311,5 +1393,202 @@ module Make_FITC_deriv (Spec : Specs.Eval_deriv) = struct
   module Deriv = struct
     include Deriv_common
     module Model = Common_model
+  end
+end
+
+module Make_FIC_deriv (Spec : Specs.Deriv) = struct
+  include Make_common_deriv (Spec)
+
+  module Eval = struct
+    include Eval_common
+
+    module Model = Common_model
+
+    module Covariances = FIC_covariances
+
+    module Sampler = struct
+      include Common_sampler
+      let calc = calc ~loc:fic_loc
+    end
+
+    module Cov_sampler = struct
+      include Common_cov_sampler
+      let calc = calc ~loc:fic_loc
+    end
+  end
+
+  module Deriv = struct
+    include Deriv_common
+    module Model = Common_model
+  end
+end
+
+module Make_variational_FITC_deriv (Spec : Specs.Deriv) = struct
+  include Make_common_deriv (Spec)
+
+  module Eval = struct
+    include Eval_common
+
+    module Model = Variational_model
+
+    module Covariances = FITC_covariances
+
+    module Sampler = struct
+      include Common_sampler
+      let calc = calc ~loc:fitc_loc
+    end
+
+    module Cov_sampler = struct
+      include Common_cov_sampler
+      let calc = calc ~loc:fitc_loc
+    end
+  end
+
+  module Deriv = struct
+    include Deriv_common
+    module Model = Variational_model
+  end
+end
+
+module Make_variational_FIC_deriv (Spec : Specs.Deriv) = struct
+  include Make_common_deriv (Spec)
+
+  module Eval = struct
+    include Eval_common
+
+    module Model = Variational_model
+
+    module Covariances = FIC_covariances
+
+    module Sampler = struct
+      include Common_sampler
+      let calc = calc ~loc:fic_loc
+    end
+
+    module Cov_sampler = struct
+      include Common_cov_sampler
+      let calc = calc ~loc:fic_loc
+    end
+  end
+
+  module Deriv = struct
+    include Deriv_common
+    module Model = Variational_model
+  end
+end
+
+module Make_deriv (Spec : Specs.Deriv) = struct
+  module type Sig = Sigs.Deriv
+    with module Eval.Spec = Spec.Eval
+    with module Deriv.Spec = Spec
+
+  module Common_deriv = Make_common_deriv (Spec)
+
+  module FITC = struct
+    include Common_deriv
+
+    module Eval = struct
+      include Eval_common
+
+      module Model = Common_model
+
+      module Covariances = FITC_covariances
+
+      module Sampler = struct
+        include Common_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+
+      module Cov_sampler = struct
+        include Common_cov_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+    end
+
+    module Deriv = struct
+      include Deriv_common
+      module Model = Common_model
+    end
+  end
+
+  module FIC = struct
+    include Common_deriv
+
+    module Eval = struct
+      include Eval_common
+
+      module Model = Variational_model
+
+      module Covariances = FIC_covariances
+
+      module Sampler = struct
+        include Common_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+
+      module Cov_sampler = struct
+        include Common_cov_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+    end
+
+    module Deriv = struct
+      include Deriv_common
+      module Model = Variational_model
+    end
+  end
+
+  module Variational_FITC = struct
+    include Common_deriv
+
+    module Eval = struct
+      include Eval_common
+
+      module Model = Variational_model
+
+      module Covariances = FITC_covariances
+
+      module Sampler = struct
+        include Common_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+
+      module Cov_sampler = struct
+        include Common_cov_sampler
+        let calc = calc ~loc:fitc_loc
+      end
+    end
+
+    module Deriv = struct
+      include Deriv_common
+      module Model = Variational_model
+    end
+  end
+
+  module Variational_FIC = struct
+    include Common_deriv
+
+    module Eval = struct
+      include Eval_common
+
+      module Model = Variational_model
+
+      module Covariances = FIC_covariances
+
+      module Sampler = struct
+        include Common_sampler
+        let calc = calc ~loc:fic_loc
+      end
+
+      module Cov_sampler = struct
+        include Common_cov_sampler
+        let calc = calc ~loc:fic_loc
+      end
+    end
+
+    module Deriv = struct
+      include Deriv_common
+      module Model = Variational_model
+    end
   end
 end

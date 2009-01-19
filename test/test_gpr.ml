@@ -6,28 +6,44 @@ open Lacaml.Io
 open Gpr
 open Kernel_impl
 open Utils
-open Fitc
 
-let n_inputs = 10
-let n_inducing_inputs = 5
+let n_inputs = 1000
+let n_inducing_inputs = 10
 let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
-module Gauss = struct
-  include Fitc.Make (Gauss_all_vec)
+module Lin_one = struct
+  include Fitc.Make_deriv (Cov_lin_one)
 
-  let k = { Gauss_all_vec_spec.Kernel.a = -0.5; b = -1.0 }
+  let params =
+    let log_theta = log 2. in
+    object method log_theta = log_theta end
+
+  let kernel = Cov_lin_one.Eval.Kernel.create params
 end
 
-module Wiener = struct
-  include Fitc.Make (Wiener_all_vec)
+module Lin_ard = struct
+  include Fitc.Make_deriv (Cov_lin_ard)
 
-  let k = { Wiener_all_vec_spec.Kernel.a = 0. }
+  let params =
+    let log_ells = Vec.make 1 (log 2.) in
+    object method log_ells = log_ells end
+
+  let kernel = Cov_lin_ard.Eval.Kernel.create params
 end
 
-module All = Gauss
+module SE_iso = struct
+  include Fitc.Make_deriv (Cov_se_iso)
 
-open All
+  let params =
+    let log_ell = log 1. in
+    let log_sf = log 1. in
+    object method log_ell = log_ell method log_sf = log_sf end
+
+  let kernel = Cov_se_iso.Eval.Kernel.create params
+end
+
+open Lin_ard
 
 let f ?(with_noise = false) x =
   let v = sin (3. *. x) /. x +. (x -. 3.) /. (x *. x +. 1.) in
@@ -60,8 +76,13 @@ let get_training () =
 let training_inputs, training_targets, inducing_inputs = get_training ()
 
 let main () =
-  let inducing = FITC.Inducing.calc k inducing_inputs in
-  let inputs = FITC.Inputs.calc inducing training_inputs in
+  let module FITC = FITC.Eval in
+  let prepared_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
+  let inducing = FITC.Inducing.calc kernel prepared_inducing in
+  let prepared_inputs =
+    FITC.Inputs.Prepared.calc prepared_inducing training_inputs
+  in
+  let inputs = FITC.Inputs.calc inducing prepared_inputs in
 
   let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
   printf "model evidence: %.9f@." (FITC.Model.calc_evidence model);
@@ -94,6 +115,7 @@ let main () =
   write_vec "sample2" (Mat.col fitc_samples 2);
   write_vec "sample3" (Mat.col fitc_samples 3);
 
+  let module FIC = FIC.Eval in
   let fic_covariances = FIC.Covariances.calc_model_inputs model in
   let fic_sampler =
     FIC.Cov_sampler.calc ~predictive:false means fic_covariances
@@ -103,8 +125,9 @@ let main () =
   write_vec "fic_sample2" (Mat.col fic_samples 2);
   write_vec "fic_sample3" (Mat.col fic_samples 3)
 
-(* let () = main () *)
+let () = main ()
 
+(*
 module Gauss_deriv = struct
   include Make_FITC_deriv (Gauss_deriv_all_vec)
 
@@ -114,8 +137,12 @@ end
 open Gauss_deriv
 
 let with_sigma2 sigma2 =
-  let inducing = Deriv.Inducing.calc k inducing_inputs in
-  let inputs = Deriv.Inputs.calc inducing training_inputs in
+  let prepared_inducing = Deriv.Inducing.Prepared.calc inducing_inputs in
+  let inducing = Deriv.Inducing.calc k prepared_inducing in
+  let prepared_inputs =
+    Deriv.Inputs.Prepared.calc inducing_inputs training_inputs
+  in
+  let inputs = Deriv.Inputs.calc inducing prepared_inputs in
   let model = Deriv.Model.calc ~sigma2 inputs in
   let trained = Deriv.Trained.calc model ~targets:training_targets in
   let eval_trained = Deriv.Trained.calc_eval trained in
@@ -135,8 +162,12 @@ let main () =
   printf "finite: %.15f\n" ((e2 -. e1) /. epsilon)
 
 let find_sigma2 () =
-  let inducing = Deriv.Inducing.calc k inducing_inputs in
-  let inputs = Deriv.Inputs.calc inducing training_inputs in
+  let prepared_inducing = Deriv.Inducing.Prepared.calc inducing_inputs in
+  let inducing = Deriv.Inducing.calc k prepared_inducing in
+  let prepared_inputs =
+    Deriv.Inputs.Prepared.calc inducing_inputs training_inputs
+  in
+  let inputs = Deriv.Inputs.calc inducing prepared_inputs in
   let eval_inputs = Deriv.Inputs.calc_eval inputs in
 
   let model_ref = ref None in
@@ -229,8 +260,12 @@ let main () =
 
   let epsilon = 10e-6 in
 
-  let inducing = Deriv.Inducing.calc k inducing_inputs in
-  let inputs = Deriv.Inputs.calc inducing training_inputs in
+  let prepared_inducing = Deriv.Inducing.Prepared.calc inducing_inputs in
+  let inducing = Deriv.Inducing.calc k prepared_inducing in
+  let prepared_inputs =
+    Deriv.Inputs.Prepared.calc inducing_inputs training_inputs
+  in
+  let inputs = Deriv.Inputs.calc inducing prepared_inputs in
   let model = Deriv.Model.calc ~sigma2 inputs in
 
   let new_k =
@@ -240,8 +275,8 @@ let main () =
         k.Gauss_all_vec_spec.Kernel.a +. epsilon
     }
   in
-  let inducing = Deriv.Inducing.calc new_k inducing_inputs in
-  let inputs = Deriv.Inputs.calc inducing training_inputs in
+  let inducing = Deriv.Inducing.calc new_k prepared_inducing in
+  let inputs = Deriv.Inputs.calc inducing prepared_inputs in
   let model2 = Deriv.Model.calc ~sigma2 inputs in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
@@ -270,3 +305,4 @@ let main () =
   printf "dfinite:   %f\n%!" ((f2 -. f1) /. epsilon)
 
 let () = main ()
+*)

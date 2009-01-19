@@ -1,6 +1,10 @@
 SOURCES[] =
   interfaces
   utils
+  cov_const
+  cov_lin_one
+  cov_lin_ard
+  cov_se_iso
   kernel_impl
   fitc
 

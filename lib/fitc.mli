@@ -49,9 +49,64 @@ module Make (Spec : Specs.Eval) : sig
       with module Sampler = Variational_FITC.Sampler
 end
 
-module type Deriv_sig = functor (Spec : Specs.Eval_deriv) ->
+module type Deriv_sig = functor (Spec : Specs.Deriv) ->
   Sigs.Deriv
-    with module Eval.Spec = Spec.Eval_spec
-    with module Deriv.Spec = Spec.Deriv_spec
+    with module Eval.Spec = Spec.Eval
+    with module Deriv.Spec = Spec
 
 module Make_FITC_deriv : Deriv_sig
+module Make_FIC_deriv : Deriv_sig
+module Make_variational_FITC_deriv : Deriv_sig
+module Make_variational_FIC_deriv : Deriv_sig
+
+module Make_deriv (Spec : Specs.Deriv) : sig
+  module type Sig = Sigs.Deriv
+    with module Eval.Spec = Spec.Eval
+    with module Deriv.Spec = Spec
+
+  module FITC : Sig
+
+  module FIC :
+    Sig
+      with module Eval.Inducing = FITC.Eval.Inducing
+      with module Eval.Input = FITC.Eval.Input
+      with module Eval.Inputs = FITC.Eval.Inputs
+      with module Eval.Model = FITC.Eval.Model
+      with module Eval.Trained = FITC.Eval.Trained
+      with module Eval.Weights = FITC.Eval.Weights
+      with module Eval.Mean = FITC.Eval.Mean
+      with module Eval.Means = FITC.Eval.Means
+      with module Eval.Variance = FITC.Eval.Variance
+      with module Eval.Variances = FITC.Eval.Variances
+      with module Eval.Sampler = FITC.Eval.Sampler
+      with module Deriv.Inducing = FITC.Deriv.Inducing
+      with module Deriv.Inputs = FITC.Deriv.Inputs
+      with module Deriv.Model = FITC.Deriv.Model
+      with module Deriv.Trained = FITC.Deriv.Trained
+
+  module Variational_FITC :
+    Sig
+      with module Eval.Inducing = FITC.Eval.Inducing
+      with module Eval.Input = FITC.Eval.Input
+      with module Eval.Inputs = FITC.Eval.Inputs
+      with module Deriv.Inducing = FITC.Deriv.Inducing
+      with module Deriv.Inputs = FITC.Deriv.Inputs
+
+  module Variational_FIC :
+    Sig
+      with module Eval.Inducing = Variational_FITC.Eval.Inducing
+      with module Eval.Input = Variational_FITC.Eval.Input
+      with module Eval.Inputs = Variational_FITC.Eval.Inputs
+      with module Eval.Model = Variational_FITC.Eval.Model
+      with module Eval.Trained = Variational_FITC.Eval.Trained
+      with module Eval.Weights = Variational_FITC.Eval.Weights
+      with module Eval.Mean = Variational_FITC.Eval.Mean
+      with module Eval.Means = Variational_FITC.Eval.Means
+      with module Eval.Variance = Variational_FITC.Eval.Variance
+      with module Eval.Variances = Variational_FITC.Eval.Variances
+      with module Eval.Sampler = Variational_FITC.Eval.Sampler
+      with module Deriv.Inducing = Variational_FITC.Deriv.Inducing
+      with module Deriv.Inputs = Variational_FITC.Deriv.Inputs
+      with module Deriv.Model = Variational_FITC.Deriv.Model
+      with module Deriv.Trained = Variational_FITC.Deriv.Trained
+end
