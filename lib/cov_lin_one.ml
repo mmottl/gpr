@@ -1,12 +1,17 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
+module Params = struct type t = { log_theta : float } end
+
 module Eval = struct
   module Kernel = struct
-    type params = < log_theta : float >
-    type t = float
+    type params = Params.t
+    type t = { params : params; const : float }
 
-    let create params = exp (-2. *. params#log_theta)
+    let create params =
+      { params = params; const = exp (-2. *. params.Params.log_theta) }
+
+    let get_params k = k.params
   end
 
   module Inducing = struct
@@ -23,14 +28,13 @@ module Eval = struct
         (* TODO: make upper triangle only *)
         syrk ~trans:`T points ~beta:1. ~c:(Mat.make m m 1.)
 
-      let calc_upper points =
-        { upper = calc_km points; inducing = points }
+      let calc_upper points = { upper = calc_km points; inducing = points }
     end
 
     let calc_upper_mat k upper =
       (* TODO: copy and scale upper triangle only *)
       let res = Mat.copy upper in
-      Mat.scal k res;
+      Mat.scal k.Kernel.const res;
       res
 
     let calc_upper k prepared_upper =
@@ -50,16 +54,16 @@ module Eval = struct
 
     let eval k cross =
       let res = copy cross in
-      scal k res;
+      scal k.Kernel.const res;
       res
 
     let weighted_eval k ~coeffs cross =
       if Vec.dim coeffs <> Vec.dim cross then
         failwith
           "Gpr.Cov_lin_one.Eval.Input.weighted_eval: dim(coeffs) <> m";
-      k *. dot ~x:coeffs cross
+      k.Kernel.const *. dot ~x:coeffs cross
 
-    let eval_one k input = k *. (Vec.ssqr input +. 1.)
+    let eval_one k input = k.Kernel.const *. (Vec.ssqr input +. 1.)
   end
 
   module Inputs = struct
@@ -80,22 +84,23 @@ module Eval = struct
     let calc_diag k inputs =
       let n = Mat.dim2 inputs in
       let res = Vec.create n in
+      let const = k.Kernel.const in
       for i = 1 to n do
         (* TODO: optimize ssqr and col *)
-        res.{i} <- k *. (Vec.ssqr (Mat.col inputs i) +. 1.);
+        res.{i} <- const *. (Vec.ssqr (Mat.col inputs i) +. 1.);
       done;
       res
 
     let calc_cross k cross =
       let res = Mat.copy cross in
-      Mat.scal k res;
+      Mat.scal k.Kernel.const res;
       res
 
     let weighted_eval k ~coeffs cross =
       if Vec.dim coeffs <> Mat.dim1 cross then
         failwith
           "Gpr.Cov_lin_one.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
-      gemv ~alpha:k ~trans:`T cross coeffs
+      gemv ~alpha:k.Kernel.const ~trans:`T cross coeffs
   end
 end
 
@@ -115,21 +120,24 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type shared = Prepared.upper
+  type shared = Eval.Inducing.t
 
   let calc_shared_upper k prepared_upper =
     let upper = Eval.Inducing.calc_upper k prepared_upper in
-    upper, prepared_upper
+    upper, upper
 
-  let calc_deriv_upper upper `Log_theta =
-    calc_deriv_mat upper.Eval.Inducing.Prepared.upper
+  let calc_deriv_upper upper `Log_theta = calc_deriv_mat upper
 end
 
 module Inputs = struct
-  include Eval.Inputs
+  module Prepared = struct
+    type cross = Eval.Inputs.Prepared.cross
+
+    let calc_cross _upper cross = cross
+  end
 
   type diag = vec
-  type cross = Prepared.cross
+  type cross = Eval.Inputs.t
 
   let calc_shared_diag k diag_eval_inputs =
     let diag = Eval.Inputs.calc_diag k diag_eval_inputs in
@@ -137,7 +145,7 @@ module Inputs = struct
 
   let calc_shared_cross k cross_eval_inputs =
     let cross = Eval.Inputs.calc_cross k cross_eval_inputs in
-    cross, cross_eval_inputs
+    cross, cross
 
   let calc_deriv_diag diag `Log_theta =
     let res = copy diag in

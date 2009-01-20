@@ -1,17 +1,21 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
+module Params = struct type t = { log_ells : vec } end
+
 module Eval = struct
   module Kernel = struct
-    type params = < log_ells : vec >
-    type t = vec
+    type params = Params.t
+    type t = { params : params; consts : vec }
 
     let create params =
-      let log_ells = params#log_ells in
+      let log_ells = params.Params.log_ells in
       let d = Vec.dim log_ells in
       let consts = Vec.create d in
       for i = 1 to d do consts.{i} <- exp (-. log_ells.{i}) done;
-      consts
+      { params = params; consts = consts }
+
+    let get_params k = k.params
   end
 
   module Inducing = struct
@@ -40,10 +44,10 @@ module Eval = struct
         inducing_prepared.Inducing.Prepared.inducing, input
     end
 
-    let calc_ard_input k input =
+    let calc_ard_input { Kernel.consts = consts } input =
       let d = Vec.dim input in
       let ard_input = Vec.create d in
-      for i = 1 to d do ard_input.{i} <- k.{i} *. input.{i} done;
+      for i = 1 to d do ard_input.{i} <- consts.{i} *. input.{i} done;
       ard_input
 
     let eval k (inducing, input) =
@@ -55,11 +59,11 @@ module Eval = struct
           "Gpr.Cov_lin_ard.Eval.Input.weighted_eval: dim(coeffs) <> m";
       dot ~x:coeffs (eval k cross)
 
-    let eval_one k input =
+    let eval_one { Kernel.consts = consts } input =
       let rec loop res i =
         if i = 0 then res
         else
-          let x = k.{i} *. input.{i} in
+          let x = consts.{i} *. input.{i} in
           loop (res +. x *. x) (i - 1)
       in
       loop 0. (Vec.dim input)
@@ -81,12 +85,12 @@ module Eval = struct
         }
     end
 
-    let calc_ard_inputs k inputs =
+    let calc_ard_inputs { Kernel.consts = consts } inputs =
       let d = Mat.dim1 inputs in
       let n = Mat.dim2 inputs in
       let ard_inputs = Mat.create d n in
       for c = 1 to n do
-        for r = 1 to d do ard_inputs.{r, c} <- k.{r} *. inputs.{r, c} done
+        for r = 1 to d do ard_inputs.{r, c} <- consts.{r} *. inputs.{r, c} done
       done;
       ard_inputs
 
@@ -156,7 +160,7 @@ module Inputs = struct
     in
     Eval.Inputs.calc_cross k prepared_cross, (k, inducing, inputs)
 
-  let calc_const k d = let kd = k.{d} in -2. *. kd *. kd
+  let calc_const k d = let kd = k.Eval.Kernel.consts.{d} in -2. *. kd *. kd
 
   let calc_deriv_diag (k, inputs) (`Log_ell d) =
     let n = Mat.dim2 inputs in

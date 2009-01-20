@@ -7,6 +7,7 @@ module Inducing_input_gpr = struct
       type params
 
       val create : params -> t
+      val get_params : t -> params
     end
 
     module type Eval = sig

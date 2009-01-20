@@ -1,11 +1,16 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
+module Params = struct
+  type t = { log_ell : float; log_sf : float }
+end
+
 module Eval = struct
   module Kernel = struct
-    type params = < log_ell : float; log_sf : float >
+    type params = Params.t
 
     type t = {
+      params : params;
       inv_ell2 : float;
       inv_ell2_05 : float;
       log_sf2 : float;
@@ -13,14 +18,17 @@ module Eval = struct
     }
 
     let create params =
-      let log_sf2 = 2. *. params#log_sf in
-      let inv_ell2 = exp (-2. *. params#log_ell) in
+      let log_sf2 = 2. *. params.Params.log_sf in
+      let inv_ell2 = exp (-2. *. params.Params.log_ell) in
       {
+        params = params;
         inv_ell2 = inv_ell2;
         inv_ell2_05 = -0.5 *. inv_ell2;
         log_sf2 = log_sf2;
         sf2 = exp log_sf2;
       }
+
+    let get_params k = k.params
   end
 
   open Kernel
@@ -33,16 +41,17 @@ module Eval = struct
 
       let calc_upper inducing =
         let sq_diff_mat = syrk ~trans:`T inducing in
-        let n = Mat.dim2 sq_diff_mat in
-        let ssqr_inducing = Vec.create n in
-        for i = 1 to n do ssqr_inducing.{i} <- sq_diff_mat.{i, i} done;
-        for c = 2 to n do
+        let m = Mat.dim2 sq_diff_mat in
+        let ssqr_inducing = Vec.create m in
+        for i = 1 to m do ssqr_inducing.{i} <- sq_diff_mat.{i, i} done;
+        for c = 2 to m do
           let ssqr_inducing_c = ssqr_inducing.{c} in
           for r = 1 to c - 1 do
             sq_diff_mat.{r, c} <-
               ssqr_inducing.{r} -. 2. *. sq_diff_mat.{r, c} +. ssqr_inducing_c
           done
         done;
+        for i = 1 to m do sq_diff_mat.{i, i} <- 0. done;
         {
           sq_diff_mat = sq_diff_mat;
           ssqr_inducing = ssqr_inducing;
