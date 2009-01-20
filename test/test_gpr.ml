@@ -12,11 +12,21 @@ let n_inducing_inputs = 10
 let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
+module Const = struct
+  include Fitc.Make_deriv (Cov_const)
+
+  let params =
+    let log_theta = log 1. in
+    object method log_theta = log_theta end
+
+  let kernel = Cov_const.Eval.Kernel.create params
+end
+
 module Lin_one = struct
   include Fitc.Make_deriv (Cov_lin_one)
 
   let params =
-    let log_theta = log 2. in
+    let log_theta = log 1. in
     object method log_theta = log_theta end
 
   let kernel = Cov_lin_one.Eval.Kernel.create params
@@ -26,7 +36,8 @@ module Lin_ard = struct
   include Fitc.Make_deriv (Cov_lin_ard)
 
   let params =
-    let log_ells = Vec.make 1 (log 2.) in
+    (* Any other value with ARD is useless for graphical demonstration *)
+    let log_ells = Vec.make 1 0. in
     object method log_ells = log_ells end
 
   let kernel = Cov_lin_ard.Eval.Kernel.create params
@@ -43,7 +54,7 @@ module SE_iso = struct
   let kernel = Cov_se_iso.Eval.Kernel.create params
 end
 
-open Lin_ard
+open SE_iso
 
 let f ?(with_noise = false) x =
   let v = sin (3. *. x) /. x +. (x -. 3.) /. (x *. x +. 1.) in

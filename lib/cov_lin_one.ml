@@ -18,13 +18,13 @@ module Eval = struct
         inducing : t;
       }
 
-      let calc_upper points =
+      let calc_km points =
         let m = Mat.dim2 points in
         (* TODO: make upper triangle only *)
-        {
-          upper = syrk ~trans:`T points ~beta:1. ~c:(Mat.make m m 1.);
-          inducing = points;
-        }
+        syrk ~trans:`T points ~beta:1. ~c:(Mat.make m m 1.)
+
+      let calc_upper points =
+        { upper = calc_km points; inducing = points }
     end
 
     let calc_upper_mat k upper =
@@ -75,7 +75,7 @@ module Eval = struct
     end
 
     let calc_upper k inputs =
-      Inducing.calc_upper_mat k (syrk ~trans:`T inputs)
+      Inducing.calc_upper_mat k (Inducing.Prepared.calc_km inputs)
 
     let calc_diag k inputs =
       let n = Mat.dim2 inputs in
