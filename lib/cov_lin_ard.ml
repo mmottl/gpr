@@ -100,7 +100,7 @@ module Eval = struct
       let n = Mat.dim2 inputs in
       let res = Vec.create n in
       for i = 1 to n do
-        res.{i} <- Vec.ssqr (Input.calc_ard_input k (Mat.col inputs i))
+        res.{i} <- Vec.sqr_nrm2 (Input.calc_ard_input k (Mat.col inputs i))
       done;
       res
 

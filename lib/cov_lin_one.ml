@@ -63,7 +63,7 @@ module Eval = struct
           "Gpr.Cov_lin_one.Eval.Input.weighted_eval: dim(coeffs) <> m";
       k.Kernel.const *. dot ~x:coeffs cross
 
-    let eval_one k input = k.Kernel.const *. (Vec.ssqr input +. 1.)
+    let eval_one k input = k.Kernel.const *. (Vec.sqr_nrm2 input +. 1.)
   end
 
   module Inputs = struct
@@ -86,8 +86,8 @@ module Eval = struct
       let res = Vec.create n in
       let const = k.Kernel.const in
       for i = 1 to n do
-        (* TODO: optimize ssqr and col *)
-        res.{i} <- const *. (Vec.ssqr (Mat.col inputs i) +. 1.);
+        (* TODO: optimize sqr_nrm2 and col *)
+        res.{i} <- const *. (Vec.sqr_nrm2 (Mat.col inputs i) +. 1.);
       done;
       res
 

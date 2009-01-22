@@ -86,7 +86,7 @@ module Eval = struct
           } = inducing_prepared
         in
         let sq_diff_vec = gemv ~trans:`T inducing input in
-        let ssqr_input = Vec.ssqr input in
+        let ssqr_input = Vec.sqr_nrm2 input in
         for i = 1 to Vec.dim sq_diff_vec do
           sq_diff_vec.{i} <-
             ssqr_inducing.{i} -. 2. *. sq_diff_vec.{i} +. ssqr_input
@@ -146,8 +146,8 @@ module Eval = struct
         let sq_diff_mat = gemm ~transa:`T inducing inputs in
         let ssqr_inputs = Vec.create n in
         for i = 1 to n do
-          (* TODO: optimize ssqr and col *)
-          ssqr_inputs.{i} <- Vec.ssqr (Mat.col inputs i)
+          (* TODO: optimize sqr_nrm2 and col *)
+          ssqr_inputs.{i} <- Vec.sqr_nrm2 (Mat.col inputs i)
         done;
         for c = 1 to n do
           let ssqr_inputs_c = ssqr_inputs.{c} in

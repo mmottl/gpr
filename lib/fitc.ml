@@ -186,8 +186,8 @@ module Make_common (Spec : Specs.Eval) = struct
         if i = 0 then log_det_lam_sigma2
         else
           let kn_diag_i = kn_diag.{i} in
-          (* TODO: optimize ssqr and col *)
-          let qn_diag_i = Vec.ssqr (Mat.col inv_km_chol_kmn i) in
+          (* TODO: optimize sqr_nrm2 and col *)
+          let qn_diag_i = Vec.sqr_nrm2 (Mat.col inv_km_chol_kmn i) in
           let lam_i = kn_diag_i -. qn_diag_i in
           lam_diag.{i} <- lam_i;
           let lam_sigma2_i = lam_i +. sigma2 in
@@ -273,7 +273,7 @@ module Make_common (Spec : Specs.Eval) = struct
       y__, dot ~x:targets y__
 
     let make model targets y__ ssqr_y__ inv_b_chol_kmn_y__ =
-      let fit_evidence = 0.5 *. (Vec.ssqr inv_b_chol_kmn_y__ -. ssqr_y__) in
+      let fit_evidence = 0.5 *. (Vec.sqr_nrm2 inv_b_chol_kmn_y__ -. ssqr_y__) in
       {
         model = model;
         targets = targets;
@@ -429,8 +429,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let inv_b_chol_kmn = solve_b_chol model ~k:(Common_model.get_kmn model) in
       let n = Mat.dim2 inv_b_chol_kmn in
       for i = 1 to n do
-        (* TODO: optimize ssqr and col *)
-        variances.{i} <- variances.{i} +. Vec.ssqr (Mat.col inv_b_chol_kmn i)
+        (* TODO: optimize sqr_nrm2 and col *)
+        variances.{i} <- variances.{i} +. Vec.sqr_nrm2 (Mat.col inv_b_chol_kmn i)
       done;
       make ~points:(Common_model.get_input_points model) ~variances ~model
 
@@ -446,9 +446,9 @@ module Make_common (Spec : Specs.Eval) = struct
       let n = Mat.dim2 inv_b_chol_kmt in
       for i = 1 to n do
         let explained_variance =
-          (* TODO: optimize ssqr and col *)
-          Vec.ssqr (Mat.col inv_km_chol_kmt i) -.
-            Vec.ssqr (Mat.col inv_b_chol_kmt i)
+          (* TODO: optimize sqr_nrm2 and col *)
+          Vec.sqr_nrm2 (Mat.col inv_km_chol_kmt i) -.
+            Vec.sqr_nrm2 (Mat.col inv_b_chol_kmt i)
         in
         variances.{i} <- variances.{i} -. explained_variance
       done;
@@ -481,8 +481,8 @@ module Make_common (Spec : Specs.Eval) = struct
         let m = Mat.dim2 inv_b_chol_km in
         let variances = Vec.create m in
         for i = 1 to m do
-          (* TODO: optimize ssqr and col *)
-          variances.{i} <- Vec.ssqr (Mat.col inv_b_chol_km i)
+          (* TODO: optimize sqr_nrm2 and col *)
+          variances.{i} <- Vec.sqr_nrm2 (Mat.col inv_b_chol_km i)
         done;
         make ~points:(Common_model.get_inducing_points model) ~variances ~model
 
@@ -1004,9 +1004,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           else
             let el =
               let inv_lam_sigma2_diag_i = inv_lam_sigma2_diag.{i} in
-              (* TODO: optimize ssqr and col *)
-              let ssqr = Vec.ssqr (Mat.col inv_b_chol_kmn i) in
-              inv_lam_sigma2_diag_i *. (inv_lam_sigma2_diag_i *. ssqr -. 1.)
+              (* TODO: optimize sqr_nrm2 and col *)
+              let sqr_nrm2 = Vec.sqr_nrm2 (Mat.col inv_b_chol_kmn i) in
+              inv_lam_sigma2_diag_i *. (inv_lam_sigma2_diag_i *. sqr_nrm2 -. 1.)
             in
             loop (trace +. el) (i - 1)
         in
@@ -1096,11 +1096,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 if i = 0 then 2. *. trace
                 else
                   let r = dkm_rows.(i - 1) in
-                  (* TODO: optimize ssqr and col *)
-                  let ssqr =
+                  (* TODO: optimize sqr_nrm2 and col *)
+                  let sqr_nrm2 =
                     dot ~x:(Mat.col inv_km_kmn r) (Mat.col dkm_inv_km_kmn i)
                   in
-                  loop (trace +. ssqr) (i - 1)
+                  loop (trace +. sqr_nrm2) (i - 1)
               in
               loop 0. (Array.length dkm_rows)
           | `Diag_vec _vec ->
