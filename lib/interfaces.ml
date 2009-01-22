@@ -152,14 +152,14 @@ module Inducing_input_gpr = struct
 
         val calc : Inputs.t -> sigma2 : float -> t
         val update_sigma2 : t -> float -> t
-        val calc_evidence : t -> float
+        val calc_log_evidence : t -> float
       end
 
       module Trained : sig
         type t
 
         val calc : Model.t -> targets : vec -> t
-        val calc_evidence : t -> float
+        val calc_log_evidence : t -> float
       end
 
       module Weights : sig
@@ -291,17 +291,19 @@ module Inducing_input_gpr = struct
           type t
           type hyper_t
 
-          type evidence_sigma2
-          type evidence
+          type log_evidence_sigma2
+          type log_evidence
 
           val calc : Inputs.t -> sigma2 : float -> t
           val update_sigma2 : t -> float -> t
           val calc_eval : t -> Eval.Model.t
 
-          val calc_evidence_sigma2 : t -> float * evidence_sigma2
+          val calc_log_evidence_sigma2 : t -> float * log_evidence_sigma2
 
           val prepare_hyper : t -> hyper_t
-          val calc_evidence : hyper_t -> Spec.Hyper.t -> float * evidence
+
+          val calc_log_evidence :
+            hyper_t -> Spec.Hyper.t -> float * log_evidence
         end
 
         module Trained : sig
@@ -311,10 +313,10 @@ module Inducing_input_gpr = struct
           val calc : Model.t -> targets : vec -> t
           val calc_eval : t -> Eval.Trained.t
 
-          val calc_evidence_sigma2 : t -> Model.evidence_sigma2 -> float
+          val calc_log_evidence_sigma2 : t -> Model.log_evidence_sigma2 -> float
 
           val prepare_hyper : t -> Model.hyper_t -> hyper_t
-          val calc_evidence : hyper_t -> Model.evidence -> float
+          val calc_log_evidence : hyper_t -> Model.log_evidence -> float
         end
       end
     end

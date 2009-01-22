@@ -165,7 +165,7 @@ module Make_common (Spec : Specs.Eval) = struct
       lam_diag : vec;
       inv_lam_sigma2_diag : vec;
       b_chol : mat;
-      evidence : float;
+      log_evidence : float;
     }
 
     let check_sigma2 sigma2 =
@@ -212,7 +212,7 @@ module Make_common (Spec : Specs.Eval) = struct
         lam_diag = lam_diag;
         inv_lam_sigma2_diag = inv_lam_sigma2_diag;
         b_chol = b_chol;
-        evidence = 0.5 *. (l1_2 -. float n_inputs *. log_2pi);
+        log_evidence = 0.5 *. (l1_2 -. float n_inputs *. log_2pi);
       }
 
     let calc inputs ~sigma2 =
@@ -223,7 +223,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let update_sigma2 model sigma2 =
       calc_internal model.inputs sigma2 model.kn_diag
 
-    let calc_evidence model = model.evidence
+    let calc_log_evidence model = model.log_evidence
     let get_inducing model = model.inputs.Inputs.inducing
     let get_inducing_points model = Inducing.get_points (get_inducing model)
     let get_upper model = Inducing.get_upper (get_inducing model)
@@ -243,10 +243,10 @@ module Make_common (Spec : Specs.Eval) = struct
         {
           lam_diag = lam_diag;
           inv_lam_sigma2_diag = x;
-          evidence = evidence;
+          log_evidence = log_evidence;
         } = model
       in
-      { model with evidence = evidence -. 0.5 *. dot ~x lam_diag }
+      { model with log_evidence = log_evidence -. 0.5 *. dot ~x lam_diag }
 
     let calc_internal inputs sigma2 kn_diag =
       calc_from_model (calc_internal inputs sigma2 kn_diag)
@@ -260,7 +260,7 @@ module Make_common (Spec : Specs.Eval) = struct
       targets : vec;
       y__ : vec;
       inv_b_chol_kmn_y__ : vec;
-      evidence : float;
+      log_evidence : float;
     }
 
     let calc_y__ssqr model targets =
@@ -273,13 +273,15 @@ module Make_common (Spec : Specs.Eval) = struct
       y__, dot ~x:targets y__
 
     let make model targets y__ ssqr_y__ inv_b_chol_kmn_y__ =
-      let fit_evidence = 0.5 *. (Vec.sqr_nrm2 inv_b_chol_kmn_y__ -. ssqr_y__) in
+      let fit_log_evidence =
+        0.5 *. (Vec.sqr_nrm2 inv_b_chol_kmn_y__ -. ssqr_y__)
+      in
       {
         model = model;
         targets = targets;
         y__ = y__;
         inv_b_chol_kmn_y__ = inv_b_chol_kmn_y__;
-        evidence = model.Common_model.evidence +. fit_evidence;
+        log_evidence = model.Common_model.log_evidence +. fit_log_evidence;
       }
 
     let calc_internal model targets inv_b_chol_kmn =
@@ -293,7 +295,7 @@ module Make_common (Spec : Specs.Eval) = struct
       trsv ~trans:`T model.Common_model.b_chol inv_b_chol_kmn_y__;
       make model targets y__ ssqr_y__ inv_b_chol_kmn_y__
 
-    let calc_evidence trained = trained.evidence
+    let calc_log_evidence trained = trained.log_evidence
 
     let get_kmn trained = trained.model.Common_model.inputs.Inputs.kmn
   end
@@ -983,22 +985,22 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (**)
 
-      type evidence_sigma2 = {
+      type log_evidence_sigma2 = {
         sigma2_model : t;
-        evidence_sigma2 : float;
+        log_evidence_sigma2 : float;
       }
 
-      let calc_evidence_sigma2 ({ eval_model = eval_model } as model) =
+      let calc_log_evidence_sigma2 ({ eval_model = eval_model } as model) =
         let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
         let inv_b_chol_kmn = model.inv_b_chol_kmn in
         let rec loop trace i =
           if i = 0 then
-            let evidence_sigma2 = 0.5 *. trace in
+            let log_evidence_sigma2 = 0.5 *. trace in
             (
-              evidence_sigma2,
+              log_evidence_sigma2,
               {
                 sigma2_model = model;
-                evidence_sigma2 = evidence_sigma2;
+                log_evidence_sigma2 = log_evidence_sigma2;
               }
             )
           else
@@ -1040,16 +1042,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (**)
 
-      type evidence = {
+      type log_evidence = {
         hyper_model : hyper_t;
         var : Hyper.t;
         deriv_upper : symm_mat_deriv;
         dlam_diag__ : vec;
         deriv_cross : mat_deriv;
-        evidence_hyper : float;
+        log_evidence_hyper : float;
       }
 
-      let calc_evidence hyper_model hyper =
+      let calc_log_evidence hyper_model hyper =
         let
           {
             model =
@@ -1156,16 +1158,18 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | `Const _c ->
               (assert false (* XXX *))
         in
-        let evidence_hyper = 0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace) in
+        let log_evidence_hyper =
+          0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace)
+        in
         (
-          evidence_hyper,
+          log_evidence_hyper,
           {
             hyper_model = hyper_model;
             var = hyper;
             deriv_upper = deriv_upper;
             dlam_diag__ = dlam_diag__;
             deriv_cross = deriv_cross;
-            evidence_hyper = evidence_hyper;
+            log_evidence_hyper = log_evidence_hyper;
           }
         )
     end
@@ -1179,7 +1183,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (**)
 
-      let calc_evidence_sigma2 common_model =
+      let calc_log_evidence_sigma2 common_model =
         let
           {
             Eval_model.
@@ -1189,11 +1193,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         in
         let rec loop trace i =
           if i = 0 then
-            let evidence, traditional = Cm.calc_evidence_sigma2 common_model in
-            let variational_evidence = evidence -. 0.5 *. trace in
+            let log_evidence, traditional =
+              Cm.calc_log_evidence_sigma2 common_model
+            in
+            let variational_log_evidence = log_evidence -. 0.5 *. trace in
             (
-              variational_evidence,
-              { traditional with Cm.evidence_sigma2 = variational_evidence }
+              variational_log_evidence,
+              {
+                traditional with
+                Cm.log_evidence_sigma2 = variational_log_evidence;
+              }
             )
           else
             let el =
@@ -1206,7 +1215,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (**)
 
-      let calc_evidence common_hyper_model hyper =
+      let calc_log_evidence common_hyper_model hyper =
         let
           {
             Eval_model.
@@ -1214,14 +1223,19 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             lam_diag = lam_diag;
           } = common_hyper_model.model.Cm.eval_model
         in
-        let evidence, traditional = Cm.calc_evidence common_hyper_model hyper in
+        let log_evidence, traditional =
+          Cm.calc_log_evidence common_hyper_model hyper
+        in
         let { dlam_diag__ = dlam_diag__ } = traditional in
         let rec loop trace i =
           if i = 0 then
-            let variational_evidence = evidence -. 0.5 *. trace in
+            let variational_log_evidence = log_evidence -. 0.5 *. trace in
             (
-              variational_evidence,
-              { traditional with Cm.evidence_hyper = variational_evidence }
+              variational_log_evidence,
+              {
+                traditional with
+                Cm.log_evidence_hyper = variational_log_evidence;
+              }
             )
           else
             let el =
@@ -1275,17 +1289,19 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let raise_incompatible_model loc =
         failwith (
           sprintf
-            "Deriv.Trained.%s: model used for training evidence \
-            and model used for model evidence are not the same" loc)
+            "Deriv.Trained.%s: model used for training log evidence \
+            and model used for model log evidence are not the same" loc)
 
-      let calc_evidence_sigma2 trained model_evidence_sigma2 =
-        if trained.common_model != model_evidence_sigma2.Cm.sigma2_model then
-          raise_incompatible_model "calc_evidence_sigma2";
+      let calc_log_evidence_sigma2 trained model_log_evidence_sigma2 =
+        if
+          trained.common_model != model_log_evidence_sigma2.Cm.sigma2_model
+        then raise_incompatible_model "calc_log_evidence_sigma2";
         let eval_trained = trained.eval_trained in
         let y__ = eval_trained.Eval_trained.y__ in
         let __knm_inv_b_kmn_y__ = trained.__knm_inv_b_kmn_y__ in
         let rec loop sum i =
-          if i = 0 then model_evidence_sigma2.Cm.evidence_sigma2 +. 0.5 *. sum
+          if i = 0 then
+            model_log_evidence_sigma2.Cm.log_evidence_sigma2 +. 0.5 *. sum
           else
             let new_sum =
               let z__i = __knm_inv_b_kmn_y__.{i} in
@@ -1333,11 +1349,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (**)
 
-      let calc_evidence hyper_trained model_evidence =
-        if hyper_trained.hyper_model != model_evidence.Cm.hyper_model then
-          raise_incompatible_model "calc_evidence";
+      let calc_log_evidence hyper_trained model_log_evidence =
+        if hyper_trained.hyper_model != model_log_evidence.Cm.hyper_model then
+          raise_incompatible_model "calc_log_evidence";
         let inv_b_kmn_y__ = hyper_trained.trained.inv_b_kmn_y__ in
-        let deriv_upper = model_evidence.Cm.deriv_upper in
+        let deriv_upper = model_log_evidence.Cm.deriv_upper in
         let dkm_nll =
           match deriv_upper with
           | `Dense dkm -> dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
@@ -1350,7 +1366,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | `Const _ ->
               (assert false (* XXX *))
         in
-        let deriv_cross = model_evidence.Cm.deriv_cross in
+        let deriv_cross = model_log_evidence.Cm.deriv_cross in
         let dkmn_factor = hyper_trained.dkmn_factor in
         let dkmn_nll =
           match deriv_cross with
@@ -1361,10 +1377,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | `Const _ ->
               (assert false (* XXX *))
         in
-        let dlam_diag__ = model_evidence.Cm.dlam_diag__ in
+        let dlam_diag__ = model_log_evidence.Cm.dlam_diag__ in
         let dlam_nll = dot ~x:hyper_trained.dlam_factor dlam_diag__ in
         let nll = 0.5 *. (dkm_nll +. dkmn_nll +. dlam_nll) in
-        model_evidence.Cm.evidence_hyper -. nll
+        model_log_evidence.Cm.log_evidence_hyper -. nll
     end
   end
 end

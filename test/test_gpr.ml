@@ -80,10 +80,10 @@ let main () =
   let inputs = FITC.Inputs.calc inducing prep_inputs in
 
   let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
-  printf "model evidence: %.9f@." (FITC.Model.calc_evidence model);
+  printf "model log evidence: %.9f@." (FITC.Model.calc_log_evidence model);
 
   let trained = FITC.Trained.calc model ~targets:training_targets in
-  printf "evidence: %.9f@." (FITC.Trained.calc_evidence trained);
+  printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
 
   let weights = FITC.Weights.calc trained in
 
@@ -138,14 +138,14 @@ let with_sigma2 sigma2 =
   let model = Deriv.Model.calc ~sigma2 inputs in
   let trained = Deriv.Trained.calc model ~targets:training_targets in
   let eval_trained = Deriv.Trained.calc_eval trained in
-  let eval_trained_evidence = Eval.Trained.calc_evidence eval_trained in
-  printf "eval trained evidence: %.15f@." eval_trained_evidence;
-  let _, deriv_evidence = Deriv.Model.calc_evidence_sigma2 model in
-  let trained_deriv_evidence =
-    Deriv.Trained.calc_evidence_sigma2 trained deriv_evidence
+  let eval_trained_log_evidence = Eval.Trained.calc_log_evidence eval_trained in
+  printf "eval trained log evidence: %.15f@." eval_trained_log_evidence;
+  let _, deriv_log_evidence = Deriv.Model.calc_log_evidence_sigma2 model in
+  let trained_deriv_log_evidence =
+    Deriv.Trained.calc_log_evidence_sigma2 trained deriv_log_evidence
   in
-  printf "deriv trained evidence: %.15f@." trained_deriv_evidence;
-  eval_trained_evidence
+  printf "deriv trained log evidence: %.15f@." trained_deriv_log_evidence;
+  eval_trained_log_evidence
 
 let main () =
   let e1 = with_sigma2 noise_sigma2 in
@@ -183,8 +183,8 @@ let find_sigma2 () =
       | Some model -> Eval.Model.update_sigma2 model sigma2
     in
     let trained = Eval.Trained.calc model ~targets:training_targets in
-    let evidence = Eval.Trained.calc_evidence trained in
-    -. evidence
+    let log_evidence = Eval.Trained.calc_log_evidence trained in
+    -. log_evidence
   in
 
   let dmodel_ref = ref None in
@@ -199,12 +199,14 @@ let find_sigma2 () =
           dmodel
       | Some dmodel -> Deriv.Model.update_sigma2 dmodel sigma2
     in
-    let _, model_deriv_evidence = Deriv.Model.calc_evidence_sigma2 dmodel in
-    let trained = Deriv.Trained.calc dmodel ~targets:training_targets in
-    let devidence =
-      Deriv.Trained.calc_evidence_sigma2 trained model_deriv_evidence
+    let _, model_deriv_log_evidence =
+      Deriv.Model.calc_log_evidence_sigma2 dmodel
     in
-    g.{0} <- -. devidence *. sigma2;
+    let trained = Deriv.Trained.calc dmodel ~targets:training_targets in
+    let dlog_evidence =
+      Deriv.Trained.calc_log_evidence_sigma2 trained model_deriv_log_evidence
+    in
+    g.{0} <- -. dlog_evidence *. sigma2;
     trained
   in
 
@@ -214,10 +216,10 @@ let find_sigma2 () =
 
   let multim_fdf ~x ~g =
     let trained = multim_dcommon ~x ~g in
-    let evidence =
-      Eval.Trained.calc_evidence (Deriv.Trained.calc_eval trained)
+    let log_evidence =
+      Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained)
     in
-    -. evidence
+    -. log_evidence
   in
 
   let multim_fun_fdf =
@@ -237,23 +239,23 @@ let find_sigma2 () =
       multim_fun_fdf ~x:init ~step:10e-2 ~tol:10e-4
   in
   let x = Gsl_vector.create 1 in
-  let rec loop last_evidence =
+  let rec loop last_log_evidence =
     let nll = Gd.minimum ~x mumin in
-    let evidence = -. nll in
-    let diff = abs_float (1. -. (evidence /. last_evidence)) in
+    let log_evidence = -. nll in
+    let diff = abs_float (1. -. (log_evidence /. last_log_evidence)) in
     printf "diff: %f\n%!" diff;
     if diff < 0.001 then nll
     else (
-      printf "evidence: %f\n%!" evidence;
+      printf "log evidence: %f\n%!" log_evidence;
       Gd.iterate mumin;
-      loop evidence)
+      loop log_evidence)
   in
   let nll = loop neg_infinity in
   -. nll, exp x.{0}
 
 let main () =
-  let evidence, sigma2 = find_sigma2 () in
-  printf "evidence: %.15f  sigma2: %.15f\n" evidence sigma2
+  let log_evidence, sigma2 = find_sigma2 () in
+  printf "log evidence: %.15f  sigma2: %.15f\n" log_evidence sigma2
 
 (* let () = main () *)
 
@@ -290,25 +292,29 @@ let main () =
   let model2 = Deriv.Model.calc ~sigma2 inputs in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
-  let mev, model_evidence = Deriv.Model.calc_evidence hyper_model `Log_ell in
+  let mev, model_log_evidence =
+    Deriv.Model.calc_log_evidence hyper_model `Log_ell
+  in
 
-  let mf1 = Eval.Model.calc_evidence (Deriv.Model.calc_eval model) in
-  let mf2 = Eval.Model.calc_evidence (Deriv.Model.calc_eval model2) in
+  let mf1 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model) in
+  let mf2 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model2) in
 
-  printf "mdevidence: %f\n%!" mev;
+  printf "mdlog_evidence: %f\n%!" mev;
   printf "mdfinite:   %f\n%!" ((mf2 -. mf1) /. epsilon);
 
   let trained = Deriv.Trained.calc model ~targets:training_targets in
   let trained2 = Deriv.Trained.calc model2 ~targets:training_targets in
 
   let hyper_trained = Deriv.Trained.prepare_hyper trained hyper_model in
-  let deriv = Deriv.Trained.calc_evidence hyper_trained model_evidence in
+  let deriv =
+    Deriv.Trained.calc_log_evidence hyper_trained model_log_evidence
+  in
 
-  let f1 = Eval.Trained.calc_evidence (Deriv.Trained.calc_eval trained) in
-  let f2 = Eval.Trained.calc_evidence (Deriv.Trained.calc_eval trained2) in
+  let f1 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained) in
+  let f2 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained2) in
 
-  printf "evidence: %f\n%!" f1;
-  printf "devidence: %f\n%!" deriv;
+  printf "log evidence: %f\n%!" f1;
+  printf "dlog_evidence: %f\n%!" deriv;
   printf "dfinite:   %f\n%!" ((f2 -. f1) /. epsilon)
 
 (* let () = main () *)
