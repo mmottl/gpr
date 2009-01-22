@@ -1,9 +1,9 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
-module Params = struct
-  type t = { log_ell : float; log_sf : float }
-end
+module Params = struct type t = { log_ell : float; log_sf : float } end
+
+type inducing_hyper = { ind : int; dim : int }
 
 module Eval = struct
   module Kernel = struct
@@ -127,7 +127,11 @@ module Eval = struct
     type t = mat
 
     module Prepared = struct
-      type cross = { sq_diff_mat : mat; inducing : Inducing.t }
+      type cross = {
+        sq_diff_mat : mat;
+        inducing : Inducing.t;
+        inputs : t;
+      }
 
       let calc_cross inducing_prepared inputs =
         let
@@ -152,7 +156,7 @@ module Eval = struct
               ssqr_inducing.{r} -. 2. *. sq_diff_mat.{r, c} +. ssqr_inputs_c
           done
         done;
-        { sq_diff_mat = sq_diff_mat; inducing = inducing }
+        { sq_diff_mat = sq_diff_mat; inducing = inducing; inputs = inputs }
     end
 
     let calc_upper k inputs =
@@ -194,15 +198,19 @@ module Eval = struct
   end
 end
 
-module Hyper = struct type t = [ `Log_ell | `Log_sf ] end
+type gen_deriv = [ `Log_ell | `Log_sf ]
 
-type deriv_shared = {
+module Hyper = struct
+  type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
+end
+
+type deriv_common = {
   kernel : Eval.Kernel.t;
   sq_diff_mat : mat;
   eval_mat : mat;
 }
 
-let calc_deriv_mat ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
+let calc_gen_deriv ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
   function
   | `Log_sf ->
       (* TODO: copy and scale upper triangle for square matrix only *)
@@ -229,20 +237,41 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type shared = deriv_shared
+  type shared = Eval.Inducing.t * deriv_common
 
   let calc_shared_upper kernel prepared_upper =
-    let upper = Eval.Inducing.calc_upper kernel prepared_upper in
+    let module EI = Eval.Inducing in
+    let module EIP = EI.Prepared in
+    let upper = EI.calc_upper kernel prepared_upper in
     let shared =
-      {
-        kernel = kernel;
-        sq_diff_mat = prepared_upper.Eval.Inducing.Prepared.sq_diff_mat;
-        eval_mat = upper;
-      }
+      (
+        prepared_upper.EIP.inducing,
+        {
+          kernel = kernel;
+          sq_diff_mat = prepared_upper.EIP.sq_diff_mat;
+          eval_mat = upper;
+        }
+      )
     in
     upper, shared
 
-  let calc_deriv_upper = calc_deriv_mat
+  let calc_deriv_upper (inducing, common) = function
+    | #gen_deriv as hyper -> calc_gen_deriv common hyper
+    | `Inducing_hyper inducing_hyper ->
+        let { ind = ind; dim = dim } = inducing_hyper in
+        let eval_mat = common.eval_mat in
+        let m = Mat.dim2 eval_mat in
+        let res = Mat.create 1 m in
+        let indx_d = inducing.{dim, ind} in
+        for i = 1 to dim do
+          let ind_d = inducing.{i, ind} in
+          res.{1, i} <- 2. *. (indx_d -. ind_d) *. eval_mat.{ind, i}
+        done;
+        for i = dim + 1 to m do
+          let ind_d = inducing.{ind, i} in
+          res.{1, i} <- 2. *. (indx_d -. ind_d) *. eval_mat.{ind, i}
+        done;
+        `Sparse_rows (res, [| ind |])
 end
 
 module Inputs = struct
@@ -254,25 +283,46 @@ module Inputs = struct
 
   type diag = Eval.Kernel.t
 
-  type cross = deriv_shared
+  type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
 
   let calc_shared_diag k diag_eval_inputs =
     Eval.Inputs.calc_diag k diag_eval_inputs, k
 
   let calc_shared_cross kernel prepared_cross =
-    let cross = Eval.Inputs.calc_cross kernel prepared_cross in
+    let module EI = Eval.Inputs in
+    let module EIP = EI.Prepared in
+    let cross = EI.calc_cross kernel prepared_cross in
     let shared =
-      {
-        kernel = kernel;
-        sq_diff_mat = prepared_cross.Eval.Inputs.Prepared.sq_diff_mat;
-        eval_mat = cross;
-      }
+      (
+        prepared_cross.EIP.inducing,
+        prepared_cross.EIP.inputs,
+        {
+          kernel = kernel;
+          sq_diff_mat = prepared_cross.EIP.sq_diff_mat;
+          eval_mat = cross;
+        }
+      )
     in
     cross, shared
 
+  let const_zero = `Const 0.
+
   let calc_deriv_diag diag = function
     | `Log_sf -> `Const (2. *. diag.Eval.Kernel.sf2)
-    | `Log_ell -> `Const 0.
+    | `Log_ell -> const_zero
+    | `Inducing_hyper _ -> const_zero
 
-  let calc_deriv_cross = calc_deriv_mat
+  let calc_deriv_cross (inducing, inputs, common) = function
+    | #gen_deriv as hyper -> calc_gen_deriv common hyper
+    | `Inducing_hyper inducing_hyper ->
+        let { ind = ind; dim = dim } = inducing_hyper in
+        let eval_mat = common.eval_mat in
+        let n = Mat.dim2 eval_mat in
+        let res = Mat.create 1 n in
+        let indx_d = inducing.{dim, ind} in
+        for i = 1 to n do
+          let inp_d = inputs.{dim, i} in
+          res.{1, i} <- 2. *. (indx_d -. inp_d) *. eval_mat.{ind, i}
+        done;
+        `Sparse_rows (res, [| ind |])
 end
