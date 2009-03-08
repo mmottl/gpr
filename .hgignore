@@ -4,3 +4,4 @@
 \.omakedb
 \.omakedb.lock
 .*\.(cm[iox]|o|a)
+dist.mex
