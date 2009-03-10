@@ -128,7 +128,7 @@ let symm_add_decomp_sparse mat rows =
   done
 
 let update_prod_diag dst fact mat1 mat2 =
-  for i = 1 to (Mat.dim2 mat1) do
+  for i = 1 to Mat.dim2 mat1 do
     (* TODO: optimize dot and col *)
     let diag_i = dot ~x:(Mat.col mat1 i) (Mat.col mat2 i) in
     dst.{i} <- dst.{i} +. fact *. diag_i
