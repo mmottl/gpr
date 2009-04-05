@@ -1087,24 +1087,27 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               update_prod_diag dlam_diag__ 1. inv_km_kmn dkm_inv_km_kmn;
               calc_prod_trace inv_km_minus_inv_b dkm
           | `Sparse_rows (dkm, dkm_rows) ->
-              check_sparse_sane dkm dkm_rows;
+              check_sparse_sane dkm dkm_rows ~real_m:m;
               (* Only some inducing inputs depend on variable *)
               let dkm_inv_km_kmn =
                 detri_sparse dkm dkm_rows;
                 symm_add_decomp_sparse dkm dkm_rows;
                 gemm dkm inv_km_kmn
               in
-              let rec loop trace i =
-                if i = 0 then 2. *. trace
-                else
-                  let r = dkm_rows.(i - 1) in
-                  (* TODO: optimize sqr_nrm2 and col *)
-                  let sqr_nrm2 =
-                    dot ~x:(Mat.col inv_km_kmn r) (Mat.col dkm_inv_km_kmn i)
-                  in
-                  loop (trace +. sqr_nrm2) (i - 1)
-              in
-              loop 0. (Array.length dkm_rows)
+              let n_rows = Array.length dkm_rows in
+              let trace = ref 0. in
+              for i = 1 to n_rows do
+                let r = dkm_rows.(i - 1) in
+                for c = 1 to n do
+                  dlam_diag__.{c} <-
+                    dlam_diag__.{c}
+                      +. 2. *. inv_km_kmn.{r, c} *. dkm_inv_km_kmn.{i, c}
+                done;
+                for c = 1 to m do
+                  trace := !trace +. inv_km_minus_inv_b.{r, c} *. dkm.{i, c}
+                done
+              done;
+              !trace
           | `Diag_vec _vec ->
               (assert false (* XXX *))
           | `Diag_const _c ->
@@ -1113,19 +1116,26 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
         in
         let deriv_cross =
-          match
-            Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
-          with
-          | `Dense dkmn as deriv_cross ->
-              update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn;
-              deriv_cross
-          | `Sparse_rows (dkmn, dkmn_rows) as deriv_cross ->
-              check_sparse_sane dkmn dkmn_rows;
-              (* TODO: update dlam_diag__ *)
-              deriv_cross
+          Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
+        in
+        begin
+          match deriv_cross with
+          | `Dense dkmn -> update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
+          | `Sparse_rows (dkmn, dkmn_rows) ->
+              check_sparse_sane dkmn dkmn_rows ~real_m:m;
+              let n_rows = Array.length dkmn_rows in
+              let diag_el = ref 0. in
+              for c = 1 to n do
+                for i = 1 to n_rows do
+                  let r = dkmn_rows.(i - 1) in
+                  diag_el := !diag_el +. dkmn.{i, c} *. inv_km_kmn.{r, c}
+                done;
+                dlam_diag__.{c} <- dlam_diag__.{c} -. 2. *. !diag_el;
+                diag_el := 0.
+              done
           | `Const _c ->
               (assert false (* XXX *))
-        in
+        end;
         let dlam__trace =
           let rec loop trace i =
             if i = 0 then trace
@@ -1153,10 +1163,33 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 done;
               done;
               calc_prod_trace inv_b_kmn combined
-          | `Sparse_rows (_dkmn, _dkmn_rows) ->
-              (assert false (* XXX *))
-          | `Const _c ->
-              (assert false (* XXX *))
+          | `Sparse_rows (dkmn, dkmn_rows) ->
+              let combined = Mat.copy kmn in
+              let n_rows = Array.length dkmn_rows in
+              for c = 1 to n do
+                (* TODO: optimize scal col *)
+                scal (-. dlam_diag__.{c}) (Mat.col combined c);
+                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
+                for i = 1 to n_rows do
+                  let r = dkmn_rows.(i - 1) in
+                  combined.{r, c} <-
+                    inv_lam_sigma2_diag_c *.
+                      (2. *. dkmn.{i, c} +. combined.{r, c})
+                done
+              done;
+              calc_prod_trace inv_b_kmn combined
+          | `Const const ->
+              let combined = Mat.create m n in
+              let const2 = 2. *. const in
+              for c = 1 to n do
+                let dlam__c = dlam_diag__.{c} in
+                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
+                for r = 1 to m do
+                  combined.{r, c} <-
+                    inv_lam_sigma2_diag_c *. (const2 -. kmn.{r, c} *. dlam__c)
+                done
+              done;
+              calc_prod_trace inv_b_kmn combined
         in
         let log_evidence_hyper =
           0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace)
