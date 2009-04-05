@@ -22,4 +22,4 @@ InstClean() =
   clean:
 	  $(CLEANCMD)
 
-.SUBDIRS: lib test
+.SUBDIRS: doc lib test
