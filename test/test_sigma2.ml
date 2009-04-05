@@ -36,7 +36,7 @@ let with_sigma2 sigma2 =
 
 let main () =
   let e1 = with_sigma2 noise_sigma2 in
-  let epsilon = 10e-6 in
+  let epsilon = 1e-6 in
   let e2 = with_sigma2 (noise_sigma2 +. epsilon) in
   printf "finite: %.15f\n" ((e2 -. e1) /. epsilon)
 
