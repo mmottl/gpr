@@ -1,0 +1,66 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsbsy}
+\usepackage{accents}
+
+\DeclareMathAlphabet{\mathsfsl}{OT1}{cmss}{m}{sl}
+\newcommand{\mat}[1]{\mbox{$\mathsfsl{#1}$}}
+\renewcommand{\vec}[1]{\mbox{\boldmath$#1$}}
+\newcommand{\dmat}[1]{\mat{\dot{{#1}}}}
+\newcommand{\tr}{\mathrm{tr}}
+
+\newcommand{\km}{\mat{K_{M}}}
+\newcommand{\dkm}{\mat{\dot{K}_{M}}}
+\newcommand{\dkn}{\mat{\dot{K}_{N}}}
+\newcommand{\kmn}{\mat{K_{MN}}}
+\newcommand{\dkmn}{\mat{\dot{K}_{MN}}}
+\newcommand{\dukmn}{\myu{\mat{\dot{K}}}_{\mathsfsl{MN}}}
+\newcommand{\lam}{\mat{\Lambda}}
+\newcommand{\inv}[1]{#1^{-1}}
+\newcommand{\ichol}[1]{#1^{-\frac{1}{2}}}
+\newcommand{\mydef}{\stackrel{\mathrm{def}}{=}}
+\newcommand{\myu}[1]{\underaccent{\bar}{#1}}
+\newcommand{\myuu}[1]{\myu{\myu{#1}}}
+\newcommand{\dlam}{\dmat{\Lambda}}
+\newcommand{\dlamuu}{\myuu{\dmat{\Lambda}}}
+\newcommand{\diagv}{\mathrm{diag_v}}
+\newcommand{\diagm}{\mathrm{diag_m}}
+
+\begin{document}
+
+\section{FIC-Likelihood Derivatives}
+
+These are the derivatives of the FIC-likelihood as used in the
+OCaml-implementation.  The implementation factorizes the computations
+in exactly that way to minimize computation time.  Numerical stability
+may need to be improved.
+
+diagm is the matrix consisting of only the diagonal
+diagv is the diagonal matrix
+
+TODO: explain trace product
+
+precomputations
+
+\begin{eqnarray*}
+\mathfrak{A} & = & \mat{B}^{-1} - \mat{K_M}^{-1} \\
+\mathfrak{B} & = & \ichol{\mat{B}}\kmn \\
+\mathfrak{C} & = & \mat{B}^{-\frac{\top}{2}}\mathfrak{B} = \inv{\mat{B}}\kmn \\
+\mathfrak{D} & = & \inv{\km}\kmn \\
+\mathfrak{a} & = & \diagv(\mat{I} - \myu{\mathfrak{B}}^\top\myu{\mathfrak{B}}) \\
+\mathfrak{b} & = & \mathfrak{C} \myuu{y} \\
+\mathfrak{c} & = & \kmn^\top\mathfrak{b} - \vec{y} \\
+\mathfrak{d} & = & \inv{\lam}\mathfrak{c} \\
+\end{eqnarray*}
+
+\begin{eqnarray*}
+\dlam & = & \diagm(\dkn - 2\,\dkmn^\top\mathfrak{D} + \mathfrak{D}^\top\dkm\mathfrak{D}) \\
+2\,\dot{L}_1 & = & \tr(\mathfrak{A}\dkm) + 2\,\tr({\mathfrak{C}^\top\dukmn}) + \mathfrak{a}^\top\diagv(\dlamuu) \\
+2\,\dot{L}_2 & = & \mathfrak{b}^\top(\dkm\mathfrak{b} + 2\,\dkmn\mathfrak{d})
+  + (\mathfrak{c}:\vec{y} - (\mathfrak{c} + \vec{y}) : \mathfrak{c})^\top\diagv(\dlam) \\
+\end{eqnarray*}
+
+\end{document}
