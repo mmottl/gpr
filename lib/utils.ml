@@ -4,6 +4,7 @@ open Lacaml.Impl.D
 open Lacaml.Io
 
 (* NOTE: for testing *)
+let print_int name n = printf "%s: @[%d@]@.@." name n
 let print_float name n = printf "%s: @[%.9f@]@.@." name n
 let print_vec name vec = printf "%s: @[%a@]@.@." name pp_fvec vec
 let print_mat name mat = printf "%s: @[%a@]@.@." name pp_fmat mat
@@ -39,7 +40,7 @@ let log_2pi = log (2. *. pi)
 
 let default_rng = Gsl_rng.make (Gsl_rng.default ())
 
-let cholesky_jitter = ref 10e-6
+let cholesky_jitter = ref 1e-9
 
 let solve_triangular ?trans chol ~k =
   (* TODO: special case for copying symmetric matrices? *)
@@ -57,40 +58,71 @@ let inv_chol chol =
 (* Sparse row matrices *)
 
 (* Checks whether a sparse row matrix is sane *)
-let check_sparse_sane mat rows =
+let check_sparse_sane mat rows ~real_m =
+  if real_m < 0 then failwith "Gpr.Utils.check_sparse_sane: real_m < 0";
   let m = Mat.dim1 mat in
   let n_rows = Array.length rows in
   if n_rows <> m then
     failwith (
       sprintf
-        "Deriv.Model.check_sparse_sane: number of rows in \
+        "Gpr.Utils.check_sparse_sane: number of rows in \
         sparse matrix (%d) disagrees with size of row array (%d)"
         m n_rows);
-  let rec loop ~i ~next =
+  let rec loop ~i ~limit =
     if i >= 0 then
       let rows_i = rows.(i) in
       if rows_i <= 0 then
         failwith (
           sprintf
-            "Deriv.Model.check_sparse_sane: sparse row %d contains \
+            "Gpr.Utils.check_sparse_sane: sparse row %d contains \
             illegal negative real row index %d" (i + 1) rows_i)
-      else if rows_i >= next then
+      else if rows_i > limit then
         failwith (
           sprintf
-            "Deriv.Model.check_sparse_sane: sparse row %d \
-            associated with real row index %d violates strict \
-            ordering (next: %d)"
-            (i + 1) rows_i next)
-      else loop ~i:(i - 1) ~next:rows_i
+            "Gpr.Utils.check_sparse_sane: sparse row %d \
+            associated with real row index %d violates consistency \
+            (current row limit: %d)"
+            (i + 1) rows_i limit)
+      else loop ~i:(i - 1) ~limit:rows_i
   in
-  loop ~i:(n_rows - 1) ~next:(Mat.dim2 mat + 1)
+  loop ~i:(n_rows - 1) ~limit:real_m
 
-(* Detriangularize sparse row matrix to make it symmetric *)
+(* Make general sparse matrix dense *)
+let make_gen_sparse_dense mat rows ~real_m =
+  let n = Mat.dim2 mat in
+  let res = Mat.make0 real_m n in
+  let m = Array.length rows in
+  for c = 1 to n do
+    for r = 1 to m do
+      let real_r = rows.(r - 1) in
+      let el = mat.{r, c} in
+      res.{real_r, c} <- el
+    done
+  done;
+  res
+
+(* Make symmetric sparse matrix dense *)
+let make_symm_sparse_dense mat rows ~real_m =
+  let n = Mat.dim2 mat in
+  let res = Mat.make0 real_m n in
+  let m = Array.length rows in
+  for c = 1 to n do
+    for r = 1 to m do
+      let real_r = rows.(r - 1) in
+      let el = mat.{r, c} in
+      res.{real_r, c} <- el;
+      res.{c, real_r} <- el;
+    done
+  done;
+  res
+
+(* Detriangularize sparse row matrix to make it symmetric; triangular
+   sparse matrices can leave entries undefined that can be reconstructed
+   from rows with higher indexes. *)
 let detri_sparse mat rows =
   let m = Mat.dim1 mat in
   let n = Mat.dim2 mat in
-  if n < rows.(m - 1) then
-    failwith "Deriv.Model.detri_sparse: sparse matrix cannot be square"
+  if n < rows.(m - 1) then failwith "Gpr.Utils.detri_sparse: not square"
   else
     let rec loop r =
       if r > 1 then
@@ -117,12 +149,14 @@ let symm_add_decomp_sparse mat rows =
        else
          devide
   *)
-  let m = Mat.dim1 mat in
+  let m = Array.length rows in
   let n = Mat.dim2 mat in
   let m_1 = m - 1 in
-  for c = 1 to n do
-    for i = 0 to m_1 do
-      let r = rows.(i) in
+  if n < rows.(m_1) then
+    failwith "Gpr.Utils.symm_add_decomp_sparse: not square";
+  for i = 0 to m_1 do
+    let c = rows.(i) in
+    for r = 1 to m do
       mat.{r, c} <- 0.5 *. mat.{r, c}
     done
   done
