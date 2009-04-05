@@ -263,13 +263,15 @@ module Inducing = struct
         let m = Mat.dim2 eval_mat in
         let res = Mat.create 1 m in
         let indx_d = inducing.{dim, ind} in
-        for i = 1 to dim do
-          let ind_d = inducing.{i, ind} in
-          res.{1, i} <- 2. *. (indx_d -. ind_d) *. eval_mat.{ind, i}
+        let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+        for i = 1 to ind - 1 do
+          let ind_d = inducing.{dim, i} in
+          res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{i, ind}
         done;
-        for i = dim + 1 to m do
-          let ind_d = inducing.{ind, i} in
-          res.{1, i} <- 2. *. (indx_d -. ind_d) *. eval_mat.{ind, i}
+        res.{1, ind} <- 0.;
+        for i = ind + 1 to m do
+          let ind_d = inducing.{dim, i} in
+          res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
         done;
         `Sparse_rows (res, [| ind |])
 end
@@ -320,9 +322,10 @@ module Inputs = struct
         let n = Mat.dim2 eval_mat in
         let res = Mat.create 1 n in
         let indx_d = inducing.{dim, ind} in
-        for i = 1 to n do
-          let inp_d = inputs.{dim, i} in
-          res.{1, i} <- 2. *. (indx_d -. inp_d) *. eval_mat.{ind, i}
+        let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+        for c = 1 to n do
+          let inp_d = inputs.{dim, c} in
+          res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
         done;
         `Sparse_rows (res, [| ind |])
 end
