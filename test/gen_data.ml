@@ -3,8 +3,8 @@ open Lacaml.Impl.D
 open Gpr
 open Utils
 
-let n_inputs = 1000
-let n_inducing_inputs = 10
+let n_inputs = 10
+let n_inducing_inputs = 5
 let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 

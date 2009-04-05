@@ -90,7 +90,7 @@ let find_sigma2 () =
   let module Gd = Gsl_multimin.Deriv in
   let mumin =
     Gd.make Gd.VECTOR_BFGS2 1
-      multim_fun_fdf ~x:init ~step:10e-2 ~tol:10e-4
+      multim_fun_fdf ~x:init ~step:1e-2 ~tol:1e-4
   in
   let x = Gsl_vector.create 1 in
   let rec loop last_log_evidence =

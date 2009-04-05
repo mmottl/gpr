@@ -15,6 +15,8 @@ let main () =
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
   write_mat "inducing_inputs" inducing_inputs;
+  write_float "log_ell" params.Cov_se_iso.Params.log_ell;
+  write_float "log_sf" params.Cov_se_iso.Params.log_sf;
 
   let module FITC = FITC.Eval in
   let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
