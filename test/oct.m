@@ -8,8 +8,8 @@ load data/log_ell
 load data/log_sf
 
 sigma = sqrt(sigma2);
-global log_sf2 = 2 * log_sf
-sf2 = exp(log_sf2)
+global log_sf2 = 2 * log_sf;
+sf2 = exp(log_sf2);
 global log_ell2 = 2 * log_ell
 ell2 = exp(log_ell2)
 [dim, N] = size(inputs);
@@ -117,10 +117,10 @@ model_evidence_dsigma2 = - model_nll_dsigma2
 evidence
 
 % Ed's stuff
-hyp = [log_sf2; log_ell2; log(sigma2)];
+hyp = [-log_ell2; log_sf2; log(sigma2)];
 w = [reshape(inducing_inputs', M*dim, 1); hyp];
 [eds_neg_log_likelihood, dfw] = spgp_lik(w, y, inputs', M);
 eds_evidence = -eds_neg_log_likelihood
+eds_dlog_ell = -(-dfw(end - 2) * 2)
+eds_dlog_sf = -dfw(end - 1) * 2
 eds_dsigma2 = -dfw(end) / sigma2
-eds_dlog_sf2 = -dfw(1) / sf2
-eds_dlog_ell2 = -dfw(2) / ell2
