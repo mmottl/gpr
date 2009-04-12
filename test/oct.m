@@ -1,5 +1,7 @@
 format long
 
+global log_sf2;
+
 load data/inputs
 load data/targets
 load data/inducing_inputs
