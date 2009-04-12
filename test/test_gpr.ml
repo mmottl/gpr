@@ -9,7 +9,6 @@ open Utils
 open Test_kernels.SE_iso
 open Gen_data
 
-(*
 let main () =
   let sigma2 = noise_sigma2 in
 
@@ -31,9 +30,9 @@ let main () =
 
   let new_kernel =
     let params = Eval.Spec.Kernel.get_params kernel in
-    let new_log_ell = params.Cov_se_iso.Params.log_ell +. epsilon in
+    let new_log_sf2 = params.Cov_se_iso.Params.log_sf2 +. epsilon in
     let new_params =
-      { params with Cov_se_iso.Params.log_ell = new_log_ell }
+      { params with Cov_se_iso.Params.log_sf2 = new_log_sf2 }
     in
     Eval.Spec.Kernel.create new_params
   in
@@ -44,7 +43,7 @@ let main () =
 
   let hyper_model = Deriv.Model.prepare_hyper model in
   let mev, model_log_evidence =
-    Deriv.Model.calc_log_evidence hyper_model `Log_ell
+    Deriv.Model.calc_log_evidence hyper_model `Log_sf2
   in
 
   let mf1 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model) in
@@ -67,8 +66,8 @@ let main () =
   printf "log evidence: %f\n%!" f1;
   printf "dlog_evidence: %f\n%!" deriv;
   printf "dfinite:   %f\n%!" ((f2 -. f1) /. epsilon)
-*)
 
+(*
 let main () =
   Lacaml.Io.Context.set_dim_defaults (Some (Context.create 5));
 
@@ -109,5 +108,6 @@ let main () =
 
   printf "mdlog_evidence: %f\n%!" mev;
   printf "mdfinite:   %f\n%!" ((mf2 -. mf1) /. epsilon)
+*)
 
 let () = main ()

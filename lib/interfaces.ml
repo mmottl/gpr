@@ -49,7 +49,10 @@ module Inducing_input_gpr = struct
         end
 
         val calc_upper : Kernel.t -> t -> mat
-        val calc_diag : Kernel.t -> t -> vec
+
+        val calc_diag :
+          Kernel.t -> t -> [ `Single of vec | `Block of Block_diag.t ]
+
         val calc_cross : Kernel.t -> Prepared.cross -> mat
 
         val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> vec
@@ -60,6 +63,7 @@ module Inducing_input_gpr = struct
       | `Dense of mat
       | `Sparse_rows of mat * int array
       | `Const of float
+      | `Factor of float
       ]
 
     type symm_mat_deriv = [
@@ -68,7 +72,11 @@ module Inducing_input_gpr = struct
       | `Diag_const of float
       ]
 
-    type vec_deriv = [ `Vec of vec | `Const of float ]
+    type diag_deriv = [
+      | `Vec of vec
+      | `Const of float
+      | `Factor of float
+    ]
 
     module type Deriv = sig
       module Eval : Eval
@@ -101,7 +109,7 @@ module Inducing_input_gpr = struct
 
         val calc_shared_diag : Eval.Kernel.t -> Eval.Inputs.t -> vec * diag
         val calc_shared_cross : Eval.Kernel.t -> Prepared.cross -> mat * cross
-        val calc_deriv_diag : diag -> Hyper.t -> vec_deriv
+        val calc_deriv_diag : diag -> Hyper.t -> diag_deriv
         val calc_deriv_cross : cross -> Hyper.t -> mat_deriv
       end
     end

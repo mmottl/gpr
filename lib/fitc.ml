@@ -149,7 +149,13 @@ module Make_common (Spec : Specs.Eval) = struct
     let nystrom_chol_marginals inputs =
       let inducing = inputs.inducing in
       let kernel = get_kernel inputs in
-      let kn_diag = Inputs.calc_diag kernel inputs.points in
+      let kn_diag =
+        match Inputs.calc_diag kernel inputs.points with
+        | `Single kn_diag -> kn_diag
+        | `Block _block_diag ->
+            (* TODO *)
+            (assert false (* XXX *))
+      in
       let inv_km_chol_kmn =
         solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:inputs.kmn
       in
@@ -217,7 +223,13 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc inputs ~sigma2 =
       let kernel = Inputs.get_kernel inputs in
-      let kn_diag = Spec.Inputs.calc_diag kernel inputs.Inputs.points in
+      let kn_diag =
+        match Spec.Inputs.calc_diag kernel inputs.Inputs.points with
+        | `Single kn_diag -> kn_diag
+        | `Block _block_diag ->
+            (* TODO *)
+            (assert false (* XXX *))
+      in
       calc_internal inputs sigma2 kn_diag
 
     let update_sigma2 model sigma2 =
@@ -1074,6 +1086,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           match Spec.Inputs.calc_deriv_diag shared_diag hyper with
           | `Vec deriv_diag -> deriv_diag
           | `Const c -> Vec.make n c
+          | `Factor _ -> assert false (* XXX *)
         in
         let deriv_upper =
           Spec.Inducing.calc_deriv_upper inducing_shared hyper
@@ -1114,6 +1127,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Const _c ->
               (assert false (* XXX *))
+          | `Factor _c ->
+              (assert false (* XXX *))
         in
         let deriv_cross =
           Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
@@ -1134,6 +1149,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 diag_el := 0.
               done
           | `Const _c ->
+              (assert false (* XXX *))
+          | `Factor _c ->
               (assert false (* XXX *))
         end;
         let dlam__trace =
@@ -1164,7 +1181,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               done;
               calc_prod_trace inv_b_kmn combined
           | `Sparse_rows (dkmn, dkmn_rows) ->
-              let combined = Mat.copy kmn in
+              let combined =
+                (* TODO: gift *)
+                Mat.copy kmn
+              in
               let n_rows = Array.length dkmn_rows in
               for c = 1 to n do
                 (* TODO: optimize scal col *)
@@ -1190,6 +1210,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 done
               done;
               calc_prod_trace inv_b_kmn combined
+          | `Factor _c ->
+              (assert false (* XXX *))
         in
         let log_evidence_hyper =
           0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace)
@@ -1398,6 +1420,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Const _ ->
               (assert false (* XXX *))
+          | `Factor _c ->
+              (assert false (* XXX *))
         in
         let deriv_cross = model_log_evidence.Cm.deriv_cross in
         let dkmn_factor = hyper_trained.dkmn_factor in
@@ -1408,6 +1432,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | `Sparse_rows _ ->
               (assert false (* XXX *))
           | `Const _ ->
+              (assert false (* XXX *))
+          | `Factor _c ->
               (assert false (* XXX *))
         in
         let dlam_diag__ = model_log_evidence.Cm.dlam_diag__ in

@@ -8,26 +8,32 @@
 
 \DeclareMathAlphabet{\mathsfsl}{OT1}{cmss}{m}{sl}
 \newcommand{\mat}[1]{\mbox{$\mathsfsl{#1}$}}
-\renewcommand{\vec}[1]{\mbox{\boldmath$#1$}}
-\newcommand{\dmat}[1]{\mat{\dot{{#1}}}}
-\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\myvec}[1]{\mbox{\boldmath$#1$}}
 
-\newcommand{\km}{\mat{K_{M}}}
-\newcommand{\dkm}{\mat{\dot{K}_{M}}}
-\newcommand{\dkn}{\mat{\dot{K}_{N}}}
-\newcommand{\kmn}{\mat{K_{MN}}}
-\newcommand{\dkmn}{\mat{\dot{K}_{MN}}}
-\newcommand{\dukmn}{\myu{\mat{\dot{K}}}_{\mathsfsl{MN}}}
-\newcommand{\lam}{\mat{\Lambda}}
+\newcommand{\diagv}[1]{\mathrm{diag_v}(#1)}
+\newcommand{\diagm}[1]{\mathrm{diag_m}(#1)}
+\newcommand{\trace}[1]{\mathrm{tr}(#1)}
+\newcommand{\trans}[1]{#1^\top}
+
 \newcommand{\inv}[1]{#1^{-1}}
 \newcommand{\ichol}[1]{#1^{-\frac{1}{2}}}
-\newcommand{\mydef}{\stackrel{\mathrm{def}}{=}}
 \newcommand{\myu}[1]{\underaccent{\bar}{#1}}
 \newcommand{\myuu}[1]{\myu{\myu{#1}}}
-\newcommand{\dlam}{\dmat{\Lambda}}
-\newcommand{\dlamuu}{\myuu{\dmat{\Lambda}}}
-\newcommand{\diagv}{\mathrm{diag_v}}
-\newcommand{\diagm}{\mathrm{diag_m}}
+
+\newcommand{\km}{\mat{K_M}}
+\newcommand{\ikm}{\mat{K_M^{-1}}}
+\newcommand{\dkm}{\mat{\dot{K}_M}}
+\newcommand{\dkn}{\mat{\dot{K}_N}}
+\newcommand{\kmn}{\mat{K_{MN}}}
+\newcommand{\knm}{\mat{K_{MN}^\top}}
+\newcommand{\dkmn}{\mat{\dot{K}_{MN}}}
+\newcommand{\dknm}{\mat{\dot{K}_{MN}^\top}}
+\newcommand{\myv}{\mathfrak{v}}
+\newcommand{\mydv}{\dot{\myv}}
+\newcommand{\myiv}{\tilde{\mathfrak{v}}}
+\newcommand{\Lamss}{\mat{\Lambda_{\sigma^2}}}
+\newcommand{\iLamss}{\mat{\Lambda_{\sigma^2}^{-1}}}
+\newcommand{\Lamsr}{\mat{\Lambda_{\sigma^2}^{-\frac{1}{2}}}}
 
 \begin{document}
 
@@ -39,28 +45,29 @@ in exactly that way to minimize computation time.  Numerical stability
 may need to be improved.
 
 diagm is the matrix consisting of only the diagonal
-diagv is the diagonal matrix
+dprod is diagonal of the matrix product
 
-TODO: explain trace product
+definitions / precomputations
 
-precomputations
+general derivative, not noise here!
 
 \begin{eqnarray*}
+\Lamss & = & \diagm{\mat{K_N}} - \diagm{\mat{Q_N}} + \sigma^2\mat{I} \\
 \mathfrak{A} & = & \mat{B}^{-1} - \mat{K_M}^{-1} \\
 \mathfrak{B} & = & \ichol{\mat{B}}\kmn \\
+\myu{\mathfrak{B}} & = & \Lamsr\mathfrak{B} \\
 \mathfrak{C} & = & \mat{B}^{-\frac{\top}{2}}\mathfrak{B} = \inv{\mat{B}}\kmn \\
-\mathfrak{D} & = & \inv{\km}\kmn \\
-\mathfrak{a} & = & \diagv(\mat{I} - \myu{\mathfrak{B}}^\top\myu{\mathfrak{B}}) \\
-\mathfrak{b} & = & \mathfrak{C} \myuu{y} \\
-\mathfrak{c} & = & \kmn^\top\mathfrak{b} - \vec{y} \\
-\mathfrak{d} & = & \inv{\lam}\mathfrak{c} \\
-\end{eqnarray*}
-
-\begin{eqnarray*}
-\dlam & = & \diagm(\dkn - 2\,\dkmn^\top\mathfrak{D} + \mathfrak{D}^\top\dkm\mathfrak{D}) \\
-2\,\dot{L}_1 & = & \tr(\mathfrak{A}\dkm) + 2\,\tr({\mathfrak{C}^\top\dukmn}) + \mathfrak{a}^\top\diagv(\dlamuu) \\
-2\,\dot{L}_2 & = & \mathfrak{b}^\top(\dkm\mathfrak{b} + 2\,\dkmn\mathfrak{d})
-  + (\mathfrak{c}:\vec{y} - (\mathfrak{c} + \vec{y}) : \mathfrak{c})^\top\diagv(\dlam) \\
+\mathfrak{D} & = & \ikm\kmn \\
+\myv & = & \diagv{\Lamss} \\
+\myiv & = & \diagv{\iLamss} \\
+\mydv & = & \diagv{\dkn + \trans{\mathfrak{D}}(\dkm\mathfrak{D} - 2\,\dkmn)} \\
+\mathfrak{a} & = & \frac{1}{2}(\vec{\mathbf{1}}-\diagv{\trans{\myu{\mathfrak{B}}}\myu{\mathfrak{B}}}) \\
+\mathfrak{b} & = & \mathfrak{C} \myuu{\myvec{y}} \\
+\mathfrak{c} & = & \knm\mathfrak{b} - \myvec{y} \\
+\mathfrak{d} & = & \myiv\mathfrak{c} \\
+\dot{L}_1 & = & \frac{1}{2}\trace{\mathfrak{A}\dkm} + \myiv\cdot(\diagv{\trans{\mathfrak{C}}\dkmn} + \mathfrak{a}\otimes\mydv) \\
+2\,\dot{L}_2 & = & \mathfrak{b}\cdot(\dkm\mathfrak{b} + 2\,\dkmn\mathfrak{d})
+  + (\mathfrak{c}\otimes\myvec{y} - (\mathfrak{c} + \myvec{y}) \otimes \mathfrak{c})\cdot\mydv \\
 \end{eqnarray*}
 
 \end{document}

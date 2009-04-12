@@ -96,13 +96,15 @@ module Eval = struct
 
     let calc_upper k inputs = syrk ~trans:`T (calc_ard_inputs k inputs)
 
-    let calc_diag k inputs =
+    let calc_single_diag k inputs =
       let n = Mat.dim2 inputs in
       let res = Vec.create n in
       for i = 1 to n do
         res.{i} <- Vec.sqr_nrm2 (Input.calc_ard_input k (Mat.col inputs i))
       done;
       res
+
+    let calc_diag k inputs = `Single (calc_single_diag k inputs)
 
     let calc_cross k { Prepared.inducing = inducing; inputs = inputs } =
       gemm ~transa:`T inducing (calc_ard_inputs k inputs)
@@ -152,7 +154,8 @@ module Inputs = struct
   type diag = Eval.Kernel.t * Eval.Inputs.t
   type cross = Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
 
-  let calc_shared_diag k inputs = Eval.Inputs.calc_diag k inputs, (k, inputs)
+  let calc_shared_diag k inputs =
+    Eval.Inputs.calc_single_diag k inputs, (k, inputs)
 
   let calc_shared_cross k prepared_cross =
     let { Eval.Inputs.Prepared.inducing = inducing; inputs = inputs } =

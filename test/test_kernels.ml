@@ -27,6 +27,6 @@ end
 module SE_iso = struct
   include Fitc.Make_deriv (Cov_se_iso)
 
-  let params = { Cov_se_iso.Params.log_ell = log 1.; log_sf = log 1. }
+  let params = { Cov_se_iso.Params.log_ell = log 1.; log_sf2 = log 1. }
   let kernel = Cov_se_iso.Eval.Kernel.create params
 end

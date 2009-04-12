@@ -1,7 +1,7 @@
 open Lacaml.Impl.D
 open Lacaml.Io
 
-module Params = struct type t = { log_ell : float; log_sf : float } end
+module Params = struct type t = { log_ell : float; log_sf2 : float } end
 
 type inducing_hyper = { ind : int; dim : int }
 
@@ -18,7 +18,7 @@ module Eval = struct
     }
 
     let create params =
-      let log_sf2 = 2. *. params.Params.log_sf in
+      let log_sf2 = params.Params.log_sf2 in
       let inv_ell2 = exp (-2. *. params.Params.log_ell) in
       {
         params = params;
@@ -162,9 +162,11 @@ module Eval = struct
     let calc_upper k inputs =
       Inducing.calc_upper k (Inducing.Prepared.calc_upper inputs)
 
-    let calc_diag k inputs =
+    let calc_single_diag k inputs =
       (* TODO: return sparse data? *)
       Vec.make (Mat.dim2 inputs) k.Kernel.sf2
+
+    let calc_diag k inputs = `Single (calc_single_diag k inputs)
 
     let calc_cross k cross =
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
@@ -198,7 +200,7 @@ module Eval = struct
   end
 end
 
-type gen_deriv = [ `Log_ell | `Log_sf ]
+type gen_deriv = [ `Log_ell | `Log_sf2 ]
 
 module Hyper = struct
   type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
@@ -212,11 +214,7 @@ type deriv_common = {
 
 let calc_gen_deriv ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
   function
-  | `Log_sf ->
-      (* TODO: copy and scale upper triangle for square matrix only *)
-      let res = Mat.copy eval_mat in
-      Mat.scal 2. res;
-      `Dense res
+  | `Log_sf2 -> `Factor 1.
   | `Log_ell ->
       let m = Mat.dim1 sq_diff_mat in
       let n = Mat.dim2 sq_diff_mat in
@@ -288,7 +286,7 @@ module Inputs = struct
   type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
 
   let calc_shared_diag k diag_eval_inputs =
-    Eval.Inputs.calc_diag k diag_eval_inputs, k
+    Eval.Inputs.calc_single_diag k diag_eval_inputs, k
 
   let calc_shared_cross kernel prepared_cross =
     let module EI = Eval.Inputs in
@@ -310,7 +308,7 @@ module Inputs = struct
   let const_zero = `Const 0.
 
   let calc_deriv_diag diag = function
-    | `Log_sf -> `Const (2. *. diag.Eval.Kernel.sf2)
+    | `Log_sf2 -> `Const diag.Eval.Kernel.sf2
     | `Log_ell -> const_zero
     | `Inducing_hyper _ -> const_zero
 

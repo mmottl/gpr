@@ -81,7 +81,7 @@ module Eval = struct
     let calc_upper k inputs =
       Inducing.calc_upper_mat k (Inducing.Prepared.calc_km inputs)
 
-    let calc_diag k inputs =
+    let calc_single_diag k inputs =
       let n = Mat.dim2 inputs in
       let res = Vec.create n in
       let const = k.Kernel.const in
@@ -90,6 +90,8 @@ module Eval = struct
         res.{i} <- const *. (Vec.sqr_nrm2 (Mat.col inputs i) +. 1.);
       done;
       res
+
+    let calc_diag k inputs = `Single (calc_single_diag k inputs)
 
     let calc_cross k cross =
       let res = Mat.copy cross in
@@ -140,7 +142,7 @@ module Inputs = struct
   type cross = Eval.Inputs.t
 
   let calc_shared_diag k diag_eval_inputs =
-    let diag = Eval.Inputs.calc_diag k diag_eval_inputs in
+    let diag = Eval.Inputs.calc_single_diag k diag_eval_inputs in
     diag, diag
 
   let calc_shared_cross k cross_eval_inputs =
