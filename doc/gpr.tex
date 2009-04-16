@@ -7,33 +7,48 @@
 \usepackage{accents}
 
 \DeclareMathAlphabet{\mathsfsl}{OT1}{cmss}{m}{sl}
+
+\newcommand{\myu}[1]{\underaccent{\bar}{#1}}
+
 \newcommand{\mat}[1]{\mbox{$\mathsfsl{#1}$}}
-\newcommand{\myvec}[1]{\mbox{\boldmath$#1$}}
+\renewcommand{\vec}[1]{\mbox{\boldmath$#1$}}
 
 \newcommand{\diagv}[1]{\mathrm{diag_v}(#1)}
 \newcommand{\diagm}[1]{\mathrm{diag_m}(#1)}
 \newcommand{\trace}[1]{\mathrm{tr}(#1)}
-\newcommand{\trans}[1]{#1^\top}
+\newcommand{\transv}[1]{\vec{#1^\top}}
+\newcommand{\transm}[1]{\mat{#1^\top}}
 
-\newcommand{\inv}[1]{#1^{-1}}
-\newcommand{\ichol}[1]{#1^{-\frac{1}{2}}}
-\newcommand{\myu}[1]{\underaccent{\bar}{#1}}
-\newcommand{\myuu}[1]{\myu{\myu{#1}}}
+\newcommand{\imat}[1]{\mat{#1^{-1}}}
+\newcommand{\ichol}[1]{\mat{#1^{-\frac{1}{2}}}}
+\newcommand{\icholt}[1]{\mat{#1^{-\frac{\top}{2}}}}
 
-\newcommand{\km}{\mat{K_M}}
-\newcommand{\ikm}{\mat{K_M^{-1}}}
-\newcommand{\dkm}{\mat{\dot{K}_M}}
+\newcommand{\Km}{\mat{K_M}}
+\newcommand{\iKm}{\imat{K_M}}
+\newcommand{\dKm}{\mat{\dot{K}_M}}
 \newcommand{\dkn}{\mat{\dot{K}_N}}
-\newcommand{\kmn}{\mat{K_{MN}}}
-\newcommand{\knm}{\mat{K_{MN}^\top}}
-\newcommand{\dkmn}{\mat{\dot{K}_{MN}}}
-\newcommand{\dknm}{\mat{\dot{K}_{MN}^\top}}
-\newcommand{\myv}{\mathfrak{v}}
-\newcommand{\mydv}{\dot{\myv}}
-\newcommand{\myiv}{\tilde{\mathfrak{v}}}
+\newcommand{\Kmn}{\mat{K_{MN}}}
+\newcommand{\Knm}{\transm{K_{MN}}}
+\newcommand{\dKmn}{\mat{\dot{K}_{MN}}}
+\newcommand{\uuKmn}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}}
+
+\newcommand{\vecs}{\vec{s}}
+\newcommand{\vect}{\vec{t}}
+\newcommand{\vecu}{\vec{u}}
+\newcommand{\vecv}{\vec{v}}
+\newcommand{\vecw}{\vec{w}}
+\newcommand{\vecy}{\vec{y}}
+
+\newcommand{\vecsd}{\vec{\dot{s}}}
+\newcommand{\vecsi}{\vec{\tilde{s}}}
+
+\newcommand{\matS}{\mat{S}}
+\newcommand{\matT}{\mat{T}}
+\newcommand{\matU}{\mat{U}}
+\newcommand{\matV}{\mat{V}}
+
 \newcommand{\Lamss}{\mat{\Lambda_{\sigma^2}}}
-\newcommand{\iLamss}{\mat{\Lambda_{\sigma^2}^{-1}}}
-\newcommand{\Lamsr}{\mat{\Lambda_{\sigma^2}^{-\frac{1}{2}}}}
+\newcommand{\Lamssi}{\mat{\Lambda_{\sigma^2}^{-1}}}
 
 \begin{document}
 
@@ -53,21 +68,20 @@ general derivative, not noise here!
 
 \begin{eqnarray*}
 \Lamss & = & \diagm{\mat{K_N}} - \diagm{\mat{Q_N}} + \sigma^2\mat{I} \\
-\mathfrak{A} & = & \mat{B}^{-1} - \mat{K_M}^{-1} \\
-\mathfrak{B} & = & \ichol{\mat{B}}\kmn \\
-\myu{\mathfrak{B}} & = & \Lamsr\mathfrak{B} \\
-\mathfrak{C} & = & \mat{B}^{-\frac{\top}{2}}\mathfrak{B} = \inv{\mat{B}}\kmn \\
-\mathfrak{D} & = & \ikm\kmn \\
-\myv & = & \diagv{\Lamss} \\
-\myiv & = & \diagv{\iLamss} \\
-\mydv & = & \diagv{\dkn + \trans{\mathfrak{D}}(\dkm\mathfrak{D} - 2\,\dkmn)} \\
-\mathfrak{a} & = & \frac{1}{2}(\vec{\mathbf{1}}-\diagv{\trans{\myu{\mathfrak{B}}}\myu{\mathfrak{B}}}) \\
-\mathfrak{b} & = & \mathfrak{C} \myuu{\myvec{y}} \\
-\mathfrak{c} & = & \knm\mathfrak{b} - \myvec{y} \\
-\mathfrak{d} & = & \myiv\mathfrak{c} \\
-\dot{L}_1 & = & \frac{1}{2}\trace{\mathfrak{A}\dkm} + \myiv\cdot(\diagv{\trans{\mathfrak{C}}\dkmn} + \mathfrak{a}\otimes\mydv) \\
-2\,\dot{L}_2 & = & \mathfrak{b}\cdot(\dkm\mathfrak{b} + 2\,\dkmn\mathfrak{d})
-  + (\mathfrak{c}\otimes\myvec{y} - (\mathfrak{c} + \myvec{y}) \otimes \mathfrak{c})\cdot\mydv \\
+\uuKmn & = & \Kmn\Lamssi \\
+\matS & = & \imat{B} - \imat{K_M} \\
+\matT & = & \ichol{B}\uuKmn \\
+\matU & = & \imat{B}\uuKmn = \icholt{B}\matT \\
+\matV & = & \iKm\Kmn \\
+\vecs & = & \diagv{\Lamss} \\
+\vecsi & = & \diagv{\Lamssi} \\
+\vecsd & = & \diagv{\dkn + \transm{V}(\dKm V - 2\,\dKmn)} \\
+\vect & = & \frac{1}{2}(\diagv{\transm{T}\matT} - \vec{\mathbf{\vecsi}}) \\
+\vecu & = & \matU \vecy \\
+\vecv & = & \Knm \vecu - \vecy \\
+\vecw & = & \vecsi\otimes \vecv \\
+\dot{L}_1 & = & \frac{1}{2}\trace{\matS\dKm} - \trace{\transm{U}\dKmn} + \transv{t}\vecsd \\
+2\,\dot{L}_2 & = & \vecu\cdot(\dKm \vecu + 2\,\dKmn \vecw) - (\vecv\otimes \vecv)\cdot\vecsd \\
 \end{eqnarray*}
 
 \end{document}

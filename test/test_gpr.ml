@@ -30,9 +30,9 @@ let main () =
 
   let new_kernel =
     let params = Eval.Spec.Kernel.get_params kernel in
-    let new_log_sf2 = params.Cov_se_iso.Params.log_sf2 +. epsilon in
+    let new_log_ell = params.Cov_se_iso.Params.log_ell +. epsilon in
     let new_params =
-      { params with Cov_se_iso.Params.log_sf2 = new_log_sf2 }
+      { params with Cov_se_iso.Params.log_ell = new_log_ell }
     in
     Eval.Spec.Kernel.create new_params
   in
@@ -43,14 +43,14 @@ let main () =
 
   let hyper_model = Deriv.Model.prepare_hyper model in
   let mev, model_log_evidence =
-    Deriv.Model.calc_log_evidence hyper_model `Log_sf2
+    Deriv.Model.calc_log_evidence hyper_model `Log_ell
   in
 
   let mf1 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model) in
   let mf2 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model2) in
 
-  printf "mdlog_evidence: %f\n%!" mev;
-  printf "mdfinite:   %f\n%!" ((mf2 -. mf1) /. epsilon);
+  print_float "mdlog_evidence" mev;
+  print_float "mdfinite" ((mf2 -. mf1) /. epsilon);
 
   let trained = Deriv.Trained.calc model ~targets:training_targets in
   let trained2 = Deriv.Trained.calc model2 ~targets:training_targets in
@@ -63,9 +63,9 @@ let main () =
   let f1 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained) in
   let f2 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained2) in
 
-  printf "log evidence: %f\n%!" f1;
-  printf "dlog_evidence: %f\n%!" deriv;
-  printf "dfinite:   %f\n%!" ((f2 -. f1) /. epsilon)
+  print_float "log evidence" f1;
+  print_float "dlog_evidence" deriv;
+  print_float "dfinite" ((f2 -. f1) /. epsilon)
 
 (*
 let main () =
@@ -106,8 +106,8 @@ let main () =
   inducing_inputs.{1, 3} <- inducing_inputs.{1, 3} +. epsilon;
   let _, mf2 = run () in
 
-  printf "mdlog_evidence: %f\n%!" mev;
-  printf "mdfinite:   %f\n%!" ((mf2 -. mf1) /. epsilon)
+  print_float "mdlog_evidence" mev;
+  print_float "mdfinite" ((mf2 -. mf1) /. epsilon)
 *)
 
 let () = main ()

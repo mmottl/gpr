@@ -305,12 +305,9 @@ module Inputs = struct
     in
     cross, shared
 
-  let const_zero = `Const 0.
-
-  let calc_deriv_diag diag = function
-    | `Log_sf2 -> `Const diag.Eval.Kernel.sf2
-    | `Log_ell -> const_zero
-    | `Inducing_hyper _ -> const_zero
+  let calc_deriv_diag _diag = function
+    | `Log_sf2 -> `Factor 1.
+    | `Log_ell | `Inducing_hyper _ -> `Const 0.
 
   let calc_deriv_cross (inducing, inputs, common) = function
     | #gen_deriv as hyper -> calc_gen_deriv common hyper

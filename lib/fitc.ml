@@ -309,7 +309,8 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_log_evidence trained = trained.log_evidence
 
-    let get_kmn trained = trained.model.Common_model.inputs.Inputs.kmn
+    let get_km trained = Common_model.get_km trained.model
+    let get_kmn trained = Common_model.get_kmn trained.model
   end
 
   module Weights = struct
@@ -1082,11 +1083,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let n = Mat.dim2 kmn in
         let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
         let inducing_shared = inputs.Inputs.inducing.Inducing.shared in
+        (* TODO: especially optimize Const 0, Factor 1, but beware of mutations *)
         let dlam_diag__ =
           match Spec.Inputs.calc_deriv_diag shared_diag hyper with
           | `Vec deriv_diag -> deriv_diag
           | `Const c -> Vec.make n c
-          | `Factor _ -> assert false (* XXX *)
+          | `Factor c ->
+              (* TODO: optimize *)
+              let res = copy eval_model.Eval_model.kn_diag in
+              scal c res;
+              res
         in
         let deriv_upper =
           Spec.Inducing.calc_deriv_upper inducing_shared hyper
@@ -1127,8 +1133,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Const _c ->
               (assert false (* XXX *))
-          | `Factor _c ->
-              (assert false (* XXX *))
+          | `Factor c ->
+              (* TODO: more efficient way?  Share with Dense? *)
+              let dkm = Mat.copy (Eval_model.get_km eval_model) in
+              Mat.scal c dkm;
+              Mat.detri dkm;
+              let dkm_inv_km_kmn = symm dkm inv_km_kmn in
+              update_prod_diag dlam_diag__ 1. inv_km_kmn dkm_inv_km_kmn;
+              calc_prod_trace inv_km_minus_inv_b dkm
         in
         let deriv_cross =
           Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
@@ -1150,8 +1162,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               done
           | `Const _c ->
               (assert false (* XXX *))
-          | `Factor _c ->
-              (assert false (* XXX *))
+          | `Factor c ->
+              (* TODO: more efficient way?  Share with Dense? *)
+              let dkmn = Mat.copy (Eval_model.get_kmn eval_model) in
+              Mat.scal c dkmn;
+              update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
         end;
         let dlam__trace =
           let rec loop trace i =
@@ -1210,8 +1225,21 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 done
               done;
               calc_prod_trace inv_b_kmn combined
-          | `Factor _c ->
-              (assert false (* XXX *))
+          | `Factor c ->
+              (* TODO: more efficient way?  Share with Dense or previous Factor? *)
+              let dkmn = Mat.copy (Eval_model.get_kmn eval_model) in
+              Mat.scal c dkmn;
+              let combined = Mat.create m n in
+              for c = 1 to n do
+                let dlam__c = dlam_diag__.{c} in
+                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
+                for r = 1 to m do
+                  combined.{r, c} <-
+                    inv_lam_sigma2_diag_c
+                      *. (2. *. dkmn.{r, c} -. kmn.{r, c} *. dlam__c)
+                done;
+              done;
+              calc_prod_trace inv_b_kmn combined
         in
         let log_evidence_hyper =
           0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace)
@@ -1420,8 +1448,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Const _ ->
               (assert false (* XXX *))
-          | `Factor _c ->
-              (assert false (* XXX *))
+          | `Factor c ->
+              (* TODO: more efficient way?  Share with Dense or Eval? *)
+              let dkm = Mat.copy (Eval_trained.get_km hyper_trained.trained.eval_trained) in
+              Mat.scal c dkm;
+              dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
         in
         let deriv_cross = model_log_evidence.Cm.deriv_cross in
         let dkmn_factor = hyper_trained.dkmn_factor in
@@ -1433,8 +1464,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Const _ ->
               (assert false (* XXX *))
-          | `Factor _c ->
-              (assert false (* XXX *))
+          | `Factor c ->
+              (* TODO: more efficient way?  Share with Dense or Eval? *)
+              let dkmn = Mat.copy (Eval_trained.get_kmn hyper_trained.trained.eval_trained) in
+              Mat.scal c dkmn;
+              dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
         in
         let dlam_diag__ = model_log_evidence.Cm.dlam_diag__ in
         let dlam_nll = dot ~x:hyper_trained.dlam_factor dlam_diag__ in
