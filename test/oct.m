@@ -58,21 +58,22 @@ dKn = (Kn_e - Kn) / epsilon;
 
 y = targets;
 
-qn = Kmn' * inv(Km) * Kmn;
+Qn = Kmn' * inv(Km) * Kmn;
 
-lam = diag(diag(Kn - qn));
+lam = diag(diag(Kn - Qn));
 lam_sigma2 = lam + sigma2 * eye(N);
 inv_lam_sigma2 = inv(lam_sigma2);
 
+Kmn_ = Kmn * sqrt(inv_lam_sigma2);
 Kmn__ = Kmn * inv_lam_sigma2;
 
-B = Km + Kmn__ * Kmn';
+B = Km + Kmn_ * Kmn_';
 cholB = chol(B);
 
 S = inv(Km) - inv(B);
 T = cholB' \ Kmn__;
 U = cholB \ T;
-V = Km \ Kmn;
+V = Km \ Kmn;  % with Qn
 
 s = diag(lam_sigma2);
 si = diag(inv_lam_sigma2);
@@ -82,14 +83,12 @@ y__ = si .* y;
 
 t = 0.5*(diag(T' * T) - si);
 u = U*y;
-
-v = Kmn' * u;
-w = si .* v;
+v = y__ - Kmn__' * u;
 
 %%%%%% General derivatives
 
 dev1 = 0.5*trace(S * dKm) - trace(U'*dKmn) + t'*sd
-dev2 = dev1 + 0.5*(u'*(2*dKmn*(y__ - w) - dKm*u) + ((y__ - 2*w).*y__ + w .* w)' * sd)
+dev2 = dev1 + 0.5*(u'*(dKmn*2*v - dKm*u) + (v.*v)' * sd)
 
 %%%%%% Evidence
 
@@ -98,7 +97,7 @@ log_det_Km = log(det(Km));
 log_det_lam_sigma2 = log(det(lam_sigma2));
 
 model_nll = (log_det_b - log_det_Km + log_det_lam_sigma2 + N * log(2*pi)) / 2;
-trained_nll = (y' * inv(qn + lam_sigma2) * y) / 2;
+trained_nll = (y' * inv(Qn + lam_sigma2) * y) / 2;
 
 nll = (model_nll + trained_nll);
 evidence = - nll
