@@ -32,8 +32,8 @@ module Eval = struct
     end
 
     let calc_upper_mat k upper =
-      (* TODO: copy and scale upper triangle only *)
-      let res = Mat.copy upper in
+      let res = lacpy ~uplo:`U upper in
+      (* TODO: scale upper triangle only *)
       Mat.scal k.Kernel.const res;
       res
 
@@ -94,7 +94,7 @@ module Eval = struct
     let calc_diag k inputs = `Single (calc_single_diag k inputs)
 
     let calc_cross k cross =
-      let res = Mat.copy cross in
+      let res = lacpy cross in
       Mat.scal k.Kernel.const res;
       res
 
@@ -108,10 +108,9 @@ end
 
 module Hyper = struct type t = [ `Log_theta ] end
 
-let calc_deriv_mat mat =
-  (* TODO: copy and scale upper only *)
+let calc_deriv_mat res =
+  (* TODO: scale upper only *)
   (* TODO: even better: introduce passing through matrix and factor *)
-  let res = Mat.copy mat in
   Mat.scal (-2.) res;
   `Dense res
 
@@ -128,7 +127,8 @@ module Inducing = struct
     let upper = Eval.Inducing.calc_upper k prepared_upper in
     upper, upper
 
-  let calc_deriv_upper upper `Log_theta = calc_deriv_mat upper
+  let calc_deriv_upper upper `Log_theta =
+    calc_deriv_mat (lacpy ~uplo:`U upper)
 end
 
 module Inputs = struct
@@ -154,5 +154,5 @@ module Inputs = struct
     scal (-2.) res;
     `Vec res
 
-  let calc_deriv_cross cross `Log_theta = calc_deriv_mat cross
+  let calc_deriv_cross cross `Log_theta = calc_deriv_mat (lacpy cross)
 end

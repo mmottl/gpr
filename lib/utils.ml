@@ -43,14 +43,13 @@ let default_rng = Gsl_rng.make (Gsl_rng.default ())
 let cholesky_jitter = ref 1e-9
 
 let solve_triangular ?trans chol ~k =
-  (* TODO: special case for copying symmetric matrices? *)
-  let inv_chol_k = Mat.copy k in
+  let inv_chol_k = lacpy k in
   trtrs ?trans chol inv_chol_k;
   inv_chol_k
 
 let inv_chol chol =
   (* TODO: copy upper triangle only *)
-  let inv = Mat.copy chol in
+  let inv = lacpy ~uplo:`U chol in
   potri ~factorize:false inv;
   inv
 

@@ -17,7 +17,7 @@ let check_square (i, size) mat =
 let create mats =
   { data = mats; n = snd (Array.fold_left check_square (0, 0) mats) }
 
-let copy t = { t with data = Array.map (fun mat -> Mat.copy mat) t.data }
+let copy t = { t with data = Array.map (fun mat -> lacpy mat) t.data }
 
 let reraise_exc loc i exc =
   failwith (

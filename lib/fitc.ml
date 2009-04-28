@@ -43,8 +43,7 @@ module Make_common (Spec : Specs.Eval) = struct
     }
 
     let calc_internal kernel prepared km =
-      (* TODO: copy upper triangle only *)
-      let km_chol = Mat.copy km in
+      let km_chol = lacpy ~uplo:`U km in
       potrf ~jitter km_chol;
       let log_det_km = log_det km_chol in
       {
@@ -184,7 +183,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let inv_km_chol_kmn =
         solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:kmn
       in
-      let kmn_ = Mat.copy kmn in
+      let kmn_ = lacpy kmn in
       let n_inputs = Vec.dim kn_diag in
       let lam_diag = Vec.create n_inputs in
       let inv_lam_sigma2_diag = Vec.create n_inputs in
@@ -204,8 +203,9 @@ module Make_common (Spec : Specs.Eval) = struct
           loop (log_det_lam_sigma2 +. log lam_sigma2_i) (i - 1)
       in
       let log_det_lam_sigma2 = loop 0. n_inputs in
-      (* TODO: copy upper triangle only *)
-      let b_chol = syrk kmn_ ~beta:1. ~c:(Mat.copy inducing.Inducing.km) in
+      let b_chol =
+        syrk kmn_ ~beta:1. ~c:(lacpy ~uplo:`U inducing.Inducing.km)
+      in
       potrf ~jitter b_chol;
       let log_det_km = inducing.Inducing.log_det_km in
       let log_det_b = log_det b_chol in
@@ -519,8 +519,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_common ?predictive ~covariances ~sigma2 =
       match predictive with
       | None | Some true ->
-          (* TODO: copy upper triangle only *)
-          let res = Mat.copy covariances in
+          let res = lacpy ~uplo:`U covariances in
           for i = 1 to Mat.dim1 res do res.{i, i} <- res.{i, i} +. sigma2 done;
           res
       | Some false -> covariances
@@ -642,8 +641,7 @@ module Make_common (Spec : Specs.Eval) = struct
         failwith (
           loc ^
           ".Cov_sampler: means and covariances disagree about input points");
-      (* TODO: copy upper triangle only *)
-      let cov_chol = Mat.copy covariances.Covariances.covariances in
+      let cov_chol = lacpy ~uplo:`U covariances.Covariances.covariances in
       begin
         match predictive with
         | None | Some true ->
@@ -1135,7 +1133,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense? *)
-              let dkm = Mat.copy (Eval_model.get_km eval_model) in
+              let dkm = lacpy ~uplo:`U (Eval_model.get_km eval_model) in
               Mat.scal c dkm;
               Mat.detri dkm;
               let dkm_inv_km_kmn = symm dkm inv_km_kmn in
@@ -1164,7 +1162,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense? *)
-              let dkmn = Mat.copy (Eval_model.get_kmn eval_model) in
+              let dkmn = lacpy (Eval_model.get_kmn eval_model) in
               Mat.scal c dkmn;
               update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
         end;
@@ -1198,7 +1196,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | `Sparse_rows (dkmn, dkmn_rows) ->
               let combined =
                 (* TODO: gift *)
-                Mat.copy kmn
+                lacpy kmn
               in
               let n_rows = Array.length dkmn_rows in
               for c = 1 to n do
@@ -1227,7 +1225,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               calc_prod_trace inv_b_kmn combined
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense or previous Factor? *)
-              let dkmn = Mat.copy (Eval_model.get_kmn eval_model) in
+              let dkmn = lacpy (Eval_model.get_kmn eval_model) in
               Mat.scal c dkmn;
               let combined = Mat.create m n in
               for c = 1 to n do
@@ -1450,7 +1448,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkm = Mat.copy (Eval_trained.get_km hyper_trained.trained.eval_trained) in
+              let dkm = lacpy ~uplo:`U (Eval_trained.get_km hyper_trained.trained.eval_trained) in
               Mat.scal c dkm;
               dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
         in
@@ -1466,7 +1464,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkmn = Mat.copy (Eval_trained.get_kmn hyper_trained.trained.eval_trained) in
+              let dkmn = lacpy (Eval_trained.get_kmn hyper_trained.trained.eval_trained) in
               Mat.scal c dkmn;
               dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
         in
