@@ -10,18 +10,20 @@
 
 \newcommand{\myu}[1]{\underaccent{\bar}{#1}}
 
+\newcommand{\onehalf}{\tfrac{1}{2}}
+
 \newcommand{\mat}[1]{\mbox{$\mathsfsl{#1}$}}
 \renewcommand{\vec}[1]{\mbox{\boldmath$#1$}}
 
 \newcommand{\diagv}[1]{\mathrm{diag_v}(#1)}
 \newcommand{\diagm}[1]{\mathrm{diag_m}(#1)}
 \newcommand{\trace}[1]{\mathrm{tr}(#1)}
-\newcommand{\transv}[1]{\vec{#1^\top}}
-\newcommand{\transm}[1]{\mat{#1^\top}}
+\newcommand{\transv}[1]{\vec{#1}^\top}
+\newcommand{\transm}[1]{\mat{#1}^\top}
 
 \newcommand{\imat}[1]{\mat{#1^{-1}}}
-\newcommand{\ichol}[1]{\mat{#1^{-\frac{1}{2}}}}
-\newcommand{\icholt}[1]{\mat{#1^{-\frac{\top}{2}}}}
+\newcommand{\ichol}[1]{\mat{#1^{-\onehalf}}}
+\newcommand{\icholt}[1]{\mat{#1^{-\tfrac{\top}{2}}}}
 
 \newcommand{\Km}{\mat{K_M}}
 \newcommand{\iKm}{\imat{K_M}}
@@ -29,8 +31,13 @@
 \newcommand{\dkn}{\mat{\dot{K}_N}}
 \newcommand{\Kmn}{\mat{K_{MN}}}
 \newcommand{\Knm}{\transm{K_{MN}}}
+\newcommand{\uKnm}{\myu{\mat{K}}_{\mathsfsl{MN}}^\top}
+\newcommand{\uuKnm}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}^\top}
 \newcommand{\dKmn}{\mat{\dot{K}_{MN}}}
+\newcommand{\uKmn}{\myu{\mat{K}}_{\mathsfsl{MN}}}
 \newcommand{\uuKmn}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}}
+
+\newcommand{\dE}{\dot{E}}
 
 \newcommand{\vecs}{\vec{s}}
 \newcommand{\vect}{\vec{t}}
@@ -38,50 +45,60 @@
 \newcommand{\vecv}{\vec{v}}
 \newcommand{\vecw}{\vec{w}}
 \newcommand{\vecy}{\vec{y}}
+\newcommand{\uuvecy}{\myu{\myu{\vec{y}}}}
 
 \newcommand{\vecsd}{\vec{\dot{s}}}
-\newcommand{\vecsi}{\vec{\tilde{s}}}
+\newcommand{\vecis}{\vec{s}^{-1}}
+\newcommand{\veciss}{\vec{s}^{-\onehalf}}
 
+\newcommand{\matB}{\mat{B}}
 \newcommand{\matS}{\mat{S}}
 \newcommand{\matT}{\mat{T}}
 \newcommand{\matU}{\mat{U}}
 \newcommand{\matV}{\mat{V}}
+\newcommand{\matW}{\mat{W}}
 
-\newcommand{\Lamss}{\mat{\Lambda_{\sigma^2}}}
-\newcommand{\Lamssi}{\mat{\Lambda_{\sigma^2}^{-1}}}
+\newcommand{\Lam}{\mat{\Lambda}}
+\newcommand{\Lami}{\mat{\Lambda^{-1}}}
 
 \begin{document}
 
-\section{FIC-Likelihood Derivatives}
+\section{FIC computations}
 
-These are the derivatives of the FIC-likelihood as used in the
+These are computations of the FIC-likelihood as used in the
 OCaml-implementation.  The implementation factorizes the computations
 in exactly that way to minimize computation time.  Numerical stability
-may need to be improved.
+may still need to be improved.
 
-diagm is the matrix consisting of only the diagonal
-dprod is diagonal of the matrix product
-
-definitions / precomputations
-
-general derivative, not noise here!
+\begin{itemize}
+\item $\mathrm{diag_m}$ is the matrix consisting of only the diagonal
+\end{itemize}
 
 \begin{eqnarray*}
-\Lamss & = & \diagm{\mat{K_N}} - \diagm{\mat{Q_N}} + \sigma^2\mat{I} \\
-\uuKmn & = & \Kmn\Lamssi \\
-\matS & = & \imat{B} - \imat{K_M} \\
+\matV & = & \icholt{K_M}\Kmn \\
+\mat{Q_N} & = & \transm{V} \matV \\
+\Lam & = & \diagm{\mat{K_N} - \mat{Q_N}} \\
+\uKmn & = & \Kmn \ichol{\Lambda} \\
+\uuKmn & = & \uKmn\ichol{\Lambda} \\
+\matB & = & \Km + \uKmn\uKnm \\
+\matS & = & \imat{K_M} - \imat{B} \\
 \matT & = & \ichol{B}\uuKmn \\
-\matU & = & \imat{B}\uuKmn = \icholt{B}\matT \\
-\matV & = & \iKm\Kmn \\
-\vecs & = & \diagv{\Lamss} \\
-\vecsi & = & \diagv{\Lamssi} \\
-\vecsd & = & \diagv{\dkn + \transm{V}(\dKm V - 2\,\dKmn)} \\
-\vect & = & \frac{1}{2}(\diagv{\transm{T}\matT} - \vec{\mathbf{\vecsi}}) \\
+\matU & = & \icholt{B}\matT \\
+\matW & = & \ichol{K_M}\mat{V} \\
+\vecs & = & \diagv{\Lam} \\
+\vecsd & = & \onehalf\diagv{\dkn} + \transm{W}(\onehalf\dKm W - \dKmn) \\
+\vect & = & \diagv{\transm{T}\matT} - \vecis \\
 \vecu & = & \matU \vecy \\
-\vecv & = & \Knm \vecu - \vecy \\
-\vecw & = & \vecsi\otimes \vecv \\
-\dot{L}_1 & = & \frac{1}{2}\trace{\matS\dKm} - \trace{\transm{U}\dKmn} + \transv{t}\vecsd \\
-2\,\dot{L}_2 & = & \vecu\cdot(\dKm \vecu + 2\,\dKmn \vecw) - (\vecv\otimes \vecv)\cdot\vecsd \\
+\vecv & = & (\Knm \vecu - \vecy) \otimes \vecis \\
+\vecw & = & \vecv \otimes \vecv \\
+\mu_* & = & \mat{K_{*M}} \vecu \\
+\sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} \\
+E_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lam| - N \log 2\pi) \\
+E_2 & = & \onehalf \vecv\cdot\vecy \\
+E & = & E_1 + E_2 \\
+\dE_1 & = & \vect\cdot\vecsd + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
+\dE_2 & = & \vecw\cdot\vecsd - \vecu\cdot(\dKm \onehalf \vecu + \dKmn \vecv) \\
+\dE & = & \dE_1 + \dE_2 \\
 \end{eqnarray*}
 
 \end{document}

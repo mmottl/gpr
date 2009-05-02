@@ -28,6 +28,11 @@ function res = kf(x, y, a, b)
   repmat(sum(y' .* y', 2), 1, n1);
   r2 = repmat(sum(x' .* x', 2), 1, n2) - 2 * x' * y + repmat(sum(y' .* y', 2)', n1, 1);
   res = eval_rbf2(r2, a, b);
+  [dim, N] = size(res);
+  jitter = 0;
+  if (dim == N)
+    res = res + jitter*eye(N);
+  endif
 end
 
 function res = k(x, y)
@@ -40,9 +45,11 @@ function res = k_e(x, y)
   res = kf(x, y, log_sf2, inv_ell2_e);
 end
 
+
 %%%%%% Covariance matrices
 
 Km = k(inducing_inputs, inducing_inputs);
+
 Km_e = k_e(inducing_inputs, inducing_inputs);
 dKm = (Km_e - Km) / epsilon;
 
@@ -54,11 +61,13 @@ Kn = k(inputs, inputs);
 Kn_e = k_e(inputs, inputs);
 dKn = (Kn_e - Kn) / epsilon;
 
+
 %%%%%% Main computations
 
 y = targets;
 
-Qn = Kmn' * inv(Km) * Kmn;
+V = chol(Km)' \ Kmn;  % with Qn
+Qn = V' * V;
 
 lam = diag(diag(Kn - Qn));
 lam_sigma2 = lam + sigma2 * eye(N);
@@ -73,36 +82,33 @@ cholB = chol(B);
 S = inv(Km) - inv(B);
 T = cholB' \ Kmn__;
 U = cholB \ T;
-V = Km \ Kmn;  % with Qn
+W = chol(Km) \ V;  % with Qn
 
 s = diag(lam_sigma2);
-si = diag(inv_lam_sigma2);
-sd = diag(dKn) + diag(V'*(dKm*V - 2*dKmn));
+is = diag(inv_lam_sigma2);
+ds = 0.5 * diag(dKn) + diag(W'*(0.5 * dKm*W - dKmn));
 
-y__ = si .* y;
-
-t = 0.5*(diag(T' * T) - si);
+t = diag(T' * T) - is;
 u = U*y;
-v = y__ - Kmn__' * u;
+v = (Kmn' * u - y) .* is;
+w = v .* v;
 
-%%%%%% General derivatives
+%%%%%% Log evidence
 
-dev1 = 0.5*trace(S * dKm) - trace(U'*dKmn) + t'*sd
-dev2 = dev1 + 0.5*(u'*(dKmn*2*v - dKm*u) + (v.*v)' * sd)
+le1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(diag(lam_sigma2))) - N * log(2*pi));
+le2 = 0.5*(v'*y)
+le = le1 + le2
 
-%%%%%% Evidence
 
-log_det_b = log(det(B));
-log_det_Km = log(det(Km));
-log_det_lam_sigma2 = log(det(lam_sigma2));
+%%%%%% Evidence derivative
 
-model_nll = (log_det_b - log_det_Km + log_det_lam_sigma2 + N * log(2*pi)) / 2;
-trained_nll = (y' * inv(Qn + lam_sigma2) * y) / 2;
+dle1 = t' * ds + 0.5*trace(S'*dKm) - trace(U'*dKmn)
+dle2 = w' * ds - u'*(dKm*0.5*u + dKmn*v)
+dle = dle1 + dle2
 
-nll = (model_nll + trained_nll);
-evidence = - nll
 
 %%%%%% Ed's stuff
+
 hyp = [log_inv_ell2; log_sf2; log(sigma2)];
 ew = [reshape(inducing_inputs', M*dim, 1); hyp];
 [eds_neg_log_likelihood, dfw] = spgp_lik(ew, y, inputs', M);
