@@ -1,15 +1,11 @@
 NAME = gpr
-LATEX = pdflatex -halt-on-error
 
-%.pdf:	%.tex
-	$(LATEX) $<
-	$(LATEX) $<
-	$(LATEX) $<
+LaTeXDocument($(NAME), gpr)
 
 .DEFAULT: $(NAME).pdf
 
 .PHONY: clean
 clean:
 	rm -f $(NAME).dvi $(NAME).log $(NAME).aux $(NAME).idx $(NAME).toc
-	rm -f $(NAME).bbl $(NAME).blg $(NAME).pdf missfont.log
+	rm -f $(NAME).bbl $(NAME).blg $(NAME).pdf missfont.log $(NAME).fls
 	rm -f *.omc
