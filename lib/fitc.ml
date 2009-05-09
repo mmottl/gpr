@@ -1448,7 +1448,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkm = lacpy ~uplo:`U (Eval_trained.get_km hyper_trained.trained.eval_trained) in
+              let dkm =
+                lacpy ~uplo:`U
+                  (Eval_trained.get_km hyper_trained.trained.eval_trained)
+              in
               Mat.scal c dkm;
               dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
         in
@@ -1464,7 +1467,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               (assert false (* XXX *))
           | `Factor c ->
               (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkmn = lacpy (Eval_trained.get_kmn hyper_trained.trained.eval_trained) in
+              let dkmn =
+                lacpy (Eval_trained.get_kmn hyper_trained.trained.eval_trained)
+              in
               Mat.scal c dkmn;
               dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
         in
