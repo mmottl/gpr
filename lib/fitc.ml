@@ -1319,8 +1319,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               }
             )
           else
+            let dlam_diag__i = dlam_diag__.{i} in
             let el =
-              dlam_diag__.{i} *. (1. -. lam_diag.{i} *. inv_lam_sigma2_diag.{i})
+              dlam_diag__i -.
+                dlam_diag__i *. (lam_diag.{i} *. inv_lam_sigma2_diag.{i})
             in
             loop (trace +. el) (i - 1)
         in
