@@ -47,19 +47,19 @@
 \newcommand{\vecy}{\vec{y}}
 \newcommand{\uuvecy}{\myu{\myu{\vec{y}}}}
 
-\newcommand{\vecsd}{\vec{\dot{s}}}
+\newcommand{\vecsdh}{\onehalf\vec{\dot{s}}}
 \newcommand{\vecis}{\vec{s}^{-1}}
 \newcommand{\veciss}{\vec{s}^{-\onehalf}}
 
 \newcommand{\matB}{\mat{B}}
+\newcommand{\matI}{\mat{I}}
 \newcommand{\matS}{\mat{S}}
 \newcommand{\matT}{\mat{T}}
 \newcommand{\matU}{\mat{U}}
 \newcommand{\matV}{\mat{V}}
 \newcommand{\matW}{\mat{W}}
 
-\newcommand{\Lam}{\mat{\Lambda}}
-\newcommand{\Lami}{\mat{\Lambda^{-1}}}
+\newcommand{\Lamss}{\mat{\Lambda}_{\sigma^2}}
 
 \begin{document}
 
@@ -75,29 +75,29 @@ may still need to be improved.
 \end{itemize}
 
 \begin{eqnarray*}
-\matV & = & \icholt{K_M}\Kmn \\
+\matV & = & \ichol{K_M}\Kmn \\
 \mat{Q_N} & = & \transm{V} \matV \\
-\Lam & = & \diagm{\mat{K_N} - \mat{Q_N}} \\
-\uKmn & = & \Kmn \ichol{\Lambda} \\
-\uuKmn & = & \uKmn\ichol{\Lambda} \\
+\Lamss & = & \diagm{\mat{K_N} - \mat{Q_N}} + \sigma^2 \matI \\
+\uKmn & = & \Kmn \ichol{\Lamss} \\
+\uuKmn & = & \uKmn\ichol{\Lamss} \\
 \matB & = & \Km + \uKmn\uKnm \\
 \matS & = & \imat{K_M} - \imat{B} \\
 \matT & = & \ichol{B}\uuKmn \\
 \matU & = & \icholt{B}\matT \\
-\matW & = & \ichol{K_M}\mat{V} \\
-\vecs & = & \diagv{\Lam} \\
-\vecsd & = & \onehalf\diagv{\dkn} + \transm{W}(\onehalf\dKm W - \dKmn) \\
+\matW & = & \icholt{K_M}\mat{V} \\
+\vecs & = & \diagv{\Lamss} \\
+\vecsdh & = & \onehalf\diagv{\dkn} + \transm{W}(\onehalf\dKm W - \dKmn) \\
 \vect & = & \diagv{\transm{T}\matT} - \vecis \\
 \vecu & = & \matU \vecy \\
 \vecv & = & (\Knm \vecu - \vecy) \otimes \vecis \\
 \vecw & = & \vecv \otimes \vecv \\
 \mu_* & = & \mat{K_{*M}} \vecu \\
-\sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} \\
-E_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lam| - N \log 2\pi) \\
+\sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} + \sigma^2 \matI \\
+E_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lamss| - N \log 2\pi) \\
 E_2 & = & \onehalf \vecv\cdot\vecy \\
 E & = & E_1 + E_2 \\
-\dE_1 & = & \vect\cdot\vecsd + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
-\dE_2 & = & \vecw\cdot\vecsd - \vecu\cdot(\dKm \onehalf \vecu + \dKmn \vecv) \\
+\dE_1 & = & \vect\cdot\vecsdh + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
+\dE_2 & = & \vecw\cdot\vecsdh - \vecu\cdot(\dKm \onehalf \vecu + \dKmn \vecv) \\
 \dE & = & \dE_1 + \dE_2 \\
 \end{eqnarray*}
 

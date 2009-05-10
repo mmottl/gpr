@@ -86,7 +86,7 @@ W = chol(Km) \ V;  % with Qn
 
 s = diag(lam_sigma2);
 is = diag(inv_lam_sigma2);
-ds = 0.5 * diag(dKn) + diag(W'*(0.5 * dKm*W - dKmn));
+dsh = 0.5 * diag(dKn) + diag(W'*(0.5 * dKm*W - dKmn));
 
 t = diag(T' * T) - is;
 u = U*y;
@@ -102,8 +102,8 @@ le = le1 + le2
 
 %%%%%% Evidence derivative
 
-dle1 = t' * ds + 0.5*trace(S'*dKm) - trace(U'*dKmn)
-dle2 = w' * ds - u'*(dKm*0.5*u + dKmn*v)
+dle1 = t' * dsh + 0.5*trace(S'*dKm) - trace(U'*dKmn)
+dle2 = w' * dsh - u'*(dKm*0.5*u + dKmn*v)
 dle = dle1 + dle2
 
 
