@@ -1,5 +1,7 @@
 \documentclass[12pt]{article}
 
+\usepackage[usenames]{color}
+
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
@@ -8,17 +10,21 @@
 
 \DeclareMathAlphabet{\mathsfsl}{OT1}{cmss}{m}{sl}
 
+\newcommand{\red}{\textcolor{red}}
+
+\newcommand{\dif}{\mathrm{d}}
+
 \newcommand{\myu}[1]{\underaccent{\bar}{#1}}
 
 \newcommand{\onehalf}{\tfrac{1}{2}}
 
 \newcommand{\mat}[1]{\mbox{$\mathsfsl{#1}$}}
-\renewcommand{\vec}[1]{\mbox{\boldmath$#1$}}
+\newcommand{\myvec}[1]{\mbox{\boldmath$#1$}}
 
 \newcommand{\diagv}[1]{\mathrm{diag_v}(#1)}
 \newcommand{\diagm}[1]{\mathrm{diag_m}(#1)}
 \newcommand{\trace}[1]{\mathrm{tr}(#1)}
-\newcommand{\transv}[1]{\vec{#1}^\top}
+\newcommand{\transv}[1]{\myvec{#1}^\top}
 \newcommand{\transm}[1]{\mat{#1}^\top}
 
 \newcommand{\imat}[1]{\mat{#1^{-1}}}
@@ -37,19 +43,20 @@
 \newcommand{\uKmn}{\myu{\mat{K}}_{\mathsfsl{MN}}}
 \newcommand{\uuKmn}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}}
 
-\newcommand{\dE}{\dot{E}}
+\newcommand{\dl}{\dot{l}}
 
-\newcommand{\vecs}{\vec{s}}
-\newcommand{\vect}{\vec{t}}
-\newcommand{\vecu}{\vec{u}}
-\newcommand{\vecv}{\vec{v}}
-\newcommand{\vecw}{\vec{w}}
-\newcommand{\vecy}{\vec{y}}
-\newcommand{\uuvecy}{\myu{\myu{\vec{y}}}}
+\newcommand{\vecr}{\myvec{r}}
+\newcommand{\vecs}{\myvec{s}}
+\newcommand{\vect}{\myvec{t}}
+\newcommand{\vecu}{\myvec{u}}
+\newcommand{\vecv}{\myvec{v}}
+\newcommand{\vecw}{\myvec{w}}
+\newcommand{\vecy}{\myvec{y}}
+\newcommand{\uuvecy}{\myu{\myu{\vecy}}}
 
-\newcommand{\vecsdh}{\onehalf\vec{\dot{s}}}
-\newcommand{\vecis}{\vec{s}^{-1}}
-\newcommand{\veciss}{\vec{s}^{-\onehalf}}
+\newcommand{\vecsdh}{\onehalf\myvec{\dot{s}}}
+\newcommand{\vecis}{\myvec{s}^{-1}}
+\newcommand{\veciss}{\myvec{s}^{-\onehalf}}
 
 \newcommand{\matB}{\mat{B}}
 \newcommand{\matI}{\mat{I}}
@@ -59,7 +66,9 @@
 \newcommand{\matV}{\mat{V}}
 \newcommand{\matW}{\mat{W}}
 
+\newcommand{\Lam}{\mat{\Lambda}}
 \newcommand{\Lamss}{\mat{\Lambda}_{\sigma^2}}
+\newcommand{\Lamssi}{\imat{\Lambda}_{\sigma^2}}
 
 \begin{document}
 
@@ -74,10 +83,13 @@ may still need to be improved.
 \item $\mathrm{diag_m}$ is the matrix consisting of only the diagonal
 \end{itemize}
 
+Note: $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
+
 \begin{eqnarray*}
 \matV & = & \ichol{K_M}\Kmn \\
 \mat{Q_N} & = & \transm{V} \matV \\
-\Lamss & = & \diagm{\mat{K_N} - \mat{Q_N}} + \sigma^2 \matI \\
+\Lam & = & \diagm{\mat{K_N} - \mat{Q_N}} \\
+\Lamss & = & \Lam + \sigma^2 \matI \\
 \uKmn & = & \Kmn \ichol{\Lamss} \\
 \uuKmn & = & \uKmn\ichol{\Lamss} \\
 \matB & = & \Km + \uKmn\uKnm \\
@@ -85,20 +97,24 @@ may still need to be improved.
 \matT & = & \ichol{B}\uuKmn \\
 \matU & = & \icholt{B}\matT \\
 \matW & = & \icholt{K_M}\mat{V} \\
+\vecr & = & \diagv{\Lam} \\
 \vecs & = & \diagv{\Lamss} \\
+\vecis & = & \diagv{\Lamssi} \\
 \vecsdh & = & \onehalf\diagv{\dkn} + \transm{W}(\onehalf\dKm W - \dKmn) \\
-\vect & = & \diagv{\transm{T}\matT} - \vecis \\
 \vecu & = & \matU \vecy \\
 \vecv & = & (\Knm \vecu - \vecy) \otimes \vecis \\
-\vecw & = & \vecv \otimes \vecv \\
 \mu_* & = & \mat{K_{*M}} \vecu \\
 \sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} + \sigma^2 \matI \\
-E_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lamss| - N \log 2\pi) \\
-E_2 & = & \onehalf \vecv\cdot\vecy \\
-E & = & E_1 + E_2 \\
-\dE_1 & = & \vect\cdot\vecsdh + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
-\dE_2 & = & \vecw\cdot\vecsdh - \vecu\cdot(\dKm \onehalf \vecu + \dKmn \vecv) \\
-\dE & = & \dE_1 + \dE_2 \\
+l_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lamss| - N \log 2\pi \red{\, - \, \vecis \cdot \vecr}) \\
+l_2 & = & \onehalf \vecv\cdot\vecy \\
+l & = & l_1 + l_2 \\
+\vect & = & \diagv{\transm{T}\matT} - \red{2} \vecis \red{\, + \, \vecis\otimes(\vecis \otimes \vecr)} \\
+\vecw & = & \vecv \otimes \vecv \\
+\dl_1 & = & \vecsdh\cdot\vect + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
+\tfrac{\dif l_1}{\sigma^2} & = & \onehalf \mathrm{sum} (\vect \red {\, + \, \vecis}) \\
+\dl_2 & = & \vecsdh\cdot\vecw - \vecu\cdot(\dKm \onehalf \vecu + \dKmn \vecv) \\
+\tfrac{\dif l_2}{\sigma^2} & = & \onehalf \mathrm{sum}(\vecw) \\
+\dl & = & \dl_1 + \dl_2 \\
 \end{eqnarray*}
 
 \end{document}
