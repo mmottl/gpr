@@ -5,3 +5,5 @@
 \.omakedb.lock
 .*\.(cm[iox]|o|a)
 dist.mex
+test/data
+doc/gpr.(dvi|log|pdf)
