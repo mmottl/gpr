@@ -6,4 +6,4 @@
 .*\.(cm[iox]|o|a)
 dist.mex
 test/data
-doc/gpr.(dvi|log|pdf)
+doc/gpr.(dvi|log|pdf|fls)
