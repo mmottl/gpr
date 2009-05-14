@@ -101,7 +101,7 @@ l2 = 0.5*(u'*y)
 le = l1 + l2
 
 
-%%%%%% Evidence derivative
+%%%%%% Log evidence derivative
 
 v = diag(T' * T) - is;
 w = u .* u;
@@ -109,6 +109,12 @@ w = u .* u;
 dl1 = v' * dsh + 0.5*trace(S'*dKm) - trace(U'*dKmn)
 dl2 = w' * dsh - t'*(dKm*0.5*t + dKmn*u)
 dl = dl1 + dl2
+
+%%%%%% Log evidence derivative wrt. noise
+
+dls1 = 0.5*(sum(v))
+dls2 = 0.5*(sum(w))
+dls = dls1 + dls2
 
 
 %%%%%% Ed's stuff
