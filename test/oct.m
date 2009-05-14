@@ -29,8 +29,8 @@ function res = kf(x, y, a, b)
   r2 = repmat(sum(x' .* x', 2), 1, n2) - 2 * x' * y + repmat(sum(y' .* y', 2)', n1, 1);
   res = eval_rbf2(r2, a, b);
   [dim, N] = size(res);
-  jitter = 0;
   if (dim == N)
+    jitter = 1e-6;
     res = res + jitter*eye(N);
   endif
 end
@@ -66,7 +66,8 @@ dKn = (Kn_e - Kn) / epsilon;
 
 y = targets;
 
-V = chol(Km)' \ Kmn;  % with Qn
+cholKm = chol(Km);
+V = cholKm' \ Kmn;  % with Qn
 Qn = V' * V;
 
 lam = diag(diag(Kn - Qn));
@@ -82,29 +83,32 @@ cholB = chol(B);
 S = inv(Km) - inv(B);
 T = cholB' \ Kmn__;
 U = cholB \ T;
-W = chol(Km) \ V;  % with Qn
+W = cholKm \ V;  % with Qn
 
+r = diag(lam);
 s = diag(lam_sigma2);
 is = diag(inv_lam_sigma2);
 dsh = 0.5 * diag(dKn) + diag(W'*(0.5 * dKm*W - dKmn));
 
-t = diag(T' * T) - is;
-u = U*y;
-v = (Kmn' * u - y) .* is;
-w = v .* v;
 
 %%%%%% Log evidence
 
-le1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(diag(lam_sigma2))) - N * log(2*pi));
-le2 = 0.5*(v'*y)
-le = le1 + le2
+t = U*y;
+u = (Kmn' * t - y) .* is;
+
+l1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(s)) - N * log(2*pi))
+l2 = 0.5*(u'*y)
+le = l1 + l2
 
 
 %%%%%% Evidence derivative
 
-dle1 = t' * dsh + 0.5*trace(S'*dKm) - trace(U'*dKmn)
-dle2 = w' * dsh - u'*(dKm*0.5*u + dKmn*v)
-dle = dle1 + dle2
+v = diag(T' * T) - is;
+w = u .* u;
+
+dl1 = v' * dsh + 0.5*trace(S'*dKm) - trace(U'*dKmn)
+dl2 = w' * dsh - t'*(dKm*0.5*t + dKmn*u)
+dl = dl1 + dl2
 
 
 %%%%%% Ed's stuff
