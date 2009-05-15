@@ -98,7 +98,9 @@ u = (Kmn' * t - y) .* is;
 
 l1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(s)) - N * log(2*pi))
 l2 = 0.5*(u'*y)
-le = l1 + l2
+l = l1 + l2
+vl1 = l1 - 0.5*is'*r
+vl = vl1 + l2
 
 
 %%%%%% Log evidence derivative
@@ -106,15 +108,22 @@ le = l1 + l2
 v = diag(T' * T) - is;
 w = u .* u;
 
-dl1 = v' * dsh + 0.5*trace(S'*dKm) - trace(U'*dKmn)
+dl1c = 0.5*trace(S'*dKm) - trace(U'*dKmn);
+vv = v - is + is.*(is.*r);
+
+dl1 = v' * dsh + dl1c
 dl2 = w' * dsh - t'*(dKm*0.5*t + dKmn*u)
 dl = dl1 + dl2
+vdl1 = vv' * dsh + dl1c
+vdl = vdl1 + dl2
 
 %%%%%% Log evidence derivative wrt. noise
 
 dls1 = 0.5*(sum(v))
 dls2 = 0.5*(sum(w))
 dls = dls1 + dls2
+vdls1 = 0.5*(sum(vv) + sum(is))
+vdls = vdls1 + dls2
 
 
 %%%%%% Ed's stuff
