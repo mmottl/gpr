@@ -83,7 +83,25 @@ may still need to be improved.
 \item $\mathrm{diag_m}$ is the matrix consisting of only the diagonal
 \end{itemize}
 
-Note: $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
+Log-derivatives:
+
+\begin{itemize}
+\item $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
+\end{itemize}
+
+Nonlinear clustering:
+
+\begin{itemize}
+\item $k(x, y) = \langle \phi(x) | \phi(y) \rangle$
+\item $\|\phi(x) - \phi(y)\|^2 = k(x,x)-2k(x,y)+k(y,y)$
+\item find one inducing point
+\item choose point x farthest away wrt.\ k
+\item choose antipodal point y to x wrt.\ k
+\item determine for all points to which of x or y they are closer
+\item create two clusters
+\item recurse
+\item when suitable granularity reached, use PI(T)C
+\end{itemize}
 
 \begin{eqnarray*}
 \matV & = & \ichol{K_M}\Kmn \\
