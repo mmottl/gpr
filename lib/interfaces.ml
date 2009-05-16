@@ -49,10 +49,7 @@ module Inducing_input_gpr = struct
         end
 
         val calc_upper : Kernel.t -> t -> mat
-
-        val calc_diag :
-          Kernel.t -> t -> [ `Single of vec | `Block of Block_diag.t ]
-
+        val calc_diag : Kernel.t -> t -> vec 
         val calc_cross : Kernel.t -> Prepared.cross -> mat
 
         val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> vec

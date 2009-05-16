@@ -162,11 +162,9 @@ module Eval = struct
     let calc_upper k inputs =
       Inducing.calc_upper k (Inducing.Prepared.calc_upper inputs)
 
-    let calc_single_diag k inputs =
+    let calc_diag k inputs =
       (* TODO: return sparse data? *)
       Vec.make (Mat.dim2 inputs) k.Kernel.sf2
-
-    let calc_diag k inputs = `Single (calc_single_diag k inputs)
 
     let calc_cross k cross =
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
@@ -286,7 +284,7 @@ module Inputs = struct
   type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
 
   let calc_shared_diag k diag_eval_inputs =
-    Eval.Inputs.calc_single_diag k diag_eval_inputs, k
+    Eval.Inputs.calc_diag k diag_eval_inputs, k
 
   let calc_shared_cross kernel prepared_cross =
     let module EI = Eval.Inputs in

@@ -58,8 +58,7 @@ module Eval = struct
 
     let calc_upper = Inducing.calc_upper
 
-    let calc_single_diag k n = Vec.make n k.Kernel.const
-    let calc_diag k n = `Single (calc_single_diag k n)
+    let calc_diag k n = Vec.make n k.Kernel.const
     let calc_cross k { Prepared.m = m; n = n } = Mat.make m n k.Kernel.const
 
     let weighted_eval k ~coeffs { Prepared.m = m } =
@@ -107,7 +106,7 @@ module Inputs = struct
 
   let calc_shared_diag k diag_eval_inputs =
     (
-      Eval.Inputs.calc_single_diag k diag_eval_inputs,
+      Eval.Inputs.calc_diag k diag_eval_inputs,
       {
         diag_eval_inputs = diag_eval_inputs;
         diag_const_deriv = calc_const_deriv k;

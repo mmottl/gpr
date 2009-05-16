@@ -148,13 +148,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let nystrom_chol_marginals inputs =
       let inducing = inputs.inducing in
       let kernel = get_kernel inputs in
-      let kn_diag =
-        match Inputs.calc_diag kernel inputs.points with
-        | `Single kn_diag -> kn_diag
-        | `Block _block_diag ->
-            (* TODO *)
-            (assert false (* XXX *))
-      in
+      let kn_diag = Inputs.calc_diag kernel inputs.points in
       let inv_km_chol_kmn =
         solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:inputs.kmn
       in
@@ -223,13 +217,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc inputs ~sigma2 =
       let kernel = Inputs.get_kernel inputs in
-      let kn_diag =
-        match Spec.Inputs.calc_diag kernel inputs.Inputs.points with
-        | `Single kn_diag -> kn_diag
-        | `Block _block_diag ->
-            (* TODO *)
-            (assert false (* XXX *))
-      in
+      let kn_diag = Spec.Inputs.calc_diag kernel inputs.Inputs.points in
       calc_internal inputs sigma2 kn_diag
 
     let update_sigma2 model sigma2 =
