@@ -1,3 +1,22 @@
+rewrite to factored computations
+get rid of 2. *.
+dimension + other sanity checks
+remove redundancies
+revise copying
+
+---------------------------------------------------------------------------
+
+dkm const:
+
+  * Mat.sum_cols w_mat times const
+    -> Vec.sqr -> Vec.scal 0.5 (combine with scaling ds and/or const)
+
+  * Mat.sum s_mat times const (sum all elements; only one triangle times two)
+
+treat Factor 0 and Const 0 the same
+
+---------------------------------------------------------------------------
+
 + and *: ('v1, 'p1) kernel -> ('v2, 'p2) kernel -> ('v1 * 'v2, [ `Left of 'p1 | `Right of 'p2 ]) kernel
 trans: ('v1, 'p1) kernel -> ('v2 -> 'v1) -> ('p2 -> 'p1) -> ('v2, 'p2) kernel
 chain rule

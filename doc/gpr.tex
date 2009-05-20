@@ -118,18 +118,18 @@ Nonlinear clustering:
 \vecr & = & \diagv{\Lam} \\
 \vecs & = & \diagv{\Lamss} \\
 \vecis & = & \diagv{\Lamssi} \\
-\vecsdh & = & \onehalf\diagv{\dkn} + \diagv{\transm{W}(\onehalf\dKm W - \dKmn)} \\
 \vect & = & \matU \vecy \\
 \vecu & = & (\Knm \vect - \vecy) \otimes \vecis \\
 \mu_* & = & \mat{K_{*M}} \vect \\
 \sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} + \sigma^2 \matI \\
 l_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lamss| - N \log 2\pi \red{\, - \, \vecis \cdot \vecr}) \\
-l_2 & = & \onehalf \vecu\cdot\vecy \\
+l_2 & = & \onehalf \vecu\cdot\vecy = \onehalf({\|\ichol{B}\Kmn\uuvecy\|}^2 - \uuvecy\cdot\vecy) \\
 l & = & l_1 + l_2 \\
+\vecsdh & = & \onehalf\diagv{\dkn} + \diagv{\transm{W}(\onehalf\dKm W - \dKmn)} \\
 \vecv & = & \diagv{\transm{T}\matT} - \vecis \red{\, - \, \vecis + \vecis\otimes(\vecis \otimes \vecr)} \\
-\vecw & = & \vecu \otimes \vecu \\
-\dl_1 & = & \vecsdh\cdot\vecv + \onehalf\trace{\matS\dKm} - \trace{\transm{U}\dKmn} \\
+\dl_1 & = & \vecsdh\cdot\vecv + \onehalf\trace{\dKm\matS} - \trace{\dKmn\transm{U}} \\
 \tfrac{\dif l_1}{\sigma^2} & = & \onehalf (\mathrm{sum}(\vecv) \red {\, + \, \mathrm{sum}(\vecis)}) \\
+\vecw & = & \vecu \otimes \vecu \\
 \dl_2 & = & \vecsdh\cdot\vecw - \vect\cdot(\dKm \onehalf \vect + \dKmn \vecu) \\
 \tfrac{\dif l_2}{\sigma^2} & = & \onehalf \mathrm{sum}(\vecw) \\
 \dl & = & \dl_1 + \dl_2 \\
