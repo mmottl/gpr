@@ -116,6 +116,7 @@ dl = dl1 + dl2
 vdl1 = 0.5 * (vv' * diag(dKn) + trace((W*diag(xv)*W' + S)*dKm)) - trace((diag(xv)*W' + U')*dKmn)
 vdl = vdl1 + dl2
 
+
 %%%%%% Log evidence derivative wrt. noise
 
 dls1 = 0.5*sum(x)
