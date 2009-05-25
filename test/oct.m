@@ -12,6 +12,7 @@ load data/log_sf2
 global epsilon = 1e-6;
 sigma = sqrt(sigma2);
 global log_sf2 = log_sf2;
+global log_sf2_e = log_sf2 + epsilon;
 global inv_ell2 = exp(-2 * log_ell);
 global inv_ell2_e = exp(-2*(log_ell + epsilon));
 log_inv_ell2 = log(inv_ell2);
@@ -41,12 +42,12 @@ function res = k(x, y)
 end
 
 function res = k_e(x, y)
-  global log_sf2 inv_ell2 inv_ell2_e epsilon;
-  res = kf(x, y, log_sf2, inv_ell2_e);
+  global log_sf2 log_sf2_e inv_ell2 inv_ell2_e epsilon;
+  res = kf(x, y, log_sf2_e, inv_ell2);
 end
 
 
-%%%%%% Covariance matrices
+%%%%%%%%%%%%%%%%%%%% Covariance matrices %%%%%%%%%%%%%%%%%%%%
 
 Km = k(inducing_inputs, inducing_inputs);
 
@@ -62,7 +63,7 @@ Kn_e = k_e(inputs, inputs);
 dKn = (Kn_e - Kn) / epsilon;
 
 
-%%%%%% Main computations
+%%%%%%%%%%%%%%%%%%%% Main definitions %%%%%%%%%%%%%%%%%%%%
 
 y = targets;
 
@@ -84,54 +85,77 @@ s = diag(lam_sigma2);
 is = diag(inv_lam_sigma2);
 
 
+%%%%%%%%%%%%%%%%%%%% Traditional %%%%%%%%%%%%%%%%%%%%
+
 %%%%%% Log evidence
 
-l1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(s)) - N * log(2*pi))
+l1 = -0.5*(log(det(B)) - log(det(Km)) + sum(log(s)) + N * log(2*pi))
 
-S = cholB' \ Kmn;
-T = cholB \ S * inv_lam_sigma2;
-t = T*y;
-u = is .* (Kmn' * t - y);
-l2 = 0.5*(u'*y)
+R = cholB' \ Kmn;
+S = cholB \ R * inv_lam_sigma2;
+t = S*y;
+u = is .* (y - Kmn' * t);
+l2 = -0.5*(u'*y)
 
 l = l1 + l2
 
-vl1 = l1 - 0.5*is'*r
+
+%%%%%% Log evidence derivative
+
+T = inv(Km) - inv(B);
+U = cholKm \ V;
+v = is .* (is .* (s - diag(R' * R)));
+
+U1 = U*diag(sqrt(v));
+W = T - U1*U1';
+X = S - U*diag(v);
+
+dl1 = -0.5*(v' * diag(dKn) - trace(W'*dKm)) - trace(X'*dKmn)
+
+U2 = U*diag(u);
+Y = t*t' - U2*U2';
+w = u .* u;
+Z = t*u' - U*diag(w);
+
+dl2 = 0.5*(w' * diag(dKn) - trace(Y'*dKm)) + trace(Z'*dKmn)
+
+dl = dl1 + dl2
+
+
+%%%%%% Log evidence derivative wrt. noise
+
+dls1 = -0.5*sum(v)
+dls2 = 0.5*sum(w)
+dls = dls1 + dls2
+
+
+%%%%%%%%%%%%%%%%%%%% Variational %%%%%%%%%%%%%%%%%%%%
+
+%%%%%% Log evidence
+
+vl1 = l1 + -0.5*is'*r
 vl = vl1 + l2
 
 
 %%%%%% Log evidence derivative
 
-U = inv(Km) - inv(B);
-W = cholKm \ V;
-v = is .* (diag(S' * S) - s);
-w = is .* v;
+vv = is .* (is .* (2*s - r - diag(R' * R)));
 
-dl1 = 0.5 * (v' * diag(dKn) + trace((W*diag(w)*W' + U)*dKm)) - trace((diag(w)*W' + T')*dKmn)
+vU1 = U*diag(sqrt(vv));
+vW = T - vU1*vU1';
+vX = S - U*diag(vv);
 
-x = u .* u;
-dl2 = 0.5 * (x' * diag(dKn) + trace((W*diag(u)*diag(u)*W' - t*t')*dKm)) - trace((diag(x)*W' + u*t')*dKmn)
-
-dl = dl1 + dl2
-
-vv = is .* (diag(S' * S) - 2*s + r);
-vw = is .* vv;
-
-vdl1 = 0.5 * (vv' * diag(dKn) + trace((W*diag(vw)*W' + U)*dKm)) - trace((diag(vw)*W' + T')*dKmn)
+vdl1 = -0.5*(vv' * diag(dKn) - trace(vW'*dKm)) - trace(vX'*dKmn)
 vdl = vdl1 + dl2
 
 
 %%%%%% Log evidence derivative wrt. noise
 
-dls1 = 0.5*sum(w)
-dls2 = 0.5*(sum(x))
-dls = dls1 + dls2
-
-vdls1 = 0.5*(sum(vw) + sum(is))
+vdls1 = -0.5*(sum(vv) - sum(is))
 vdls = vdls1 + dls2
 
 
-%%%%%% Ed's stuff
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Ed's stuff %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 hyp = [log_inv_ell2; log_sf2; log(sigma2)];
 ew = [reshape(inducing_inputs', M*dim, 1); hyp];
