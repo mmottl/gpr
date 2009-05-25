@@ -79,11 +79,6 @@ Kmn_ = Kmn * sqrt(inv_lam_sigma2);
 B = Km + Kmn_ * Kmn_';
 cholB = chol(B);
 
-S = inv(Km) - inv(B);
-T = cholB' \ Kmn;
-U = cholB \ T * inv_lam_sigma2;
-W = cholKm \ V;
-
 r = diag(lam);
 s = diag(lam_sigma2);
 is = diag(inv_lam_sigma2);
@@ -91,38 +86,48 @@ is = diag(inv_lam_sigma2);
 
 %%%%%% Log evidence
 
-t = U*y;
-u = is .* (Kmn' * t - y);
-
 l1 = 0.5*(log(det(Km)) - log(det(B)) - sum(log(s)) - N * log(2*pi))
+
+S = cholB' \ Kmn;
+T = cholB \ S * inv_lam_sigma2;
+t = T*y;
+u = is .* (Kmn' * t - y);
 l2 = 0.5*(u'*y)
+
 l = l1 + l2
+
 vl1 = l1 - 0.5*is'*r
 vl = vl1 + l2
 
 
 %%%%%% Log evidence derivative
 
-v = is .* (diag(T' * T) - s);
-w = u .* u;
-x = is .* v;
+U = inv(Km) - inv(B);
+W = cholKm \ V;
+v = is .* (diag(S' * S) - s);
+w = is .* v;
 
-vv = is .* (diag(T' * T) - 2*s + r);
-xv = is .* vv;
+dl1 = 0.5 * (v' * diag(dKn) + trace((W*diag(w)*W' + U)*dKm)) - trace((diag(w)*W' + T')*dKmn)
 
-dl1 = 0.5 * (v' * diag(dKn) + trace((W*diag(x)*W' + S)*dKm)) - trace((diag(x)*W' + U')*dKmn)
-dl2 = 0.5 * (w' * diag(dKn) + trace((W*diag(u)*diag(u)*W' - t*t')*dKm)) - trace((diag(w)*W' + u*t')*dKmn)
+x = u .* u;
+dl2 = 0.5 * (x' * diag(dKn) + trace((W*diag(u)*diag(u)*W' - t*t')*dKm)) - trace((diag(x)*W' + u*t')*dKmn)
+
 dl = dl1 + dl2
-vdl1 = 0.5 * (vv' * diag(dKn) + trace((W*diag(xv)*W' + S)*dKm)) - trace((diag(xv)*W' + U')*dKmn)
+
+vv = is .* (diag(S' * S) - 2*s + r);
+vw = is .* vv;
+
+vdl1 = 0.5 * (vv' * diag(dKn) + trace((W*diag(vw)*W' + U)*dKm)) - trace((diag(vw)*W' + T')*dKmn)
 vdl = vdl1 + dl2
 
 
 %%%%%% Log evidence derivative wrt. noise
 
-dls1 = 0.5*sum(x)
-dls2 = 0.5*(sum(w))
+dls1 = 0.5*sum(w)
+dls2 = 0.5*(sum(x))
 dls = dls1 + dls2
-vdls1 = 0.5*(sum(xv) + sum(is))
+
+vdls1 = 0.5*(sum(vw) + sum(is))
 vdls = vdls1 + dls2
 
 
