@@ -40,8 +40,7 @@ module Eval = struct
 
     let weighted_eval k ~coeffs m =
       if Vec.dim coeffs <> m then
-        failwith
-          "Gpr.Cov_const.Deriv.Eval.Input.weighted_eval: dim(coeffs) <> m";
+        failwith "Gpr.Cov_const.Eval.Input.weighted_eval: dim(coeffs) <> m";
       k.Kernel.const *. Vec.sum coeffs
 
     let eval_one k () = k.Kernel.const
@@ -63,8 +62,7 @@ module Eval = struct
 
     let weighted_eval k ~coeffs { Prepared.m = m } =
       if Vec.dim coeffs <> m then
-        failwith
-          "Gpr.Cov_const.Deriv.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
+        failwith "Gpr.Cov_const.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
       let res = copy coeffs in
       scal k.Kernel.const res;
       res
