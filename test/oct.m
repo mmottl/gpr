@@ -103,29 +103,30 @@ l = l1 + l2
 %%%%%% Log evidence derivative
 
 T = inv(Km) - inv(B);
+
 U = cholKm \ V;
-v = is .* (is .* (s - diag(R' * R)));
 
-U1 = U*diag(sqrt(v));
-W = T - U1*U1';
-X = S - U*diag(v);
+v1 = is .* (is .* (s - diag(R' * R)));
+U1 = U*diag(sqrt(v1));
+W1 = T - U1*U1';
+X1 = S - U*diag(v1);
 
-dl1 = -0.5*(v' * diag(dKn) - trace(W'*dKm)) - trace(X'*dKmn)
+dl1 = -0.5*(v1' * diag(dKn) - trace(W1'*dKm)) - trace(X1'*dKmn)
 
+v2 = u .* u;
 U2 = U*diag(u);
-Y = t*t' - U2*U2';
-w = u .* u;
-Z = t*u' - U*diag(w);
+W2 = t*t' - U2*U2';
+X2 = t*u' - U*diag(v2);
 
-dl2 = 0.5*(w' * diag(dKn) - trace(Y'*dKm)) + trace(Z'*dKmn)
+dl2 = 0.5*(v2' * diag(dKn) - trace(W2'*dKm)) + trace(X2'*dKmn)
 
 dl = dl1 + dl2
 
 
 %%%%%% Log evidence derivative wrt. noise
 
-dls1 = -0.5*sum(v)
-dls2 = 0.5*sum(w)
+dls1 = -0.5*sum(v1)
+dls2 = 0.5*sum(v2)
 dls = dls1 + dls2
 
 
@@ -139,19 +140,18 @@ vl = vl1 + l2
 
 %%%%%% Log evidence derivative
 
-vv = is .* (is .* (2*s - r - diag(R' * R)));
+vv1 = is .* (is .* (s + s - r - diag(R' * R)));
+vU1 = U*diag(sqrt(vv1));
+vW1 = T - vU1*vU1';
+vX1 = S - U*diag(vv1);
 
-vU1 = U*diag(sqrt(vv));
-vW = T - vU1*vU1';
-vX = S - U*diag(vv);
-
-vdl1 = -0.5*(vv' * diag(dKn) - trace(vW'*dKm)) - trace(vX'*dKmn)
+vdl1 = -0.5*(vv1' * diag(dKn) - trace(vW1'*dKm)) - trace(vX1'*dKmn)
 vdl = vdl1 + dl2
 
 
 %%%%%% Log evidence derivative wrt. noise
 
-vdls1 = -0.5*(sum(vv) - sum(is))
+vdls1 = -0.5*(sum(vv1) - sum(is))
 vdls = vdls1 + dls2
 
 
