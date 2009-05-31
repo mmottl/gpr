@@ -34,7 +34,7 @@
 \newcommand{\Km}{\mat{K_M}}
 \newcommand{\iKm}{\imat{K_M}}
 \newcommand{\dKm}{\mat{\dot{K}_M}}
-\newcommand{\dkn}{\mat{\dot{K}_N}}
+\newcommand{\dKn}{\mat{\dot{K}_N}}
 \newcommand{\Kmn}{\mat{K_{MN}}}
 \newcommand{\Knm}{\transm{K_{MN}}}
 \newcommand{\uKnm}{\myu{\mat{K}}_{\mathsfsl{MN}}^\top}
@@ -48,9 +48,9 @@
 \newcommand{\vecr}{\myvec{r}}
 \newcommand{\vecs}{\myvec{s}}
 \newcommand{\vect}{\myvec{t}}
-\newcommand{\vecv}{\myvec{v}}
+\newcommand{\vecvx}{\myvec{v}_1}
+\newcommand{\vecvy}{\myvec{v}_2}
 \newcommand{\vecu}{\myvec{u}}
-\newcommand{\vecw}{\myvec{w}}
 \newcommand{\vecy}{\myvec{y}}
 \newcommand{\uuvecy}{\myu{\myu{\vecy}}}
 
@@ -60,11 +60,17 @@
 
 \newcommand{\matB}{\mat{B}}
 \newcommand{\matI}{\mat{I}}
+\newcommand{\matR}{\mat{R}}
 \newcommand{\matS}{\mat{S}}
 \newcommand{\matT}{\mat{T}}
 \newcommand{\matU}{\mat{U}}
+\newcommand{\matUx}{\mat{U}_1}
+\newcommand{\matUy}{\mat{U}_2}
 \newcommand{\matV}{\mat{V}}
-\newcommand{\matW}{\mat{W}}
+\newcommand{\matWx}{\mat{W}_1}
+\newcommand{\matXx}{\mat{X}_1}
+\newcommand{\matWy}{\mat{W}_2}
+\newcommand{\matXy}{\mat{X}_2}
 
 \newcommand{\Lam}{\mat{\Lambda}}
 \newcommand{\Lamss}{\mat{\Lambda}_{\sigma^2}}
@@ -108,31 +114,50 @@ Nonlinear clustering:
 \mat{Q_N} & = & \transm{V} \matV \\
 \Lam & = & \diagm{\mat{K_N} - \mat{Q_N}} \\
 \Lamss & = & \Lam + \sigma^2 \matI \\
+\\
 \uKmn & = & \Kmn \ichol{\Lamss} \\
-\uuKmn & = & \uKmn\ichol{\Lamss} \\
 \matB & = & \Km + \uKmn\uKnm \\
-\matS & = & \imat{K_M} - \imat{B} \\
-\matT & = & \ichol{B}\uuKmn \\
-\matU & = & \icholt{B}\matT \\
-\matW & = & \icholt{K_M}\mat{V} \\
+\\
 \vecr & = & \diagv{\Lam} \\
 \vecs & = & \diagv{\Lamss} \\
 \vecis & = & \diagv{\Lamssi} \\
-\vect & = & \matU \vecy \\
-\vecu & = & (\Knm \vect - \vecy) \otimes \vecis \\
-\mu_* & = & \mat{K_{*M}} \vect \\
-\sigma^2_* & = & K_* - \mat{K_{*M}}\matS\mat{K_{M*}} + \sigma^2 \matI \\
-l_1 & = & \onehalf (\log|\Km| - \log|\matB| - \log|\Lamss| - N \log 2\pi \red{\, - \, \vecis \cdot \vecr}) \\
-l_2 & = & \onehalf \vecu\cdot\vecy = \onehalf({\|\ichol{B}\Kmn\uuvecy\|}^2 - \uuvecy\cdot\vecy) \\
+\\
+l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) + \red{-\onehalf\vecis \cdot \vecr} \\
+\\
+\matR & = & \ichol{B}\Kmn \\
+\matS & = & \icholt{B}\matR \\
+\vect & = & \matS \vecy \\
+\vecu & = & \vecis \otimes (\vecy - \Knm \vect) \\
+\\
+l_2 & = & -\onehalf \vecu\cdot\vecy = -\onehalf(\uuvecy\cdot\vecy - \|\ichol{B}\Kmn\uuvecy\|^2) \\
 l & = & l_1 + l_2 \\
-\vecsdh & = & \onehalf\diagv{\dkn} + \diagv{\transm{W}(\onehalf\dKm W - \dKmn)} \\
-\vecv & = & \diagv{\transm{T}\matT} - \vecis \red{\, - \, \vecis + \vecis\otimes(\vecis \otimes \vecr)} \\
-\dl_1 & = & \vecsdh\cdot\vecv + \onehalf\trace{\dKm\matS} - \trace{\dKmn\transm{U}} \\
-\tfrac{\dif l_1}{\sigma^2} & = & \onehalf (\mathrm{sum}(\vecv) \red {\, + \, \mathrm{sum}(\vecis)}) \\
-\vecw & = & \vecu \otimes \vecu \\
-\dl_2 & = & \vecsdh\cdot\vecw - \vect\cdot(\dKm \onehalf \vect + \dKmn \vecu) \\
-\tfrac{\dif l_2}{\sigma^2} & = & \onehalf \mathrm{sum}(\vecw) \\
+\\
+\matT & = & \imat{K_M} - \imat{B} \\
+\\
+\mu_* & = & \mat{K_{*M}} \vect \\
+\sigma^2_* & = & K_* - \mat{K_{*M}}\matT\mat{K_{M*}} + \sigma^2 \matI \\
+\end{eqnarray*}
+
+\begin{eqnarray*}
+\matU & = & \icholt{K_M}\mat{V} \\
+\\
+\vecvx & = & \vecis \otimes (\vecis \otimes (\vecs \red{\, + \, \vecs - \vecr} - \diagv{\transm{R}\matR})) \\
+\matUx & = & \matU \, \diagm{\vecvx^{\onehalf}} \\
+\matWx & = & \matT - \matUx{\matU}_1^\top \\
+\matXx & = & \matS - \matU\,\diagm{\vecvx} \\
+\dl_1 & = & -\onehalf(\vecvx \cdot \diagv{\dKn} - \trace{\transm{W}_1\dKm}) - \trace{\transm{X}_1\dKmn} \\
+\\
+\vecvy & = & \vecu \otimes \vecu \\
+\matUy & = & \matU \, \diagm{\vecu} \\
+\matWy & = & \vect \vect^\top - \matUy\matUy^\top \\
+\matXy & = & \vect\vecu^\top - \matU\,\diagm{\vecvy} \\
+\dl_2 & = & \onehalf(\vecvy \cdot \diagv{\dKn} - \trace{\transm{W}_2\dKm}) + \trace{\transm{X}_2\dKmn} \\
+\\
 \dl & = & \dl_1 + \dl_2 \\
+\\
+\tfrac{\partial l_1}{\partial\sigma^2} & = & -\onehalf(\mathrm{sum}(\vecvx) \red{\, - \, \mathrm{sum}(\vecis)}) \\
+\tfrac{\partial l_2}{\partial\sigma^2} & = & \onehalf\mathrm{sum}(\vecvy) \\
+\tfrac{\partial l}{\partial\sigma^2} & = & \tfrac{\partial l_1}{\partial\sigma^2} + \tfrac{\partial l_2}{\partial\sigma^2} \\
 \end{eqnarray*}
 
 \end{document}
