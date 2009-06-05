@@ -1,13 +1,12 @@
 open Format
 
 open Lacaml.Impl.D
-open Lacaml.Io
 
 (* NOTE: for testing *)
 let print_int name n = printf "%s: @[%d@]@.@." name n
 let print_float name n = printf "%s: @[%.9f@]@.@." name n
-let print_vec name vec = printf "%s: @[%a@]@.@." name pp_fvec vec
-let print_mat name mat = printf "%s: @[%a@]@.@." name pp_fmat mat
+let print_vec name vec = printf "%s: @[%a@]@.@." name pp_vec vec
+let print_mat name mat = printf "%s: @[%a@]@.@." name pp_mat mat
 
 let timing name f =
   let t1 = Unix.times () in
@@ -22,33 +21,32 @@ let gen_write pp file obj =
   close_out oc
 
 let write_float file = gen_write pp_print_float file
-let write_vec file = gen_write pp_fvec file
-let write_mat file = gen_write pp_fmat file
+let write_vec file = gen_write pp_vec file
+let write_mat file = gen_write pp_mat file
+
+let cholesky_jitter = ref 1e-9
 
 (* Assumes Cholesky factorized matrix *)
 let log_det mat =
   let n = Mat.dim1 mat in
   if Mat.dim2 mat <> n then failwith "log_det: not a square matrix";
   let rec loop acc i =
-    if i = 0 then 2. *. acc
+    if i = 0 then acc +. acc
     else loop (acc +. log mat.{i, i}) (i - 1)
   in
   loop 0. n
 
 let pi = 4. *. atan 1.
-let log_2pi = log (2. *. pi)
+let log_2pi = log (pi +. pi)
 
 let default_rng = Gsl_rng.make (Gsl_rng.default ())
 
-let cholesky_jitter = ref 1e-9
+let solve_tri ?trans chol mat =
+  let ichol_mat = lacpy mat in
+  trtrs ?trans chol ichol_mat;
+  ichol_mat
 
-let solve_triangular ?trans chol ~k =
-  let inv_chol_k = lacpy k in
-  trtrs ?trans chol inv_chol_k;
-  inv_chol_k
-
-let inv_chol chol =
-  (* TODO: copy upper triangle only *)
+let ichol chol =
   let inv = lacpy ~uplo:`U chol in
   potri ~factorize:false inv;
   inv
@@ -159,20 +157,3 @@ let symm_add_decomp_sparse mat rows =
       mat.{r, c} <- 0.5 *. mat.{r, c}
     done
   done
-
-let update_prod_diag dst fact mat1 mat2 =
-  for i = 1 to Mat.dim2 mat1 do
-    (* TODO: optimize dot and col *)
-    let diag_i = dot ~x:(Mat.col mat1 i) (Mat.col mat2 i) in
-    dst.{i} <- dst.{i} +. fact *. diag_i
-  done
-
-let calc_prod_trace mat1 mat2 =
-  let rec loop trace i =
-    if i = 0 then trace
-    else
-      (* TODO: optimize dot and col *)
-      let diag_i = dot ~x:(Mat.col mat1 i) (Mat.col mat2 i) in
-      loop (trace +. diag_i) (i - 1)
-  in
-  loop 0. (Mat.dim2 mat1)

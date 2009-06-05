@@ -53,13 +53,8 @@ let find_sigma2 () =
           dmodel
       | Some dmodel -> Deriv.Model.update_sigma2 dmodel sigma2
     in
-    let _, model_deriv_log_evidence =
-      Deriv.Model.calc_log_evidence_sigma2 dmodel
-    in
     let trained = Deriv.Trained.calc dmodel ~targets:training_targets in
-    let dlog_evidence =
-      Deriv.Trained.calc_log_evidence_sigma2 trained model_deriv_log_evidence
-    in
+    let dlog_evidence = Deriv.Trained.calc_log_evidence_sigma2 trained in
     g.{0} <- -. dlog_evidence *. sigma2;
     trained
   in

@@ -1,4 +1,11 @@
+open Bigarray
 open Lacaml.Impl.D
+
+module Indices = struct
+  type t = (int, int_elt, fortran_layout) Array1.t
+
+  let create n = Array1.create int fortran_layout n
+end
 
 module Inducing_input_gpr = struct
   module Specs = struct
@@ -49,28 +56,34 @@ module Inducing_input_gpr = struct
         end
 
         val calc_upper : Kernel.t -> t -> mat
-        val calc_diag : Kernel.t -> t -> vec 
+        val calc_diag : Kernel.t -> t -> vec
         val calc_cross : Kernel.t -> Prepared.cross -> mat
 
         val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> vec
       end
     end
 
-    type mat_deriv = [
+    type common_mat_deriv = [
       | `Dense of mat
-      | `Sparse_rows of mat * int array
+      | `Sparse_rows of mat * Indices.t
       | `Const of float
       | `Factor of float
-      ]
+    ]
+
+    type mat_deriv = [
+      | common_mat_deriv
+      | `Sparse_cols of mat * Indices.t
+    ]
 
     type symm_mat_deriv = [
-      | mat_deriv
+      | common_mat_deriv
       | `Diag_vec of vec
       | `Diag_const of float
-      ]
+    ]
 
     type diag_deriv = [
       | `Vec of vec
+      | `Sparse_vec of vec * Indices.t
       | `Const of float
       | `Factor of float
     ]
@@ -164,23 +177,15 @@ module Inducing_input_gpr = struct
         type t
 
         val calc : Model.t -> targets : vec -> t
-        val calc_log_evidence : t -> float
-      end
-
-      module Weights : sig
-        type t
-
-        val calc : Trained.t -> t
-
-        val get_inducing_points : t -> Spec.Inducing.t
         val get_coeffs : t -> vec
+        val calc_log_evidence : t -> float
       end
 
       module Mean : sig
         type t
 
-        val calc_input : Weights.t -> Spec.Input.t -> t
-        val calc_induced : Weights.t -> Input.t -> t
+        val calc_input : Trained.t -> Spec.Input.t -> t
+        val calc_induced : Trained.t -> Input.t -> t
 
         val get : t -> float
       end
@@ -188,16 +193,16 @@ module Inducing_input_gpr = struct
       module Means : sig
         type t
 
-        val calc_model_inputs : Weights.t -> t
-        val calc_inputs : Weights.t -> Spec.Inputs.t -> t
-        val calc_induced : Weights.t -> Inputs.t -> t
+        val calc_model_inputs : Trained.t -> t
+        val calc_inputs : Trained.t -> Spec.Inputs.t -> t
+        val calc_induced : Trained.t -> Inputs.t -> t
 
         val get : t -> vec
 
         module Inducing : sig
           type t
 
-          val calc : Weights.t -> t
+          val calc : Trained.t -> t
           val get : t -> vec
         end
       end
@@ -296,19 +301,14 @@ module Inducing_input_gpr = struct
           type t
           type hyper_t
 
-          type log_evidence_sigma2
-          type log_evidence
-
           val calc : Inputs.t -> sigma2 : float -> t
           val update_sigma2 : t -> float -> t
           val calc_eval : t -> Eval.Model.t
 
-          val calc_log_evidence_sigma2 : t -> float * log_evidence_sigma2
+          val calc_log_evidence_sigma2 : t -> float
 
           val prepare_hyper : t -> hyper_t
-
-          val calc_log_evidence :
-            hyper_t -> Spec.Hyper.t -> float * log_evidence
+          val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
         end
 
         module Trained : sig
@@ -318,10 +318,10 @@ module Inducing_input_gpr = struct
           val calc : Model.t -> targets : vec -> t
           val calc_eval : t -> Eval.Trained.t
 
-          val calc_log_evidence_sigma2 : t -> Model.log_evidence_sigma2 -> float
+          val calc_log_evidence_sigma2 : t -> float
 
-          val prepare_hyper : t -> Model.hyper_t -> hyper_t
-          val calc_log_evidence : hyper_t -> Model.log_evidence -> float
+          val prepare_hyper : t -> hyper_t
+          val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
         end
       end
     end

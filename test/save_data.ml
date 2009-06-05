@@ -30,11 +30,9 @@ let main () =
   let trained = FITC.Trained.calc model ~targets:training_targets in
   printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
 
-  let weights = FITC.Weights.calc trained in
-
-  let means = FITC.Means.calc_model_inputs weights in
+  let means = FITC.Means.calc_model_inputs trained in
   let inducing_means =
-    FITC.Means.Inducing.get (FITC.Means.Inducing.calc weights)
+    FITC.Means.Inducing.get (FITC.Means.Inducing.calc trained)
   in
   write_vec "inducing_means" inducing_means;
   let means_vec = FITC.Means.get means in

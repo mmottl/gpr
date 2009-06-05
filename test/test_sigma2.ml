@@ -27,9 +27,8 @@ let with_sigma2 sigma2 =
   let eval_trained = Deriv.Trained.calc_eval trained in
   let eval_trained_log_evidence = Eval.Trained.calc_log_evidence eval_trained in
   printf "eval trained log evidence: %.15f@." eval_trained_log_evidence;
-  let _, deriv_log_evidence = Deriv.Model.calc_log_evidence_sigma2 model in
   let trained_deriv_log_evidence =
-    Deriv.Trained.calc_log_evidence_sigma2 trained deriv_log_evidence
+    Deriv.Trained.calc_log_evidence_sigma2 trained
   in
   printf "deriv trained log evidence: %.15f@." trained_deriv_log_evidence;
   eval_trained_log_evidence

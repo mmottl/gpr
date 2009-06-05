@@ -1,5 +1,6 @@
 open Lacaml.Impl.D
-open Lacaml.Io
+
+open Interfaces
 
 module Params = struct type t = { log_ell : float; log_sf2 : float } end
 
@@ -269,7 +270,9 @@ module Inducing = struct
           let ind_d = inducing.{dim, i} in
           res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
         done;
-        `Sparse_rows (res, [| ind |])
+        let rows = Indices.create 1 in
+        rows.{1} <- ind;
+        `Sparse_rows (res, rows)
 end
 
 module Inputs = struct
@@ -320,5 +323,7 @@ module Inputs = struct
           let inp_d = inputs.{dim, c} in
           res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
         done;
-        `Sparse_rows (res, [| ind |])
+        let rows = Indices.create 1 in
+        rows.{1} <- ind;
+        `Sparse_rows (res, rows)
 end

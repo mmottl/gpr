@@ -42,9 +42,7 @@ let main () =
   let model2 = Deriv.Model.calc ~sigma2 inputs in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
-  let mev, model_log_evidence =
-    Deriv.Model.calc_log_evidence hyper_model `Log_ell
-  in
+  let mev = Deriv.Model.calc_log_evidence hyper_model `Log_ell in
 
   let mf1 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model) in
   let mf2 = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model2) in
@@ -55,10 +53,8 @@ let main () =
   let trained = Deriv.Trained.calc model ~targets:training_targets in
   let trained2 = Deriv.Trained.calc model2 ~targets:training_targets in
 
-  let hyper_trained = Deriv.Trained.prepare_hyper trained hyper_model in
-  let deriv =
-    Deriv.Trained.calc_log_evidence hyper_trained model_log_evidence
-  in
+  let hyper_trained = Deriv.Trained.prepare_hyper trained in
+  let deriv = Deriv.Trained.calc_log_evidence hyper_trained `Log_ell in
 
   let f1 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained) in
   let f2 = Eval.Trained.calc_log_evidence (Deriv.Trained.calc_eval trained2) in

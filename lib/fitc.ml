@@ -7,11 +7,11 @@ open Interfaces
 open Inducing_input_gpr
 open Specs
 
-(* TODO: dimension sanity checks *)
-
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec
 
+(* Computations shared by FIC and FITC, and traditional and variational
+   version *)
 module Make_common (Spec : Specs.Eval) = struct
   module Spec = Spec
 
@@ -19,13 +19,13 @@ module Make_common (Spec : Specs.Eval) = struct
 
   let jitter = !cholesky_jitter
 
+  (* Evaluation of inducing points *)
   module Inducing = struct
     module Prepared = struct
-      type t =
-        {
-          points : Spec.Inducing.t;
-          upper : Spec.Inducing.Prepared.upper;
-        }
+      type t = {
+        points : Spec.Inducing.t;
+        upper : Spec.Inducing.Prepared.upper;
+      }
 
       let calc points =
         {
@@ -38,19 +38,19 @@ module Make_common (Spec : Specs.Eval) = struct
       kernel : Kernel.t;
       prepared : Prepared.t;
       km : mat;
-      km_chol : mat;
+      chol_km : mat;
       log_det_km : float;
     }
 
     let calc_internal kernel prepared km =
-      let km_chol = lacpy ~uplo:`U km in
-      potrf ~jitter km_chol;
-      let log_det_km = log_det km_chol in
+      let chol_km = lacpy ~uplo:`U km in
+      potrf ~jitter chol_km;
+      let log_det_km = log_det chol_km in
       {
         kernel = kernel;
         prepared = prepared;
         km = km;
-        km_chol = km_chol;
+        chol_km = chol_km;
         log_det_km = log_det_km;
       }
 
@@ -63,14 +63,14 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_upper inducing = inducing.prepared.Prepared.upper
   end
 
+  (* Evaluation of one input point *)
   module Input = struct
     module Prepared = struct
-      type t =
-        {
-          point : Spec.Input.t;
-          inducing_points : Spec.Inducing.t;
-          cross : Spec.Input.Prepared.cross;
-        }
+      type t = {
+        point : Spec.Input.t;
+        inducing_points : Spec.Inducing.t;
+        cross : Spec.Input.Prepared.cross;
+      }
 
       let calc ind_prep input =
         let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
@@ -101,14 +101,14 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_kernel t = t.inducing.Inducing.kernel
   end
 
+  (* Evaluation of input points *)
   module Inputs = struct
     module Prepared = struct
-      type t =
-        {
-          points : Spec.Inputs.t;
-          inducing_points : Spec.Inducing.t;
-          cross : Spec.Inputs.Prepared.cross;
-        }
+      type t = {
+        points : Spec.Inputs.t;
+        inducing_points : Spec.Inducing.t;
+        cross : Spec.Inputs.Prepared.cross;
+      }
 
       let calc ind_prep inputs =
         let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
@@ -143,87 +143,99 @@ module Make_common (Spec : Specs.Eval) = struct
       calc_internal inducing prepared.Prepared.points kmn
 
     let get_kernel t = t.inducing.Inducing.kernel
+    let get_km t = t.inducing.Inducing.km
+    let get_chol_km t = t.inducing.Inducing.chol_km
+    let get_log_det_km t = t.inducing.Inducing.log_det_km
+    let get_kmn t = t.kmn
 
-    (* TODO: (re?)move *)
-    let nystrom_chol_marginals inputs =
-      let inducing = inputs.inducing in
-      let kernel = get_kernel inputs in
+    let nystrom_marginals inputs =
+      let kernel, inducing = get_kernel inputs, inputs.inducing in
       let kn_diag = Inputs.calc_diag kernel inputs.points in
-      let inv_km_chol_kmn =
-        solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:inputs.kmn
-      in
-      inv_km_chol_kmn, kn_diag
+      let v_mat = solve_tri ~trans:`T inducing.Inducing.chol_km inputs.kmn in
+      v_mat, kn_diag
   end
 
+  (* Model computations shared by traditional and variational version *)
   module Common_model = struct
     type t = {
       sigma2 : float;
       inputs : Inputs.t;
       kn_diag : vec;
-      inv_km_chol_kmn : mat;
-      lam_diag : vec;
-      inv_lam_sigma2_diag : vec;
-      b_chol : mat;
-      log_evidence : float;
+      v_mat : mat;
+      r_vec : vec;
+      s_vec : vec;
+      is_vec : vec;
+      chol_b : mat;
+      l1 : float;
     }
 
     let check_sigma2 sigma2 =
       if sigma2 < 0. then failwith "Model.check_sigma2: sigma2 < 0"
 
-    let calc_internal inputs sigma2 kn_diag =
+    let calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec =
       check_sigma2 sigma2;
-      let inducing = inputs.Inputs.inducing in
-      let kmn = inputs.Inputs.kmn in
-      let inv_km_chol_kmn =
-        solve_triangular ~trans:`T inducing.Inducing.km_chol ~k:kmn
+      let n = Vec.dim kn_diag in
+      let s_vec, is_vec, log_det_s_vec, chol_b, log_det_b =
+        let s_vec = Vec.create n in
+        let is_vec = Vec.create n in
+        let rec loop log_det_s_vec i =
+          if i = 0 then log_det_s_vec
+          else
+            let s_vec_i = r_vec.{i} +. sigma2 in
+            s_vec.{i} <- s_vec_i;
+            let is_vec_i = 1. /. s_vec_i in
+            is_vec.{i} <- is_vec_i;
+            loop (log_det_s_vec +. log s_vec_i) (i - 1)
+        in
+        let log_det_s_vec = loop 0. n in
+        let km = Inputs.get_km inputs in
+        let kmn_ = lacpy (Inputs.get_kmn inputs) in
+        Mat.scal_cols (Vec.sqrt is_vec) kmn_;
+        let chol_b = syrk kmn_ ~beta:1. ~c:(lacpy ~uplo:`U km) in
+        potrf ~jitter chol_b;
+        s_vec, is_vec, log_det_s_vec, chol_b, log_det chol_b
       in
-      let kmn_ = lacpy kmn in
-      let n_inputs = Vec.dim kn_diag in
-      let lam_diag = Vec.create n_inputs in
-      let inv_lam_sigma2_diag = Vec.create n_inputs in
-      let rec loop log_det_lam_sigma2 i =
-        if i = 0 then log_det_lam_sigma2
-        else
-          let kn_diag_i = kn_diag.{i} in
-          (* TODO: optimize sqr_nrm2 and col *)
-          let qn_diag_i = Vec.sqr_nrm2 (Mat.col inv_km_chol_kmn i) in
-          let lam_i = kn_diag_i -. qn_diag_i in
-          lam_diag.{i} <- lam_i;
-          let lam_sigma2_i = lam_i +. sigma2 in
-          let inv_lam_sigma2_diag_i = 1. /. lam_sigma2_i in
-          inv_lam_sigma2_diag.{i} <- inv_lam_sigma2_diag_i;
-          (* TODO: optimize scal col *)
-          scal (sqrt inv_lam_sigma2_diag_i) (Mat.col kmn_ i);
-          loop (log_det_lam_sigma2 +. log lam_sigma2_i) (i - 1)
+      let l1 =
+        let log_det_km = Inputs.get_log_det_km inputs in
+        -0.5 *. (log_det_b -. log_det_km +. log_det_s_vec +. float n *. log_2pi)
       in
-      let log_det_lam_sigma2 = loop 0. n_inputs in
-      let b_chol =
-        syrk kmn_ ~beta:1. ~c:(lacpy ~uplo:`U inducing.Inducing.km)
-      in
-      potrf ~jitter b_chol;
-      let log_det_km = inducing.Inducing.log_det_km in
-      let log_det_b = log_det b_chol in
-      let l1_2 = log_det_km -. log_det_b -. log_det_lam_sigma2 in
       {
-        sigma2 = sigma2;
         inputs = inputs;
+        sigma2 = sigma2;
+        chol_b = chol_b;
         kn_diag = kn_diag;
-        inv_km_chol_kmn = inv_km_chol_kmn;
-        lam_diag = lam_diag;
-        inv_lam_sigma2_diag = inv_lam_sigma2_diag;
-        b_chol = b_chol;
-        log_evidence = 0.5 *. (l1_2 -. float n_inputs *. log_2pi);
+        v_mat = v_mat;
+        r_vec = r_vec;
+        s_vec = s_vec;
+        is_vec = is_vec;
+        l1 = l1;
       }
 
+    let calc_r_vec ~kn_diag ~v_mat =
+      Mat.syrk_diag ~trans:`T ~alpha:(-1.) v_mat ~beta:1. ~y:(copy kn_diag)
+(*
+      Vec.sub kn_diag (
+        Mat.copy_diag (syrk ~trans:`T v_mat))
+*)
+
     let calc inputs ~sigma2 =
-      let kernel = Inputs.get_kernel inputs in
-      let kn_diag = Spec.Inputs.calc_diag kernel inputs.Inputs.points in
-      calc_internal inputs sigma2 kn_diag
+      let v_mat, kn_diag = Inputs.nystrom_marginals inputs in
+      let r_vec = calc_r_vec ~kn_diag ~v_mat in
+      calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
+
+    let calc_with_kn_diag inputs sigma2 kn_diag =
+      let chol_km = Inputs.get_chol_km inputs in
+      let v_mat = solve_tri ~trans:`T chol_km inputs.Inputs.kmn in
+      let r_vec = calc_r_vec ~kn_diag ~v_mat in
+      calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
     let update_sigma2 model sigma2 =
-      calc_internal model.inputs sigma2 model.kn_diag
+      let { kn_diag = kn_diag; v_mat = v_mat; r_vec = r_vec } = model in
+      calc_internal model.inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
-    let calc_log_evidence model = model.log_evidence
+    let calc_log_evidence model = model.l1
+    let get_chol_b model = model.chol_b
+    let get_v_mat model = model.v_mat
     let get_inducing model = model.inputs.Inputs.inducing
     let get_inducing_points model = Inducing.get_points (get_inducing model)
     let get_upper model = Inducing.get_upper (get_inducing model)
@@ -231,145 +243,119 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_kernel model = (get_inducing model).Inducing.kernel
     let get_sigma2 model = model.sigma2
     let get_kmn model = model.inputs.Inputs.kmn
-    let get_lam_diag model = model.lam_diag
+    let get_chol_km model = Inputs.get_chol_km model.inputs
+    let get_r_vec model = model.r_vec
+    let get_s_vec model = model.s_vec
+    let get_is_vec model = model.is_vec
     let get_km model = (get_inducing model).Inducing.km
   end
 
+  (* Model computation (variational version) *)
   module Variational_model = struct
     include Common_model
 
-    let calc_from_model model =
-      let
-        {
-          lam_diag = lam_diag;
-          inv_lam_sigma2_diag = x;
-          log_evidence = log_evidence;
-        } = model
-      in
-      { model with log_evidence = log_evidence -. 0.5 *. dot ~x lam_diag }
+    let from_common ({ r_vec = r_vec; is_vec = is_vec; l1 = l1 } as model) =
+      { model with l1 = l1 +. -0.5 *. dot ~x:is_vec r_vec }
 
-    let calc_internal inputs sigma2 kn_diag =
-      calc_from_model (calc_internal inputs sigma2 kn_diag)
+    let calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec =
+      from_common (calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec)
 
-    let calc inputs ~sigma2 = calc_from_model (calc inputs ~sigma2)
+    let calc_with_kn_diag inputs sigma2 kn_diag =
+      from_common (calc_with_kn_diag inputs sigma2 kn_diag)
+
+    let update_sigma2 model sigma2 = from_common (update_sigma2 model sigma2)
+    let calc inputs ~sigma2 = from_common (calc inputs ~sigma2)
   end
 
+  (* Trained models *)
   module Trained = struct
     type t = {
       model : Common_model.t;
-      targets : vec;
-      y__ : vec;
-      inv_b_chol_kmn_y__ : vec;
-      log_evidence : float;
+      y : vec;
+      coeffs : vec;
+      l : float;
     }
 
-    let calc_y__ssqr model targets =
-      let n_targets = Vec.dim targets in
-      let y__ = Vec.create n_targets in
-      let inv_lam_sigma2_diag = model.Common_model.inv_lam_sigma2_diag in
-      for i = 1 to n_targets do
-        y__.{i} <- targets.{i} *. inv_lam_sigma2_diag.{i}
-      done;
-      y__, dot ~x:targets y__
-
-    let make model targets y__ ssqr_y__ inv_b_chol_kmn_y__ =
-      let fit_log_evidence =
-        0.5 *. (Vec.sqr_nrm2 inv_b_chol_kmn_y__ -. ssqr_y__)
-      in
+    let calc_internal model ~y ~t_vec ~l2 =
       {
         model = model;
-        targets = targets;
-        y__ = y__;
-        inv_b_chol_kmn_y__ = inv_b_chol_kmn_y__;
-        log_evidence = model.Common_model.log_evidence +. fit_log_evidence;
+        y = y;
+        coeffs = t_vec;
+        l = model.Common_model.l1 +. l2;
       }
 
-    let calc_internal model targets inv_b_chol_kmn =
-      let y__, ssqr_y__ = calc_y__ssqr model targets in
-      let inv_b_chol_kmn_y__ = gemv inv_b_chol_kmn y__ in
-      make model targets y__ ssqr_y__ inv_b_chol_kmn_y__
+    let calc model ~targets:y =
+      let y__ = Vec.mul y model.Common_model.is_vec in
+      let kmn_y__ = gemv (Common_model.get_kmn model) y__ in
+      trsv ~trans:`T model.Common_model.chol_b kmn_y__;
+      let l2 = -0.5 *. (dot ~x:y__ y -. Vec.sqr_nrm2 kmn_y__) in
+      let t_vec = kmn_y__ in
+      trsv model.Common_model.chol_b t_vec;
+      calc_internal model ~y ~t_vec ~l2
 
-    let calc model ~targets =
-      let y__, ssqr_y__ = calc_y__ssqr model targets in
-      let inv_b_chol_kmn_y__ = gemv (Common_model.get_kmn model) y__ in
-      trsv ~trans:`T model.Common_model.b_chol inv_b_chol_kmn_y__;
-      make model targets y__ ssqr_y__ inv_b_chol_kmn_y__
-
-    let calc_log_evidence trained = trained.log_evidence
-
+    let get_kernel trained = Common_model.get_kernel trained.model
+    let get_inducing trained = Common_model.get_inducing trained.model
+    let get_upper trained = Common_model.get_upper trained.model
     let get_km trained = Common_model.get_km trained.model
     let get_kmn trained = Common_model.get_kmn trained.model
+    let get_coeffs trained = trained.coeffs
+
+    let calc_log_evidence trained = trained.l
+
+    let get_inducing_points trained =
+      Common_model.get_inducing_points trained.model
   end
 
-  module Weights = struct
-    type t = { model : Common_model.t; coeffs : vec }
-
-    let get_kernel weights = Common_model.get_kernel weights.model
-    let get_inducing weights = Common_model.get_inducing weights.model
-    let get_upper weights = Common_model.get_upper weights.model
-    let get_coeffs weights = weights.coeffs
-
-    let calc trained =
-      let coeffs = copy trained.Trained.inv_b_chol_kmn_y__ in
-      trsv trained.Trained.model.Common_model.b_chol coeffs;
-      {
-        model = trained.Trained.model;
-        coeffs = coeffs;
-      }
-
-    let get_inducing_points weights =
-      Common_model.get_inducing_points weights.model
-  end
-
+  (* Prediction of mean for one input point *)
   module Mean = struct
     type t = { point : Spec.Input.t; value : float }
 
     let make ~point ~value = { point = point; value = value }
 
-    let calc_input weights point =
-      let upper = Weights.get_upper weights in
-      let kernel = Weights.get_kernel weights in
-      let coeffs = Weights.get_coeffs weights in
+    let calc_input trained point =
+      let upper = Trained.get_upper trained in
       let prepared = Spec.Input.Prepared.calc_cross upper point in
+      let kernel = Trained.get_kernel trained in
+      let coeffs = Trained.get_coeffs trained in
       let value = Spec.Input.weighted_eval kernel ~coeffs prepared in
       make ~point ~value
 
-    let calc_induced weights input =
-      if Weights.get_inducing weights <> input.Input.inducing then
+    let calc_induced trained input =
+      if Trained.get_inducing trained <> input.Input.inducing then
         failwith
-          "Mean.calc_induced: \
-          weights and input disagree about inducing points";
-      let value = dot ~x:input.Input.k_m weights.Weights.coeffs in
+          "Mean.calc_induced: trained and input disagree about inducing points";
+      let value = dot ~x:input.Input.k_m trained.Trained.coeffs in
       make ~point:input.Input.point ~value
 
-    let get m = m.value
+    let get mean = mean.value
   end
 
+  (* Prediction of means for several input points *)
   module Means = struct
     type t = { points : Spec.Inputs.t; values : vec }
 
     let make ~points ~values = { points = points; values = values }
 
-    let calc_model_inputs { Weights.coeffs = coeffs; model = model } =
+    let calc_model_inputs { Trained.coeffs = coeffs; model = model } =
       make
         ~points:(Common_model.get_input_points model)
         ~values:(gemv ~trans:`T (Common_model.get_kmn model) coeffs)
 
-    let calc_inputs weights points =
-      let kernel = Weights.get_kernel weights in
-      let coeffs = Weights.get_coeffs weights in
-      let upper = Weights.get_upper weights in
+    let calc_inputs trained points =
+      let upper = Trained.get_upper trained in
       let prepared = Spec.Inputs.Prepared.calc_cross upper points in
+      let kernel = Trained.get_kernel trained in
+      let coeffs = Trained.get_coeffs trained in
       let values = Spec.Inputs.weighted_eval kernel ~coeffs prepared in
       make ~points ~values
 
-    let calc_induced weights inputs =
+    let calc_induced trained inputs =
       let { Inputs.points = points; kmn = kmn } = inputs in
-      if Weights.get_inducing weights <> inputs.Inputs.inducing then
+      if Trained.get_inducing trained <> inputs.Inputs.inducing then
         failwith
           "Means.calc_induced: \
-          weights and inputs disagree about inducing points";
-      make ~points ~values:(gemv ~trans:`T kmn weights.Weights.coeffs)
+          trained and inputs disagree about inducing points";
+      make ~points ~values:(gemv ~trans:`T kmn trained.Trained.coeffs)
 
     let get means = means.values
 
@@ -378,7 +364,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
       let make ~points ~values = { points = points; values = values }
 
-      let calc { Weights.coeffs = coeffs; model = model } =
+      let calc { Trained.coeffs = coeffs; model = model } =
         make
           ~points:(Common_model.get_inducing_points model)
           ~values:(symv (Common_model.get_km model) coeffs)
@@ -387,6 +373,7 @@ module Make_common (Spec : Specs.Eval) = struct
     end
   end
 
+  (* Prediction of variance for one input point *)
   module Variance = struct
     type t = { point : Spec.Input.t; variance : float; sigma2 : float }
 
@@ -394,15 +381,15 @@ module Make_common (Spec : Specs.Eval) = struct
       let { Input.point = point; k_m = k_m } = induced in
       let kernel = Common_model.get_kernel model in
       let prior_variance = Spec.Input.eval_one kernel point in
-      let inv_km_chol_k_m = copy k_m in
-      let inv_km_chol_k_m_mat = Mat.from_col_vec inv_km_chol_k_m in
+      let ichol_km_k_m = copy k_m in
+      let ichol_km_k_m_mat = Mat.from_col_vec ichol_km_k_m in
       let inducing = induced.Input.inducing in
-      potrs ~factorize:false inducing.Inducing.km_chol inv_km_chol_k_m_mat;
-      let km_arg = dot ~x:k_m inv_km_chol_k_m in
-      let inv_b_chol_k_m = copy k_m ~y:inv_km_chol_k_m in
-      let inv_b_chol_k_m_mat = inv_km_chol_k_m_mat in
-      potrs ~factorize:false model.Common_model.b_chol inv_b_chol_k_m_mat;
-      let b_arg = dot ~x:k_m inv_b_chol_k_m in
+      potrs ~factorize:false inducing.Inducing.chol_km ichol_km_k_m_mat;
+      let km_arg = dot ~x:k_m ichol_km_k_m in
+      let ichol_b_k_m = copy k_m ~y:ichol_km_k_m in
+      let ichol_b_k_m_mat = ichol_km_k_m_mat in
+      potrs ~factorize:false model.Common_model.chol_b ichol_b_k_m_mat;
+      let b_arg = dot ~x:k_m ichol_b_k_m in
       let explained_variance = km_arg -. b_arg in
       let variance = prior_variance -. explained_variance in
       {
@@ -417,9 +404,9 @@ module Make_common (Spec : Specs.Eval) = struct
       | Some false -> t.variance
   end
 
-  let solve_b_chol model ~k =
-    solve_triangular ~trans:`T model.Common_model.b_chol ~k
+  let solve_chol_b model k = solve_tri ~trans:`T model.Common_model.chol_b k
 
+  (* Prediction of variance for several input points *)
   module Variances = struct
     type t = { points : Spec.Inputs.t; variances : vec; sigma2 : float }
 
@@ -428,13 +415,11 @@ module Make_common (Spec : Specs.Eval) = struct
       { points = points; variances = variances; sigma2 = sigma2 }
 
     let calc_model_inputs model =
-      let variances = copy (Common_model.get_lam_diag model) in
-      let inv_b_chol_kmn = solve_b_chol model ~k:(Common_model.get_kmn model) in
-      let n = Mat.dim2 inv_b_chol_kmn in
-      for i = 1 to n do
-        (* TODO: optimize sqr_nrm2 and col *)
-        variances.{i} <- variances.{i} +. Vec.sqr_nrm2 (Mat.col inv_b_chol_kmn i)
-      done;
+      let ichol_b_kmn = solve_chol_b model (Common_model.get_kmn model) in
+      let variances =
+        Mat.syrk_diag ~trans:`T ichol_b_kmn
+          ~beta:1. ~y:(copy (Common_model.get_r_vec model))
+      in
       make ~points:(Common_model.get_input_points model) ~variances ~model
 
     let calc_induced model inputs =
@@ -443,18 +428,15 @@ module Make_common (Spec : Specs.Eval) = struct
           "Variances.calc_induced: \
           model and inputs disagree about inducing points";
       let kmt = inputs.Inputs.kmn in
-      let inv_km_chol_kmt, kt_diag = Inputs.nystrom_chol_marginals inputs in
-      let variances = copy kt_diag in
-      let inv_b_chol_kmt = solve_b_chol model ~k:kmt in
-      let n = Mat.dim2 inv_b_chol_kmt in
-      for i = 1 to n do
-        let explained_variance =
-          (* TODO: optimize sqr_nrm2 and col *)
-          Vec.sqr_nrm2 (Mat.col inv_km_chol_kmt i) -.
-            Vec.sqr_nrm2 (Mat.col inv_b_chol_kmt i)
+      let ichol_km_kmt, kt_diag = Inputs.nystrom_marginals inputs in
+      let ichol_b_kmt = solve_chol_b model kmt in
+      let variances =
+        let y =
+          Mat.syrk_diag ~trans:`T ichol_b_kmt
+            ~beta:1. ~y:(copy kt_diag)
         in
-        variances.{i} <- variances.{i} -. explained_variance
-      done;
+        Mat.syrk_diag ~alpha:(-1.) ~trans:`T ichol_km_kmt ~beta:1. ~y
+      in
       make ~points:inputs.Inputs.points ~variances ~model
 
     let get_common ?predictive ~variances ~sigma2 =
@@ -480,13 +462,8 @@ module Make_common (Spec : Specs.Eval) = struct
         { points = points; variances = variances; sigma2 = sigma2 }
 
       let calc model =
-        let inv_b_chol_km = solve_b_chol model ~k:(Common_model.get_km model) in
-        let m = Mat.dim2 inv_b_chol_km in
-        let variances = Vec.create m in
-        for i = 1 to m do
-          (* TODO: optimize sqr_nrm2 and col *)
-          variances.{i} <- Vec.sqr_nrm2 (Mat.col inv_b_chol_km i)
-        done;
+        let ichol_b_km = solve_chol_b model (Common_model.get_km model) in
+        let variances = Mat.syrk_diag ichol_b_km in
         make ~points:(Common_model.get_inducing_points model) ~variances ~model
 
       let get ?predictive { variances = variances; sigma2 = sigma2 } =
@@ -494,6 +471,8 @@ module Make_common (Spec : Specs.Eval) = struct
     end
   end
 
+  (* Computations for predicting covariances shared by FIC and
+     FITC, and traditional and variational version *)
   module Common_covariances = struct
     type t = { points : Spec.Inputs.t; covariances : mat; sigma2 : float }
 
@@ -501,8 +480,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let sigma2 = Common_model.get_sigma2 model in
       { points = points; covariances = covariances; sigma2 = sigma2 }
 
-    let make_b_only ~points ~inv_b_chol_k ~model =
-      make ~points ~covariances:(syrk ~trans:`T inv_b_chol_k) ~model
+    let make_b_only ~points ~ichol_b_k ~model =
+      make ~points ~covariances:(syrk ~trans:`T ichol_b_k) ~model
 
     let get_common ?predictive ~covariances ~sigma2 =
       match predictive with
@@ -516,7 +495,11 @@ module Make_common (Spec : Specs.Eval) = struct
       get_common ?predictive ~covariances ~sigma2
 
     let variances { points = points; covariances = covs; sigma2 = sigma2 } =
-      { Variances.points = points; variances = Mat.diag covs; sigma2 = sigma2 }
+      {
+        Variances.points = points;
+        variances = Mat.copy_diag covs;
+        sigma2 = sigma2;
+      }
 
     module Inducing = struct
       type t = {
@@ -527,8 +510,8 @@ module Make_common (Spec : Specs.Eval) = struct
 
       let calc model =
         let points = Common_model.get_inducing_points model in
-        let inv_b_chol_k = solve_b_chol model ~k:(Common_model.get_km model) in
-        let covariances = syrk ~trans:`T inv_b_chol_k in
+        let ichol_b_k = solve_chol_b model (Common_model.get_km model) in
+        let covariances = syrk ~trans:`T ichol_b_k in
         let sigma2 = Common_model.get_sigma2 model in
         { points = points; covariances = covariances; sigma2 = sigma2 }
 
@@ -539,28 +522,29 @@ module Make_common (Spec : Specs.Eval) = struct
         {
           Variances.Inducing.
           points = points;
-          variances = Mat.diag covs;
-          sigma2 = sigma2
+          variances = Mat.copy_diag covs;
+          sigma2 = sigma2;
         }
     end
   end
 
+  (* Predicting covariances with FITC (traditionally or variationally) *)
   module FITC_covariances = struct
     include Common_covariances
 
-    let calc_common ~kmn ~inv_km_chol_kmn ~points ~model =
+    let calc_common ~kmn ~v_mat ~points ~model =
       let kernel = Common_model.get_kernel model in
       let covariances = Spec.Inputs.calc_upper kernel points in
-      ignore (syrk ~trans:`T ~alpha:(-1.) inv_km_chol_kmn ~beta:1. ~c:covariances);
-      let inv_b_chol_kmn = solve_b_chol model ~k:kmn in
-      ignore (syrk ~trans:`T ~alpha:1. inv_b_chol_kmn ~beta:1. ~c:covariances);
+      ignore (syrk ~trans:`T ~alpha:(-1.) v_mat ~beta:1. ~c:covariances);
+      let ichol_b_kmn = solve_chol_b model kmn in
+      ignore (syrk ~trans:`T ~alpha:1. ichol_b_kmn ~beta:1. ~c:covariances);
       make ~points ~covariances ~model
 
     let calc_model_inputs model =
       let kmn = model.Common_model.inputs.Inputs.kmn in
-      let inv_km_chol_kmn = model.Common_model.inv_km_chol_kmn in
+      let v_mat = model.Common_model.v_mat in
       let points = Common_model.get_input_points model in
-      calc_common ~kmn ~inv_km_chol_kmn ~points ~model
+      calc_common ~kmn ~v_mat ~points ~model
 
     let calc_induced model inputs =
       if Common_model.get_inducing model <> inputs.Inputs.inducing then
@@ -568,22 +552,23 @@ module Make_common (Spec : Specs.Eval) = struct
           "FITC_covariances.calc_induced: \
           model and inputs disagree about inducing points");
       let kmn = inputs.Inputs.kmn in
-      let inv_km_chol_kmn, _ = Inputs.nystrom_chol_marginals inputs in
+      let v_mat, _ = Inputs.nystrom_marginals inputs in
       let points = inputs.Inputs.points in
-      calc_common ~kmn ~inv_km_chol_kmn ~points ~model
+      calc_common ~kmn ~v_mat ~points ~model
   end
 
+  (* Predicting covariances with FIC (traditionally or variationally) *)
   module FIC_covariances = struct
     include Common_covariances
 
     let calc_model_inputs model =
       let points = Common_model.get_input_points model in
-      let lam_diag = model.Common_model.lam_diag in
+      let r_vec = model.Common_model.r_vec in
       let kmn = model.Common_model.inputs.Inputs.kmn in
-      let inv_b_chol_kmn = solve_b_chol model ~k:kmn in
-      let covariances = syrk ~trans:`T ~alpha:1. inv_b_chol_kmn in
-      for i = 1 to Vec.dim lam_diag do
-        covariances.{i, i} <- lam_diag.{i} +. covariances.{i, i}
+      let ichol_b_kmn = solve_chol_b model kmn in
+      let covariances = syrk ~trans:`T ~alpha:1. ichol_b_kmn in
+      for i = 1 to Vec.dim r_vec do
+        covariances.{i, i} <- r_vec.{i} +. covariances.{i, i}
       done;
       make ~points ~covariances ~model
 
@@ -594,9 +579,11 @@ module Make_common (Spec : Specs.Eval) = struct
           model and inputs disagree about inducing points");
       let kmt = inputs.Inputs.kmn in
       let points = inputs.Inputs.points in
-      make_b_only ~points ~inv_b_chol_k:(solve_b_chol model ~k:kmt) ~model
+      make_b_only ~points ~ichol_b_k:(solve_chol_b model kmt) ~model
   end
 
+  (* Computations for sampling the marginal posterior GP distribution
+     shared by traditional and variational version *)
   module Common_sampler = struct
     type t = { mean : float; stddev : float }
 
@@ -620,6 +607,8 @@ module Make_common (Spec : Specs.Eval) = struct
       Vec.init n (fun _ -> sample ~rng sampler)
   end
 
+  (* Computations for sampling the posterior GP distribution shared
+     by FIC and FITC, and traditional and variational version *)
   module Common_cov_sampler = struct
     type t = { means : vec; cov_chol : mat }
 
@@ -813,7 +802,7 @@ module Make (Spec : Specs.Eval) = struct
 end
 
 
-(* Derivable *)
+(* Handling derivatives *)
 
 module type Deriv_sig = functor (Spec : Specs.Deriv) ->
   Sigs.Deriv
@@ -850,17 +839,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let get_points prepared = prepared.eval.Eval_inducing.Prepared.points
       end
 
-      type t = {
-        eval : Eval_inducing.t;
-        shared : Spec.Inducing.shared;
-      }
+      type t = { eval : Eval_inducing.t; shared : Spec.Inducing.shared }
 
       let calc kernel { Prepared.eval = eval; upper = upper } =
         let km, shared = Spec.Inducing.calc_shared_upper kernel upper in
-        {
-          eval = Eval_inducing.calc_internal kernel eval km;
-          shared = shared;
-        }
+        { eval = Eval_inducing.calc_internal kernel eval km; shared = shared }
 
       let calc_eval inducing = inducing.eval
       let get_kernel inducing = Eval_inducing.get_kernel inducing.eval
@@ -918,7 +901,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             prepared.Prepared.eval.Eval_inputs.Prepared.points
             kmn
         in
-        { inducing = inducing; eval = eval; shared_cross = shared_cross; }
+        { inducing = inducing; eval = eval; shared_cross = shared_cross }
 
       let calc_eval t = t.eval
 
@@ -927,29 +910,90 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
     type model_kind = Traditional | Variational
 
-    module Common_model = struct
+    let calc_u_mat eval_model =
+      let v_mat = Eval_model.get_v_mat eval_model in
+      solve_tri (Eval_model.get_chol_km eval_model) v_mat
+
+    let calc_dkn_term ~v_vec = function
+      | `Vec dkn -> dot ~x:v_vec dkn
+      | `Sparse_vec (_sdkn, _inds) -> (assert false (* XXX *))
+      | `Const _c -> (assert false (* XXX *))
+      | `Factor _c -> (assert false (* XXX *))
+
+    let calc_dkm_term ~w_mat = function
+      | `Dense dkm -> Mat.symm2_trace w_mat dkm
+      | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
+      | `Const _c -> (assert false (* XXX *))
+      | `Factor _c -> (assert false (* XXX *))
+      | `Diag_vec _ddkm -> (assert false (* XXX *))
+      | `Diag_const _c -> (assert false (* XXX *))
+
+    let calc_dkmn_term ~x_mat = function
+      | `Dense dkm -> Mat.gemm_trace ~transa:`T x_mat dkm
+      | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
+      | `Const _c -> (assert false (* XXX *))
+      | `Factor _c -> (assert false (* XXX *))
+      | `Sparse_cols (_sdkmn, _inds) -> (assert false (* XXX *))
+
+    module Shared = struct
       type t = {
-        inputs : Inputs.t;
-        shared_diag : Spec.Inputs.diag;
-        eval_model : Eval_model.t;
-        inv_b_chol_kmn : mat;
-        inv_b_kmn : mat;
+        inducing : Spec.Inducing.shared;
+        cross : Spec.Inputs.cross;
+        diag : Spec.Inputs.diag;
+      }
+    end
+
+    module Dfacts = struct
+      type t = { v_vec : vec; w_mat : mat; x_mat : mat }
+    end
+
+    let common_calc_log_evidence shared dfacts hyper =
+      let { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat } = dfacts in
+      let dkn_term =
+        let dkn = Spec.Inputs.calc_deriv_diag shared.Shared.diag hyper in
+        calc_dkn_term ~v_vec dkn
+      in
+      let dkm_term =
+        let dkm = Spec.Inducing.calc_deriv_upper shared.Shared.inducing hyper in
+        calc_dkm_term ~w_mat dkm
+      in
+      let dkmn_term =
+        let dkmn = Spec.Inputs.calc_deriv_cross shared.Shared.cross hyper in
+        calc_dkmn_term ~x_mat dkmn
+      in
+      -0.5 *. (dkn_term -. dkm_term) -. dkmn_term
+
+    module Common_model = struct
+
+      (* Precomputations for all derivatives *)
+
+      type t = {
         model_kind : model_kind;
+        shared : Shared.t;
+        eval_model : Eval_model.t;
+        inv_km : mat;
+        r_diag : vec;
+        s_mat : mat;
+        t_mat : mat;
       }
 
-      let calc_internal inputs eval_model shared_diag model_kind =
-        let eval_inputs = inputs.Inputs.eval in
-        let b_chol = eval_model.Eval_model.b_chol in
-        let kmn = eval_inputs.Eval_inputs.kmn in
-        let inv_b_chol_kmn = solve_triangular ~trans:`T b_chol ~k:kmn in
-        let inv_b_kmn = solve_triangular b_chol ~k:inv_b_chol_kmn in
+      let calc_internal model_kind shared eval_model inv_km =
+        let kmn = Eval_model.get_kmn eval_model in
+        let r_mat = Eval_common.solve_chol_b eval_model kmn in
+        let r_diag = Mat.syrk_diag r_mat in
+        let s_mat = r_mat in
+        let chol_b = Eval_model.get_chol_b eval_model in
+        trtrs ~trans:`T chol_b s_mat;
+        let t_mat = lacpy ~uplo:`U inv_km in
+        Mat.axpy ~alpha:(-1.) ~x:(ichol chol_b) t_mat;
         {
-          inputs = inputs;
-          shared_diag = shared_diag;
-          eval_model = eval_model;
-          inv_b_chol_kmn = inv_b_chol_kmn;
-          inv_b_kmn = inv_b_kmn;
           model_kind = model_kind;
+          shared = shared;
+          eval_model = eval_model;
+          inv_km = inv_km;
+          r_diag = r_diag;
+          s_mat = s_mat;
+          t_mat = t_mat;
         }
 
       let calc_common model_kind inputs sigma2 =
@@ -958,289 +1002,100 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let kn_diag, shared_diag =
           Spec.Inputs.calc_shared_diag kernel eval_inputs.Eval_inputs.points
         in
-        let eval_model =
+        let calc_with_kn_diag =
           match model_kind with
-          | Traditional ->
-              Eval_model.calc_internal inputs.Inputs.eval sigma2 kn_diag
-          | Variational ->
-              Eval_common.Variational_model.calc_internal
-                inputs.Inputs.eval sigma2 kn_diag
+          | Traditional -> Eval_model.calc_with_kn_diag
+          | Variational -> Eval_common.Variational_model.calc_with_kn_diag
         in
-        calc_internal inputs eval_model shared_diag model_kind
+        let eval_model = calc_with_kn_diag inputs.Inputs.eval sigma2 kn_diag in
+        let chol_km = Eval_model.get_chol_km eval_model in
+        let inv_km = ichol chol_km in
+        let shared =
+          {
+            Shared.
+            inducing = inputs.Inputs.inducing.Inducing.shared;
+            cross = inputs.Inputs.shared_cross;
+            diag = shared_diag;
+          }
+        in
+        calc_internal model_kind shared eval_model inv_km
 
       let calc_eval model = model.eval_model
-
       let calc inputs ~sigma2 = calc_common Traditional inputs sigma2
 
       let update_sigma2 ({ model_kind = model_kind } as model) sigma2 =
-        let eval_model =
+        let update_sigma2 =
           match model_kind with
-          | Traditional -> Eval_model.update_sigma2 model.eval_model sigma2
+          | Traditional -> Eval_model.update_sigma2
+          | Variational -> Eval_common.Variational_model.update_sigma2
+        in
+        let eval_model = update_sigma2 model.eval_model sigma2 in
+        calc_internal model_kind model.shared eval_model model.inv_km
+
+      let calc_common_v_vec model =
+        let s_vec = Eval_model.get_s_vec model.eval_model in
+        let common_v_vec =
+          match model.model_kind with
+          | Traditional -> copy s_vec
           | Variational ->
-              Eval_common.Variational_model.update_sigma2
-                model.eval_model sigma2
+              let n = Vec.dim s_vec in
+              let common_v_vec = Vec.create n in
+              let r_vec = Eval_model.get_r_vec model.eval_model in
+              for i = 1 to n do
+                let s_vec_i = s_vec.{i} in
+                common_v_vec.{i} <- s_vec_i +. (s_vec_i -. r_vec.{i})
+              done;
+              common_v_vec
         in
-        calc_internal model.inputs eval_model model.shared_diag model_kind
+        let r_diag = model.r_diag in
+        axpy ~alpha:(-1.) ~x:r_diag common_v_vec;
+        common_v_vec
 
-      (**)
+      let calc_v1_vec model =
+        let common_v_vec = calc_common_v_vec model in
+        let is_vec = Eval_model.get_is_vec model.eval_model in
+        (* TODO: in-place multiplication and sqrt *)
+        Vec.mul is_vec (Vec.mul is_vec common_v_vec)
 
-      type log_evidence_sigma2 = {
-        sigma2_model : t;
-        log_evidence_sigma2 : float;
-      }
+      (* Derivative of sigma2 *)
 
-      let calc_log_evidence_sigma2 ({ eval_model = eval_model } as model) =
-        let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
-        let inv_b_chol_kmn = model.inv_b_chol_kmn in
-        let rec loop trace i =
-          if i = 0 then
-            let log_evidence_sigma2 = 0.5 *. trace in
-            (
-              log_evidence_sigma2,
-              {
-                sigma2_model = model;
-                log_evidence_sigma2 = log_evidence_sigma2;
-              }
-            )
-          else
-            let el =
-              let inv_lam_sigma2_diag_i = inv_lam_sigma2_diag.{i} in
-              (* TODO: optimize sqr_nrm2 and col *)
-              let sqr_nrm2 = Vec.sqr_nrm2 (Mat.col inv_b_chol_kmn i) in
-              inv_lam_sigma2_diag_i *. (inv_lam_sigma2_diag_i *. sqr_nrm2 -. 1.)
-            in
-            loop (trace +. el) (i - 1)
+      let common_calc_log_evidence_sigma2 ({ eval_model = em } as model) v_vec =
+        let sum_v1_vec = Vec.sum v_vec in
+        match model.model_kind with
+        | Traditional -> sum_v1_vec
+        | Variational -> sum_v1_vec -. Vec.sum em.Eval_model.is_vec
+
+      let calc_log_evidence_sigma2 model =
+        -0.5 *. common_calc_log_evidence_sigma2 model (calc_v1_vec model)
+
+      (* Derivative of general hyper-parameters *)
+
+      type hyper_t = { hyp_shared : Shared.t; dfacts : Dfacts.t }
+
+      let prepare_hyper ({ eval_model = eval_model } as model) =
+        let v_vec = calc_v1_vec model in
+        let u_mat = calc_u_mat eval_model in
+        let w_mat =
+          let u1_mat = lacpy u_mat in
+          Mat.scal_cols (Vec.sqrt v_vec) u1_mat;
+          syrk ~alpha:(-1.) u1_mat ~c:(lacpy ~uplo:`U model.t_mat)
         in
-        loop 0. (Mat.dim2 inv_b_chol_kmn)
-
-      (**)
-
-      type hyper_t = {
-        model : t;
-        inv_km_kmn : mat;
-        inv_km_minus_inv_b : mat;
-      }
-
-      let prepare_hyper model =
-        let { inputs = inputs; eval_model = eval_model } = model in
-        let eval_inputs = inputs.Inputs.eval in
-        let km_chol = eval_inputs.Eval_inputs.inducing.Eval_inducing.km_chol in
-        let inv_km_chol_kmn = eval_model.Eval_model.inv_km_chol_kmn in
-        let inv_km_kmn = solve_triangular km_chol ~k:inv_km_chol_kmn in
-        let b_chol = eval_model.Eval_model.b_chol in
-        let inv_b = inv_chol b_chol in
-        let inv_km_minus_inv_b = inv_chol km_chol in
-        (* TODO: manipulate upper triangle only *)
-        Mat.axpy ~alpha:(-1.) ~x:inv_b inv_km_minus_inv_b;
-        Mat.detri inv_km_minus_inv_b;
+        let x_mat = u_mat in
+        Mat.scal_cols v_vec x_mat;
+        let m = Mat.dim1 x_mat in
+        let n = Mat.dim2 x_mat in
+        (* TODO: add inplace addition/subtraction of matrices to LACAML *)
+        let s_mat = model.s_mat in
+        for c = 1 to n do
+          for r = 1 to m do x_mat.{r, c} <- s_mat.{r, c} -. x_mat.{r, c} done
+        done;
         {
-          model = model;
-          inv_km_kmn = inv_km_kmn;
-          inv_km_minus_inv_b = inv_km_minus_inv_b;
+          hyp_shared = model.shared;
+          dfacts = { Dfacts.  v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
-      (**)
-
-      type log_evidence = {
-        hyper_model : hyper_t;
-        var : Hyper.t;
-        deriv_upper : symm_mat_deriv;
-        dlam_diag__ : vec;
-        deriv_cross : mat_deriv;
-        log_evidence_hyper : float;
-      }
-
       let calc_log_evidence hyper_model hyper =
-        let
-          {
-            model =
-              {
-                inputs = inputs;
-                shared_diag = shared_diag;
-                eval_model = eval_model;
-                inv_b_kmn = inv_b_kmn;
-              };
-            inv_km_kmn = inv_km_kmn;
-            inv_km_minus_inv_b = inv_km_minus_inv_b;
-          } = hyper_model
-        in
-        let kmn = inputs.Inputs.eval.Eval_inputs.kmn in
-        let m = Mat.dim1 kmn in
-        let n = Mat.dim2 kmn in
-        let inv_lam_sigma2_diag = eval_model.Eval_model.inv_lam_sigma2_diag in
-        let inducing_shared = inputs.Inputs.inducing.Inducing.shared in
-        (* TODO: especially optimize Const 0, Factor 1, but beware of mutations *)
-        let dlam_diag__ =
-          match Spec.Inputs.calc_deriv_diag shared_diag hyper with
-          | `Vec deriv_diag -> deriv_diag
-          | `Const c -> Vec.make n c
-          | `Factor c ->
-              (* TODO: optimize *)
-              let res = copy eval_model.Eval_model.kn_diag in
-              scal c res;
-              res
-        in
-        let deriv_upper =
-          Spec.Inducing.calc_deriv_upper inducing_shared hyper
-        in
-        let dkm_trace =
-          match deriv_upper with
-          | `Dense dkm ->
-              (* All inducing inputs depend on variable *)
-              Mat.detri dkm;
-              let dkm_inv_km_kmn = symm dkm inv_km_kmn in
-              update_prod_diag dlam_diag__ 1. inv_km_kmn dkm_inv_km_kmn;
-              calc_prod_trace inv_km_minus_inv_b dkm
-          | `Sparse_rows (dkm, dkm_rows) ->
-              check_sparse_sane dkm dkm_rows ~real_m:m;
-              (* Only some inducing inputs depend on variable *)
-              let dkm_inv_km_kmn =
-                detri_sparse dkm dkm_rows;
-                symm_add_decomp_sparse dkm dkm_rows;
-                gemm dkm inv_km_kmn
-              in
-              let n_rows = Array.length dkm_rows in
-              let trace = ref 0. in
-              for i = 1 to n_rows do
-                let r = dkm_rows.(i - 1) in
-                for c = 1 to n do
-                  dlam_diag__.{c} <-
-                    dlam_diag__.{c}
-                      +. 2. *. inv_km_kmn.{r, c} *. dkm_inv_km_kmn.{i, c}
-                done;
-                for c = 1 to m do
-                  trace := !trace +. inv_km_minus_inv_b.{r, c} *. dkm.{i, c}
-                done
-              done;
-              !trace
-          | `Diag_vec _vec ->
-              (assert false (* XXX *))
-          | `Diag_const _c ->
-              (assert false (* XXX *))
-          | `Const _c ->
-              (assert false (* XXX *))
-          | `Factor c ->
-              (* TODO: more efficient way?  Share with Dense? *)
-              let dkm = lacpy ~uplo:`U (Eval_model.get_km eval_model) in
-              Mat.scal c dkm;
-              Mat.detri dkm;
-              let dkm_inv_km_kmn = symm dkm inv_km_kmn in
-              update_prod_diag dlam_diag__ 1. inv_km_kmn dkm_inv_km_kmn;
-              calc_prod_trace inv_km_minus_inv_b dkm
-        in
-        let deriv_cross =
-          Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
-        in
-        begin
-          match deriv_cross with
-          | `Dense dkmn -> update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
-          | `Sparse_rows (dkmn, dkmn_rows) ->
-              check_sparse_sane dkmn dkmn_rows ~real_m:m;
-              let n_rows = Array.length dkmn_rows in
-              let diag_el = ref 0. in
-              for c = 1 to n do
-                for i = 1 to n_rows do
-                  let r = dkmn_rows.(i - 1) in
-                  diag_el := !diag_el +. dkmn.{i, c} *. inv_km_kmn.{r, c}
-                done;
-                dlam_diag__.{c} <- dlam_diag__.{c} -. 2. *. !diag_el;
-                diag_el := 0.
-              done
-          | `Const _c ->
-              (assert false (* XXX *))
-          | `Factor c ->
-              (* TODO: more efficient way?  Share with Dense? *)
-              let dkmn = lacpy (Eval_model.get_kmn eval_model) in
-              Mat.scal c dkmn;
-              update_prod_diag dlam_diag__ (-2.) dkmn inv_km_kmn
-        end;
-        let dlam__trace =
-          let rec loop trace i =
-            if i = 0 then trace
-            else
-              let new_dlam_diag__ =
-                dlam_diag__.{i} *. inv_lam_sigma2_diag.{i}
-              in
-              dlam_diag__.{i} <- new_dlam_diag__;
-              let new_trace = trace +. new_dlam_diag__ in
-              loop new_trace (i - 1)
-          in
-          loop 0. n
-        in
-        let dkmn_trace =
-          match deriv_cross with
-          | `Dense dkmn ->
-              let combined = Mat.create m n in
-              for c = 1 to n do
-                let dlam__c = dlam_diag__.{c} in
-                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
-                for r = 1 to m do
-                  combined.{r, c} <-
-                    inv_lam_sigma2_diag_c
-                      *. (2. *. dkmn.{r, c} -. kmn.{r, c} *. dlam__c)
-                done;
-              done;
-              calc_prod_trace inv_b_kmn combined
-          | `Sparse_rows (dkmn, dkmn_rows) ->
-              let combined =
-                (* TODO: gift *)
-                lacpy kmn
-              in
-              let n_rows = Array.length dkmn_rows in
-              for c = 1 to n do
-                (* TODO: optimize scal col *)
-                scal (-. dlam_diag__.{c}) (Mat.col combined c);
-                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
-                for i = 1 to n_rows do
-                  let r = dkmn_rows.(i - 1) in
-                  combined.{r, c} <-
-                    inv_lam_sigma2_diag_c *.
-                      (2. *. dkmn.{i, c} +. combined.{r, c})
-                done
-              done;
-              calc_prod_trace inv_b_kmn combined
-          | `Const const ->
-              let combined = Mat.create m n in
-              let const2 = 2. *. const in
-              for c = 1 to n do
-                let dlam__c = dlam_diag__.{c} in
-                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
-                for r = 1 to m do
-                  combined.{r, c} <-
-                    inv_lam_sigma2_diag_c *. (const2 -. kmn.{r, c} *. dlam__c)
-                done
-              done;
-              calc_prod_trace inv_b_kmn combined
-          | `Factor c ->
-              (* TODO: more efficient way?  Share with Dense or previous Factor? *)
-              let dkmn = lacpy (Eval_model.get_kmn eval_model) in
-              Mat.scal c dkmn;
-              let combined = Mat.create m n in
-              for c = 1 to n do
-                let dlam__c = dlam_diag__.{c} in
-                let inv_lam_sigma2_diag_c = inv_lam_sigma2_diag.{c} in
-                for r = 1 to m do
-                  combined.{r, c} <-
-                    inv_lam_sigma2_diag_c
-                      *. (2. *. dkmn.{r, c} -. kmn.{r, c} *. dlam__c)
-                done;
-              done;
-              calc_prod_trace inv_b_kmn combined
-        in
-        let log_evidence_hyper =
-          0.5 *. (dkm_trace -. dkmn_trace -. dlam__trace)
-        in
-        (
-          log_evidence_hyper,
-          {
-            hyper_model = hyper_model;
-            var = hyper;
-            deriv_upper = deriv_upper;
-            dlam_diag__ = dlam_diag__;
-            deriv_cross = deriv_cross;
-            log_evidence_hyper = log_evidence_hyper;
-          }
-        )
+        common_calc_log_evidence hyper_model.hyp_shared hyper_model.dfacts hyper
     end
 
     module Cm = Common_model
@@ -1249,224 +1104,99 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       include Cm
 
       let calc inputs ~sigma2 = calc_common Variational inputs sigma2
-
-      (**)
-
-      let calc_log_evidence_sigma2 common_model =
-        let
-          {
-            Eval_model.
-            inv_lam_sigma2_diag = inv_lam_sigma2_diag;
-            lam_diag = lam_diag;
-          } = common_model.Cm.eval_model
-        in
-        let rec loop trace i =
-          if i = 0 then
-            let log_evidence, traditional =
-              Cm.calc_log_evidence_sigma2 common_model
-            in
-            let variational_log_evidence = log_evidence -. 0.5 *. trace in
-            (
-              variational_log_evidence,
-              {
-                traditional with
-                Cm.log_evidence_sigma2 = variational_log_evidence;
-              }
-            )
-          else
-            let el =
-              let inv_lam_sigma2_diag_i = inv_lam_sigma2_diag.{i} in
-              inv_lam_sigma2_diag_i *. (inv_lam_sigma2_diag_i *. lam_diag.{i})
-            in
-            loop (trace -. el) (i - 1)
-        in
-        loop 0. (Vec.dim lam_diag)
-
-      (**)
-
-      let calc_log_evidence common_hyper_model hyper =
-        let
-          {
-            Eval_model.
-            inv_lam_sigma2_diag = inv_lam_sigma2_diag;
-            lam_diag = lam_diag;
-          } = common_hyper_model.model.Cm.eval_model
-        in
-        let log_evidence, traditional =
-          Cm.calc_log_evidence common_hyper_model hyper
-        in
-        let { dlam_diag__ = dlam_diag__ } = traditional in
-        let rec loop trace i =
-          if i = 0 then
-            let variational_log_evidence = log_evidence -. 0.5 *. trace in
-            (
-              variational_log_evidence,
-              {
-                traditional with
-                Cm.log_evidence_hyper = variational_log_evidence;
-              }
-            )
-          else
-            let dlam_diag__i = dlam_diag__.{i} in
-            let el =
-              dlam_diag__i -.
-                dlam_diag__i *. (lam_diag.{i} *. inv_lam_sigma2_diag.{i})
-            in
-            loop (trace +. el) (i - 1)
-        in
-        loop 0. (Vec.dim lam_diag)
     end
+
+    (**)
 
     module Trained = struct
       type t = {
         common_model : Cm.t;
         eval_trained : Eval_trained.t;
-        inv_b_kmn_y__ : vec;
-        knm_inv_b_kmn_y__ : vec;
-        __knm_inv_b_kmn_y__ : vec;
+        t_vec : vec;
+        u_vec : vec;
+        v_vec : vec;
+        y_minus_kmn_t : vec;
       }
 
-      let calc common_model ~targets =
+      let calc common_model ~targets:y =
+        let t_vec = gemv common_model.Cm.s_mat y in
         let eval_model = common_model.Cm.eval_model in
+        let kmn = Eval_model.get_kmn eval_model in
+        let y_minus_kmn_t = gemv ~alpha:(-1.) ~trans:`T kmn t_vec ~y:(copy y) in
+        let is_vec = Eval_model.get_is_vec eval_model in
+        (* TODO: add inplace element-wise vector multiplication to LACAML *)
+        let u_vec = Vec.mul is_vec y_minus_kmn_t in
         let eval_trained =
-          Eval_trained.calc_internal eval_model targets
-            common_model.Cm.inv_b_chol_kmn
+          let l2 = -0.5 *. dot ~x:u_vec y in
+          Eval_trained.calc_internal eval_model ~y ~t_vec ~l2
         in
-        let y__ = eval_trained.Eval_trained.y__ in
-        let inv_b_kmn_y__ = gemv common_model.Cm.inv_b_kmn y__ in
-        let kmn = Eval_trained.get_kmn eval_trained in
-        let knm_inv_b_kmn_y__ = gemv ~trans:`T kmn inv_b_kmn_y__ in
-        let n = Vec.dim y__ in
-        let __knm_inv_b_kmn_y__ = Vec.create n in
-        let inv_lam_sigma2_diag =
-          eval_trained.Eval_trained.model.Eval_model.inv_lam_sigma2_diag
+        let v_vec =
+          let common_v_vec = Cm.calc_common_v_vec common_model in
+	  (* TODO: add inplace element-wise vector addition/subtraction
+	     to LACAML *)
+          let tmp = Vec.sub common_v_vec y_minus_kmn_t in
+          (* TODO: add inplace element-wise vector multiplication to LACAML *)
+          Vec.mul is_vec (Vec.mul is_vec tmp)
         in
-        for i = 1 to n do
-          __knm_inv_b_kmn_y__.{i} <-
-            inv_lam_sigma2_diag.{i} *. knm_inv_b_kmn_y__.{i}
-        done;
         {
           common_model = common_model;
           eval_trained = eval_trained;
-          inv_b_kmn_y__ = inv_b_kmn_y__;
-          knm_inv_b_kmn_y__ = knm_inv_b_kmn_y__;
-          __knm_inv_b_kmn_y__ = __knm_inv_b_kmn_y__;
+          t_vec = t_vec;
+          u_vec = u_vec;
+          v_vec = v_vec;
+          y_minus_kmn_t = y_minus_kmn_t;
         }
 
       let calc_eval trained = trained.eval_trained
 
       (**)
 
-      let raise_incompatible_model loc =
-        failwith (
-          sprintf
-            "Deriv.Trained.%s: model used for training log evidence \
-            and model used for model log evidence are not the same" loc)
-
-      let calc_log_evidence_sigma2 trained model_log_evidence_sigma2 =
-        if
-          trained.common_model != model_log_evidence_sigma2.Cm.sigma2_model
-        then raise_incompatible_model "calc_log_evidence_sigma2";
-        let eval_trained = trained.eval_trained in
-        let y__ = eval_trained.Eval_trained.y__ in
-        let __knm_inv_b_kmn_y__ = trained.__knm_inv_b_kmn_y__ in
-        let rec loop sum i =
-          if i = 0 then
-            model_log_evidence_sigma2.Cm.log_evidence_sigma2 +. 0.5 *. sum
-          else
-            let new_sum =
-              let z__i = __knm_inv_b_kmn_y__.{i} in
-              let y__i = y__.{i} in
-              sum +. y__i *. y__i +. z__i *. (z__i -. 2. *. y__i)
-            in
-            loop new_sum (i - 1)
-        in
-        loop 0. (Vec.dim __knm_inv_b_kmn_y__)
+      let calc_log_evidence_sigma2 { common_model = cm; v_vec = v_vec } =
+        0.5 *. Cm.common_calc_log_evidence_sigma2 cm v_vec
 
       (**)
 
-      type hyper_t = {
-        trained : t;
-        hyper_model : Cm.hyper_t;
-        dlam_factor : vec;
-        dkmn_factor : vec;
-      }
+      type hyper_t = { shared : Shared.t; dfacts : Dfacts.t }
 
-      let prepare_hyper trained hyper_model =
-        let eval_trained = trained.eval_trained in
-        let y__ = eval_trained.Eval_trained.y__ in
-        let y = eval_trained.Eval_trained.targets in
-        let knm_inv_b_kmn_y__ = trained.knm_inv_b_kmn_y__ in
-        let __knm_inv_b_kmn_y__ = trained.__knm_inv_b_kmn_y__ in
-        let dkm_multipliers = copy knm_inv_b_kmn_y__ in
-        axpy ~alpha:(-1.) ~x:y__ dkm_multipliers;
-        scal 2. dkm_multipliers;
-        let n = Vec.dim y in
-        let dlam_factor = Vec.create n in
-        let dkmn_factor = Vec.create n in
-        for i = 1 to n do
-          let z_i = knm_inv_b_kmn_y__.{i} in
-          let z__i = __knm_inv_b_kmn_y__.{i} in
-          let y__i = y__.{i} in
-          dlam_factor.{i} <- (2.*.z_i -. y.{i}) *. y__i -. z_i *. z__i;
-          dkmn_factor.{i} <- 2. *. (z__i -. y__i);
-        done;
+      let prepare_hyper trained =
+        let common_model = trained.common_model in
+        let eval_model = common_model.Cm.eval_model in
+        let is_vec = Eval_model.get_is_vec eval_model in
+        let u_mat = calc_u_mat eval_model in
+        let t_vec = trained.t_vec in
+        let u_vec = trained.u_vec in
+        let w_mat =
+          let t_mat = trained.common_model.Cm.t_mat in
+          let w_mat = syr ~alpha:(-1.) t_vec (lacpy ~uplo:`U t_mat) in
+          let v1_vec = Cm.calc_v1_vec common_model in
+          let u1_mat = lacpy u_mat in
+          Mat.scal_cols (Vec.sqrt v1_vec) u1_mat;
+          let w_mat = syrk ~alpha:(-1.) u1_mat ~c:w_mat in
+          let u2_mat = u1_mat in
+          let u2_mat = lacpy u_mat ~b:u2_mat in
+          Mat.scal_cols u_vec u2_mat;
+          syrk u2_mat ~beta:1. ~c:w_mat
+        in
+        let v_vec =
+          let tmp = Cm.calc_common_v_vec common_model in
+          axpy ~alpha:(-1.) ~x:trained.y_minus_kmn_t tmp;
+          (* TODO: in-place multiplication, and sqrt *)
+          Vec.mul is_vec (Vec.mul is_vec (Vec.sqrt tmp))
+        in
+        let x_mat =
+          Mat.scal_cols (Vec.neg v_vec) u_mat;
+          ger t_vec u_vec u_mat
+        in
         {
-          trained = trained;
-          hyper_model = hyper_model;
-          dlam_factor = dlam_factor;
-          dkmn_factor = dkmn_factor;
+          shared = common_model.Cm.shared;
+          dfacts = { Dfacts.  v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
+
       (**)
 
-      let calc_log_evidence hyper_trained model_log_evidence =
-        if hyper_trained.hyper_model != model_log_evidence.Cm.hyper_model then
-          raise_incompatible_model "calc_log_evidence";
-        let inv_b_kmn_y__ = hyper_trained.trained.inv_b_kmn_y__ in
-        let deriv_upper = model_log_evidence.Cm.deriv_upper in
-        let dkm_nll =
-          match deriv_upper with
-          | `Dense dkm -> dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
-          | `Sparse_rows _ ->
-              (assert false (* XXX *))
-          | `Diag_vec _ ->
-              (assert false (* XXX *))
-          | `Diag_const _ ->
-              (assert false (* XXX *))
-          | `Const _ ->
-              (assert false (* XXX *))
-          | `Factor c ->
-              (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkm =
-                lacpy ~uplo:`U
-                  (Eval_trained.get_km hyper_trained.trained.eval_trained)
-              in
-              Mat.scal c dkm;
-              dot ~x:(gemv dkm inv_b_kmn_y__) inv_b_kmn_y__
-        in
-        let deriv_cross = model_log_evidence.Cm.deriv_cross in
-        let dkmn_factor = hyper_trained.dkmn_factor in
-        let dkmn_nll =
-          match deriv_cross with
-          | `Dense dkmn ->
-              dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
-          | `Sparse_rows _ ->
-              (assert false (* XXX *))
-          | `Const _ ->
-              (assert false (* XXX *))
-          | `Factor c ->
-              (* TODO: more efficient way?  Share with Dense or Eval? *)
-              let dkmn =
-                lacpy (Eval_trained.get_kmn hyper_trained.trained.eval_trained)
-              in
-              Mat.scal c dkmn;
-              dot ~x:(gemv ~trans:`T dkmn inv_b_kmn_y__) dkmn_factor
-        in
-        let dlam_diag__ = model_log_evidence.Cm.dlam_diag__ in
-        let dlam_nll = dot ~x:hyper_trained.dlam_factor dlam_diag__ in
-        let nll = 0.5 *. (dkm_nll +. dkmn_nll +. dlam_nll) in
-        model_log_evidence.Cm.log_evidence_hyper -. nll
+      let calc_log_evidence hyp_trained hyper =
+        -. common_calc_log_evidence hyp_trained.shared hyp_trained.dfacts hyper
     end
   end
 end
