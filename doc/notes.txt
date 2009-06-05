@@ -1,9 +1,8 @@
-rewrite to factored computations
 get rid of 2. *.
 dimension + other sanity checks
 remove redundancies
 revise copying
-use syrk, not gemm
+handle TODOs
 
 ---------------------------------------------------------------------------
 
