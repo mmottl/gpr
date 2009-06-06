@@ -1,4 +1,4 @@
-open Printf
+open Format
 
 open Lacaml.Impl.D
 
@@ -917,7 +917,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     let calc_dkn_term ~v_vec = function
       | `Vec dkn -> dot ~x:v_vec dkn
       | `Sparse_vec (_sdkn, _inds) -> (assert false (* XXX *))
-      | `Const _c -> (assert false (* XXX *))
+      | `Const c -> c *. Vec.sum v_vec
       | `Factor _c -> (assert false (* XXX *))
 
     let calc_dkm_term ~w_mat = function
@@ -980,10 +980,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let calc_internal model_kind shared eval_model inv_km =
         let kmn = Eval_model.get_kmn eval_model in
         let r_mat = Eval_common.solve_chol_b eval_model kmn in
-        let r_diag = Mat.syrk_diag r_mat in
+        let r_diag = Mat.syrk_diag ~trans:`T r_mat in
         let s_mat = r_mat in
         let chol_b = Eval_model.get_chol_b eval_model in
-        trtrs ~trans:`T chol_b s_mat;
+        trtrs chol_b s_mat;
+        Mat.scal_cols eval_model.Eval_model.is_vec s_mat;
         let t_mat = lacpy ~uplo:`U inv_km in
         Mat.axpy ~alpha:(-1.) ~x:(ichol chol_b) t_mat;
         {
@@ -1078,7 +1079,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let w_mat =
           let u1_mat = lacpy u_mat in
           Mat.scal_cols (Vec.sqrt v_vec) u1_mat;
-          syrk ~alpha:(-1.) u1_mat ~c:(lacpy ~uplo:`U model.t_mat)
+          syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:(lacpy ~uplo:`U model.t_mat)
         in
         let x_mat = u_mat in
         Mat.scal_cols v_vec x_mat;
@@ -1122,7 +1123,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let t_vec = gemv common_model.Cm.s_mat y in
         let eval_model = common_model.Cm.eval_model in
         let kmn = Eval_model.get_kmn eval_model in
-        let y_minus_kmn_t = gemv ~alpha:(-1.) ~trans:`T kmn t_vec ~y:(copy y) in
+        let y_minus_kmn_t =
+          gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y)
+        in
         let is_vec = Eval_model.get_is_vec eval_model in
         (* TODO: add inplace element-wise vector multiplication to LACAML *)
         let u_vec = Vec.mul is_vec y_minus_kmn_t in
@@ -1134,7 +1137,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let common_v_vec = Cm.calc_common_v_vec common_model in
 	  (* TODO: add inplace element-wise vector addition/subtraction
 	     to LACAML *)
-          let tmp = Vec.sub common_v_vec y_minus_kmn_t in
+          let tmp = Vec.sub common_v_vec (Vec.sqr y_minus_kmn_t) in
           (* TODO: add inplace element-wise vector multiplication to LACAML *)
           Vec.mul is_vec (Vec.mul is_vec tmp)
         in
@@ -1161,42 +1164,39 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let prepare_hyper trained =
         let common_model = trained.common_model in
         let eval_model = common_model.Cm.eval_model in
-        let is_vec = Eval_model.get_is_vec eval_model in
         let u_mat = calc_u_mat eval_model in
         let t_vec = trained.t_vec in
         let u_vec = trained.u_vec in
         let w_mat =
-          let t_mat = trained.common_model.Cm.t_mat in
-          let w_mat = syr ~alpha:(-1.) t_vec (lacpy ~uplo:`U t_mat) in
-          let v1_vec = Cm.calc_v1_vec common_model in
+          let w_mat =
+            let t_mat = trained.common_model.Cm.t_mat in
+            syr ~alpha:(-1.) t_vec (lacpy ~uplo:`U t_mat)
+          in
           let u1_mat = lacpy u_mat in
-          Mat.scal_cols (Vec.sqrt v1_vec) u1_mat;
-          let w_mat = syrk ~alpha:(-1.) u1_mat ~c:w_mat in
+          Mat.scal_cols (Vec.sqrt (Cm.calc_v1_vec common_model)) u1_mat;
+          let w_mat = syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:w_mat in
           let u2_mat = u1_mat in
           let u2_mat = lacpy u_mat ~b:u2_mat in
           Mat.scal_cols u_vec u2_mat;
-          syrk u2_mat ~beta:1. ~c:w_mat
+          syrk u2_mat ~beta:(1.) ~c:w_mat
         in
-        let v_vec =
-          let tmp = Cm.calc_common_v_vec common_model in
-          axpy ~alpha:(-1.) ~x:trained.y_minus_kmn_t tmp;
-          (* TODO: in-place multiplication, and sqrt *)
-          Vec.mul is_vec (Vec.mul is_vec (Vec.sqrt tmp))
-        in
+        let v_vec = trained.v_vec in
         let x_mat =
-          Mat.scal_cols (Vec.neg v_vec) u_mat;
-          ger t_vec u_vec u_mat
+          Mat.scal_cols v_vec u_mat;
+          let x_mat = lacpy common_model.Cm.s_mat in
+          Mat.axpy ~alpha:(-1.) ~x:u_mat x_mat;
+          ger ~alpha:(-1.) t_vec u_vec x_mat
         in
         {
           shared = common_model.Cm.shared;
-          dfacts = { Dfacts.  v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
+          dfacts = { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
 
       (**)
 
       let calc_log_evidence hyp_trained hyper =
-        -. common_calc_log_evidence hyp_trained.shared hyp_trained.dfacts hyper
+        common_calc_log_evidence hyp_trained.shared hyp_trained.dfacts hyper
     end
   end
 end
