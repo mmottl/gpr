@@ -213,15 +213,6 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_r_vec ~kn_diag ~v_mat =
       Mat.syrk_diag ~trans:`T ~alpha:(-1.) v_mat ~beta:1. ~y:(copy kn_diag)
-(*
-      Vec.sub kn_diag (
-        Mat.copy_diag (syrk ~trans:`T v_mat))
-*)
-
-    let calc inputs ~sigma2 =
-      let v_mat, kn_diag = Inputs.nystrom_marginals inputs in
-      let r_vec = calc_r_vec ~kn_diag ~v_mat in
-      calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
     let calc_with_kn_diag inputs sigma2 kn_diag =
       let chol_km = Inputs.get_chol_km inputs in
@@ -229,11 +220,18 @@ module Make_common (Spec : Specs.Eval) = struct
       let r_vec = calc_r_vec ~kn_diag ~v_mat in
       calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
+    let calc inputs ~sigma2 =
+      let v_mat, kn_diag = Inputs.nystrom_marginals inputs in
+      let r_vec = calc_r_vec ~kn_diag ~v_mat in
+      calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
+
     let update_sigma2 model sigma2 =
+      check_sigma2 sigma2;
       let { kn_diag = kn_diag; v_mat = v_mat; r_vec = r_vec } = model in
       calc_internal model.inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
     let calc_log_evidence model = model.l1
+
     let get_chol_b model = model.chol_b
     let get_v_mat model = model.v_mat
     let get_inducing model = model.inputs.Inputs.inducing
@@ -293,17 +291,12 @@ module Make_common (Spec : Specs.Eval) = struct
       trsv model.Common_model.chol_b t_vec;
       calc_internal model ~y ~t_vec ~l2
 
+    let get_coeffs trained = trained.coeffs
+    let calc_log_evidence trained = trained.l
+
     let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
     let get_upper trained = Common_model.get_upper trained.model
-    let get_km trained = Common_model.get_km trained.model
-    let get_kmn trained = Common_model.get_kmn trained.model
-    let get_coeffs trained = trained.coeffs
-
-    let calc_log_evidence trained = trained.l
-
-    let get_inducing_points trained =
-      Common_model.get_inducing_points trained.model
   end
 
   (* Prediction of mean for one input point *)
@@ -415,11 +408,9 @@ module Make_common (Spec : Specs.Eval) = struct
       { points = points; variances = variances; sigma2 = sigma2 }
 
     let calc_model_inputs model =
-      let ichol_b_kmn = solve_chol_b model (Common_model.get_kmn model) in
-      let variances =
-        Mat.syrk_diag ~trans:`T ichol_b_kmn
-          ~beta:1. ~y:(copy (Common_model.get_r_vec model))
-      in
+      let r_mat = solve_chol_b model (Common_model.get_kmn model) in
+      let y = copy (Common_model.get_r_vec model) in
+      let variances = Mat.syrk_diag ~trans:`T r_mat ~beta:1. ~y in
       make ~points:(Common_model.get_input_points model) ~variances ~model
 
     let calc_induced model inputs =
@@ -462,8 +453,10 @@ module Make_common (Spec : Specs.Eval) = struct
         { points = points; variances = variances; sigma2 = sigma2 }
 
       let calc model =
-        let ichol_b_km = solve_chol_b model (Common_model.get_km model) in
-        let variances = Mat.syrk_diag ichol_b_km in
+        let km = lacpy ~uplo:`U (Common_model.get_km model) in
+        Mat.detri km;
+        let ichol_b_km = solve_chol_b model km in
+        let variances = Mat.syrk_diag ~trans:`T ichol_b_km in
         make ~points:(Common_model.get_inducing_points model) ~variances ~model
 
       let get ?predictive { variances = variances; sigma2 = sigma2 } =
@@ -510,8 +503,10 @@ module Make_common (Spec : Specs.Eval) = struct
 
       let calc model =
         let points = Common_model.get_inducing_points model in
-        let ichol_b_k = solve_chol_b model (Common_model.get_km model) in
-        let covariances = syrk ~trans:`T ichol_b_k in
+        let km = lacpy ~uplo:`U (Common_model.get_km model) in
+        Mat.detri km;
+        let ichol_b_km = solve_chol_b model km in
+        let covariances = syrk ~trans:`T ichol_b_km in
         let sigma2 = Common_model.get_sigma2 model in
         { points = points; covariances = covariances; sigma2 = sigma2 }
 
@@ -536,8 +531,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let kernel = Common_model.get_kernel model in
       let covariances = Spec.Inputs.calc_upper kernel points in
       ignore (syrk ~trans:`T ~alpha:(-1.) v_mat ~beta:1. ~c:covariances);
-      let ichol_b_kmn = solve_chol_b model kmn in
-      ignore (syrk ~trans:`T ~alpha:1. ichol_b_kmn ~beta:1. ~c:covariances);
+      let r_mat = solve_chol_b model kmn in
+      ignore (syrk ~trans:`T ~alpha:1. r_mat ~beta:1. ~c:covariances);
       make ~points ~covariances ~model
 
     let calc_model_inputs model =
@@ -565,10 +560,10 @@ module Make_common (Spec : Specs.Eval) = struct
       let points = Common_model.get_input_points model in
       let r_vec = model.Common_model.r_vec in
       let kmn = model.Common_model.inputs.Inputs.kmn in
-      let ichol_b_kmn = solve_chol_b model kmn in
-      let covariances = syrk ~trans:`T ~alpha:1. ichol_b_kmn in
+      let r_mat = solve_chol_b model kmn in
+      let covariances = syrk ~trans:`T ~alpha:1. r_mat in
       for i = 1 to Vec.dim r_vec do
-        covariances.{i, i} <- r_vec.{i} +. covariances.{i, i}
+        covariances.{i, i} <- covariances.{i, i} +. r_vec.{i}
       done;
       make ~points ~covariances ~model
 
@@ -646,8 +641,7 @@ module Make_common (Spec : Specs.Eval) = struct
       trmm ~trans:`T cov_chol ~b:samples;
       for col = 1 to n do
         for row = 1 to n_means do
-          let mean = means.{row} in
-          samples.{row, col} <- samples.{row, col} +. mean
+          samples.{row, col} <- samples.{row, col} +. means.{row}
         done
       done;
       samples
@@ -1053,10 +1047,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         common_v_vec
 
       let calc_v1_vec model =
-        let common_v_vec = calc_common_v_vec model in
+        let z = calc_common_v_vec model in
         let is_vec = Eval_model.get_is_vec model.eval_model in
-        (* TODO: in-place multiplication and sqrt *)
-        Vec.mul is_vec (Vec.mul is_vec common_v_vec)
+        (* TODO: add more efficient in-place Vec multiplication to LACAML *)
+        Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
 
       (* Derivative of sigma2 *)
 
@@ -1127,19 +1121,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y)
         in
         let is_vec = Eval_model.get_is_vec eval_model in
-        (* TODO: add inplace element-wise vector multiplication to LACAML *)
         let u_vec = Vec.mul is_vec y_minus_kmn_t in
         let eval_trained =
           let l2 = -0.5 *. dot ~x:u_vec y in
           Eval_trained.calc_internal eval_model ~y ~t_vec ~l2
         in
         let v_vec =
-          let common_v_vec = Cm.calc_common_v_vec common_model in
-	  (* TODO: add inplace element-wise vector addition/subtraction
-	     to LACAML *)
-          let tmp = Vec.sub common_v_vec (Vec.sqr y_minus_kmn_t) in
-          (* TODO: add inplace element-wise vector multiplication to LACAML *)
-          Vec.mul is_vec (Vec.mul is_vec tmp)
+          let z = Cm.calc_common_v_vec common_model in
+          let sqrt_tmp = Vec.sqr y_minus_kmn_t in
+          axpy ~alpha:(-1.) ~x:sqrt_tmp z;
+          (* TODO: add more efficient in-place Vec multiplication to LACAML *)
+          Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
         in
         {
           common_model = common_model;
@@ -1173,7 +1165,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             syr ~alpha:(-1.) t_vec (lacpy ~uplo:`U t_mat)
           in
           let u1_mat = lacpy u_mat in
-          Mat.scal_cols (Vec.sqrt (Cm.calc_v1_vec common_model)) u1_mat;
+          let sqrt_v1_vec = Cm.calc_v1_vec common_model in
+          (* TODO: add more efficient in-place Vec.sqrt to LACAML *)
+          Mat.scal_cols (Vec.sqrt ~y:sqrt_v1_vec sqrt_v1_vec) u1_mat;
           let w_mat = syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:w_mat in
           let u2_mat = u1_mat in
           let u2_mat = lacpy u_mat ~b:u2_mat in

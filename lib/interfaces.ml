@@ -210,7 +210,6 @@ module Inducing_input_gpr = struct
       module Variance : sig
         type t
 
-        (* NOTE: there is deliberately no [calc_input] function. *)
         val calc_induced : Model.t -> Input.t -> t
         val get : ?predictive : bool -> t -> float
       end
@@ -219,7 +218,6 @@ module Inducing_input_gpr = struct
         type t
 
         val calc_model_inputs : Model.t -> t
-        (* NOTE: there is deliberately no [calc_inputs] function. *)
         val calc_induced : Model.t -> Inputs.t -> t
         val get : ?predictive : bool -> t -> vec
 

@@ -1,10 +1,16 @@
 inputs <- t(read.table('data/inputs'))
 targets <- t(read.table('data/targets'))
-inducing <- t(read.table('data/inducing_inputs'))
+one_inducing <- t(read.table('data/one_inducing'))
 inducing_means <- t(read.table('data/inducing_means'))
+inducing <- t(read.table('data/inducing_inputs'))
 means <- read.table('data/means')
 vars <- t(read.table('data/variances'))
 stds <- sqrt(vars)
+inducing_vars <- t(read.table('data/inducing_variances'))
+inducing_stds <- sqrt(inducing_vars)
+one_mean <- read.table('data/one_mean')
+one_var <- t(read.table('data/variance'))
+one_std <- sqrt(one_var)
 sigma2 <- (read.table('data/sigma2'))[,1]
 sigma <- sqrt(sigma2)
 sample1 <- read.table('data/sample1')
@@ -16,6 +22,10 @@ fic_sample3 <- read.table('data/fic_sample3')
 
 pred_vars <- vars + sigma2
 pred_stds <- sqrt(pred_vars)
+pred_inducing_vars <- inducing_vars + sigma2
+pred_inducing_stds <- sqrt(pred_inducing_vars)
+pred_one_var <- one_var + sigma2
+pred_one_sstd <- sqrt(pred_one_var)
 
 t = qnorm(1 - 0.05/2, 0, 1)
 
@@ -52,16 +62,25 @@ lapply(list(sample1, sample2, sample3), plot_sample)
 lapply(list(fic_sample1, fic_sample2, fic_sample3), plot_fic_sample)
 
 points(inducing, inducing_means, lwd=10, col='orange')
+points(inducing, inducing_means + t*pred_inducing_stds, lwd=5, col='orange')
+points(inducing, inducing_means - t*pred_inducing_stds, lwd=5, col='orange')
+
+points(one_inducing, one_mean, lwd=10, col='brown')
+points(one_inducing, one_mean + t*pred_one_sstd, lwd=5, col='brown')
+points(one_inducing, one_mean - t*pred_one_sstd, lwd=5, col='brown')
 
 legend(
   -5, 5,
   c(
     "targets",
     "true mean", "true 95% confidence interval",
-    "mean", "95% confidence interval (mean)", "95% confidence interval",
-    "FITC mean samples", "FIC mean samples", "Inducing inputs"
+    "means", "95% confidence interval (means)", "95% confidence interval",
+    "FITC mean samples", "FIC mean samples",
+    "inducing means", "95% confident interval (inducing means)",
+    "inducing mean", "95% confident interval (inducing mean)"
     ),
-  col=c("blue", "green", "green", "red", "red", "red", "black", "violet", "orange"),
-  pch=c(20,32,32,32,32,32,32,32),
-  lty=c(0,1,3,1,3,3,1,1),
-  lwd=c(1,4,2,4,3,2,1,1,10))
+  col=c("blue", "green", "green", "red", "red",
+        "red", "black", "violet", "orange", "orange", "brown", "brown"),
+  pch=c(20,32,32,32,32,32,32,32,20,20,20,20),
+  lty=c(0,1,3,1,3,3,1,1,0,0,0,0),
+  lwd=c(1,4,2,4,3,2,1,1,10,5,10,5))

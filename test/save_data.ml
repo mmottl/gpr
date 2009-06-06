@@ -38,6 +38,27 @@ let main () =
   let means_vec = FITC.Means.get means in
   write_vec "means" means_vec;
 
+  let mean, variance =
+    let input = Mat.col inducing_inputs 5 in
+    write_vec "one_inducing" input;
+    let prepared = FITC.Input.Prepared.calc prep_inducing input in
+    let induced = FITC.Input.calc inducing prepared in
+    let mean = FITC.Mean.get (FITC.Mean.calc_induced trained induced) in
+    let variance =
+      FITC.Variance.get ~predictive:false
+        (FITC.Variance.calc_induced model induced)
+    in
+    mean, variance
+  in
+  write_float "one_mean" mean;
+  write_float "one_variance" variance;
+
+  let variances =
+    FITC.Variances.Inducing.get ~predictive:false
+      (FITC.Variances.Inducing.calc model)
+  in
+  write_vec "inducing_variances" variances;
+
   let variances =
     FITC.Variances.get ~predictive:false
       (FITC.Variances.calc_model_inputs model)
