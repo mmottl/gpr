@@ -189,7 +189,7 @@ module Make_common (Spec : Specs.Eval) = struct
         let log_det_s_vec = loop 0. n in
         let km = Inputs.get_km inputs in
         let kmn_ = lacpy (Inputs.get_kmn inputs) in
-        Mat.scal_cols (Vec.sqrt is_vec) kmn_;
+        Mat.scal_cols kmn_ (Vec.sqrt is_vec);
         let chol_b = syrk kmn_ ~beta:1. ~c:(lacpy ~uplo:`U km) in
         potrf ~jitter chol_b;
         s_vec, is_vec, log_det_s_vec, chol_b, log_det chol_b
@@ -988,7 +988,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let s_mat = r_mat in
         let chol_b = Eval_model.get_chol_b eval_model in
         trtrs chol_b s_mat;
-        Mat.scal_cols eval_model.Eval_model.is_vec s_mat;
+        Mat.scal_cols s_mat eval_model.Eval_model.is_vec;
         let t_mat = lacpy ~uplo:`U inv_km in
         Mat.axpy ~alpha:(-1.) ~x:(ichol chol_b) t_mat;
         {
@@ -1078,11 +1078,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let u_mat = Shared.calc_u_mat eval_model in
         let w_mat =
           let u1_mat = lacpy u_mat in
-          Mat.scal_cols (Vec.sqrt v_vec) u1_mat;
+          Mat.scal_cols u1_mat (Vec.sqrt v_vec);
           syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:(lacpy ~uplo:`U model.t_mat)
         in
         let x_mat = u_mat in
-        Mat.scal_cols (Vec.neg v_vec) x_mat;
+        Mat.scal_cols x_mat (Vec.neg v_vec);
         Mat.axpy ~x:model.s_mat x_mat;
         {
           Shared.
@@ -1158,16 +1158,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           let u1_mat = lacpy u_mat in
           let sqrt_v1_vec = Cm.calc_v1_vec common_model in
-          Mat.scal_cols (Vec.sqrt ~y:sqrt_v1_vec sqrt_v1_vec) u1_mat;
+          Mat.scal_cols u1_mat (Vec.sqrt ~y:sqrt_v1_vec sqrt_v1_vec);
           let w_mat = syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:w_mat in
           let u2_mat = u1_mat in
           let u2_mat = lacpy u_mat ~b:u2_mat in
-          Mat.scal_cols u_vec u2_mat;
+          Mat.scal_cols u2_mat u_vec;
           syrk u2_mat ~beta:1. ~c:w_mat
         in
         let v_vec = trained.v_vec in
         let x_mat =
-          Mat.scal_cols v_vec u_mat;
+          Mat.scal_cols u_mat v_vec;
           let x_mat = lacpy common_model.Cm.s_mat in
           Mat.axpy ~alpha:(-1.) ~x:u_mat x_mat;
           ger ~alpha:(-1.) t_vec u_vec x_mat
