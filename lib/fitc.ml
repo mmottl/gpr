@@ -1037,26 +1037,26 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_model = update_sigma2 model.eval_model sigma2 in
         calc_internal model_kind model.model_shared eval_model model.inv_km
 
-      let calc_v_vec_common model =
+      let calc_vc_vec model =
         let s_vec = Eval_model.get_s_vec model.eval_model in
-        let v_vec_common =
+        let vc_vec =
           match model.model_kind with
           | Standard -> copy s_vec
           | Variational ->
               let n = Vec.dim s_vec in
-              let v_vec_common = Vec.create n in
+              let vc_vec = Vec.create n in
               let r_vec = Eval_model.get_r_vec model.eval_model in
               for i = 1 to n do
                 let s_vec_i = s_vec.{i} in
-                v_vec_common.{i} <- s_vec_i +. (s_vec_i -. r_vec.{i})
+                vc_vec.{i} <- s_vec_i +. (s_vec_i -. r_vec.{i})
               done;
-              v_vec_common
+              vc_vec
         in
-        axpy ~alpha:(-1.) ~x:model.r_diag v_vec_common;
-        v_vec_common
+        axpy ~alpha:(-1.) ~x:model.r_diag vc_vec;
+        vc_vec
 
       let calc_v1_vec model =
-        let z = calc_v_vec_common model in
+        let z = calc_vc_vec model in
         let is_vec = Eval_model.get_is_vec model.eval_model in
         Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
 
@@ -1064,12 +1064,15 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       let common_calc_log_evidence_sigma2 ({ eval_model = em } as model) v_vec =
         let sum_v1_vec = Vec.sum v_vec in
-        match model.model_kind with
-        | Standard -> sum_v1_vec
-        | Variational -> sum_v1_vec -. Vec.sum em.Eval_model.is_vec
+        let sum =
+          match model.model_kind with
+          | Standard -> sum_v1_vec
+          | Variational -> sum_v1_vec -. Vec.sum em.Eval_model.is_vec
+        in
+        -0.5 *. sum
 
       let calc_log_evidence_sigma2 model =
-        -0.5 *. common_calc_log_evidence_sigma2 model (calc_v1_vec model)
+        common_calc_log_evidence_sigma2 model (calc_v1_vec model)
 
       (* Prepare derivative of general hyper-parameters *)
 
@@ -1115,17 +1118,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let t_vec = gemv common_model.Cm.s_mat y in
         let eval_model = common_model.Cm.eval_model in
         let kmn = Eval_model.get_kmn eval_model in
-        let tmp = gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y) in
-        let sqr_tmp = Vec.sqr tmp in
+        let e_vec = gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y) in
+        let sqr_e_vec = Vec.sqr e_vec in
         let is_vec = Eval_model.get_is_vec eval_model in
-        let u_vec = Vec.mul is_vec tmp ~z:tmp in
+        let u_vec = Vec.mul is_vec e_vec ~z:e_vec in
         let eval_trained =
           let l2 = -0.5 *. dot ~x:u_vec y in
           Eval_trained.calc_internal eval_model ~y ~t_vec ~l2
         in
         let v_vec =
-          let z = Cm.calc_v_vec_common common_model in
-          axpy ~alpha:(-1.) ~x:sqr_tmp z;
+          let z = Cm.calc_vc_vec common_model in
+          axpy ~alpha:(-1.) ~x:sqr_e_vec z;
           Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
         in
         {
@@ -1141,7 +1144,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       (* Derivative of sigma2 *)
 
       let calc_log_evidence_sigma2 { common_model = cm; v_vec = v_vec } =
-        -0.5 *. Cm.common_calc_log_evidence_sigma2 cm v_vec
+        Cm.common_calc_log_evidence_sigma2 cm v_vec
 
       (* Derivative of general hyper-parameters *)
 
