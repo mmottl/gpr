@@ -11,6 +11,7 @@
 \DeclareMathAlphabet{\mathsfsl}{OT1}{cmss}{m}{sl}
 
 \newcommand{\red}{\textcolor{red}}
+\newcommand{\blue}{\textcolor{blue}}
 
 \newcommand{\dif}{\mathrm{d}}
 
@@ -45,12 +46,15 @@
 
 \newcommand{\dl}{\dot{l}}
 
+\newcommand{\vece}{\myvec{e}}
 \newcommand{\vecr}{\myvec{r}}
 \newcommand{\vecs}{\myvec{s}}
 \newcommand{\vect}{\myvec{t}}
+\newcommand{\vecu}{\myvec{u}}
+\newcommand{\vecv}{\myvec{v}}
+\newcommand{\vecvc}{\myvec{v}_c}
 \newcommand{\vecvx}{\myvec{v}_1}
 \newcommand{\vecvy}{\myvec{v}_2}
-\newcommand{\vecu}{\myvec{u}}
 \newcommand{\vecy}{\myvec{y}}
 \newcommand{\uuvecy}{\myu{\myu{\vecy}}}
 
@@ -67,7 +71,9 @@
 \newcommand{\matUx}{\mat{U}_1}
 \newcommand{\matUy}{\mat{U}_2}
 \newcommand{\matV}{\mat{V}}
+\newcommand{\matW}{\mat{W}}
 \newcommand{\matWx}{\mat{W}_1}
+\newcommand{\matX}{\mat{X}}
 \newcommand{\matXx}{\mat{X}_1}
 \newcommand{\matWy}{\mat{W}_2}
 \newcommand{\matXy}{\mat{X}_2}
@@ -125,9 +131,10 @@ Nonlinear clustering:
 l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) + \red{-\onehalf\vecis \cdot \vecr} \\
 \\
 \matR & = & \ichol{B}\Kmn \\
-\matS & = & \icholt{B}\matR \\
+\matS & = & \icholt{B}\matR \Lamssi \\
 \vect & = & \matS \vecy \\
-\vecu & = & \vecis \otimes (\vecy - \Knm \vect) \\
+\vece & = & \vecy - \Knm \vect \\
+\vecu & = & \vecis \otimes \vece \\
 \\
 l_2 & = & -\onehalf \vecu\cdot\vecy = -\onehalf(\uuvecy\cdot\vecy - \|\ichol{B}\Kmn\uuvecy\|^2) \\
 l & = & l_1 + l_2 \\
@@ -141,7 +148,8 @@ l & = & l_1 + l_2 \\
 \begin{eqnarray*}
 \matU & = & \icholt{K_M}\mat{V} \\
 \\
-\vecvx & = & \vecis \otimes (\vecis \otimes (\vecs \red{\, + \, \vecs - \vecr} - \diagv{\transm{R}\matR})) \\
+\vecvc & = & \vecs \red{\, + \, \vecs - \vecr} - \diagv{\transm{R}\matR} \\
+\vecvx & = & \vecis \otimes (\vecis \otimes \vecvc) \\
 \matUx & = & \matU \, \diagm{\vecvx^{\onehalf}} \\
 \matWx & = & \matT - \matUx{\matU}_1^\top \\
 \matXx & = & \matS - \matU\,\diagm{\vecvx} \\
@@ -157,7 +165,17 @@ l & = & l_1 + l_2 \\
 \\
 \tfrac{\partial l_1}{\partial\sigma^2} & = & -\onehalf(\mathrm{sum}(\vecvx) \red{\, - \, \mathrm{sum}(\vecis)}) \\
 \tfrac{\partial l_2}{\partial\sigma^2} & = & \onehalf\mathrm{sum}(\vecvy) \\
-\tfrac{\partial l}{\partial\sigma^2} & = & \tfrac{\partial l_1}{\partial\sigma^2} + \tfrac{\partial l_2}{\partial\sigma^2} \\
+\tfrac{\partial l}{\partial\sigma^2} & = & \tfrac{\partial l_1}{\partial\sigma^2} + \tfrac{\partial l_2}{\partial\sigma^2}
 \end{eqnarray*}
+\blue{
+\begin{eqnarray*}
+\vecv & = & \vecvx - \vecvy = \vecis \otimes (\vecis \otimes (\vecvc - \vece \otimes \vece)) \\
+\matW & = & \matWx - \matWy = \matT - \vect \transv{t} - \matUx{\matU}_1^\top + \matUy{\matU}_2^\top \\
+\matX & = & \matXx - \matXy = \matS - \vect \transv{u} - \matU\,\diagm{\vecv} \\
+\dl & = & -\onehalf(\vecv \cdot \diagv{\dKn} - \trace{\transm{W}\dKm}) - \trace{\transm{X}\dKmn} \\
+\\
+\tfrac{\partial l}{\partial\sigma^2} & = & -\onehalf(\mathrm{sum}(\vecv) \red{\, - \, \mathrm{sum}(\vecis)}) \\
+\end{eqnarray*}
+}
 
 \end{document}
