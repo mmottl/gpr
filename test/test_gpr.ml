@@ -39,7 +39,7 @@ let main () =
 
   let inducing2 = Deriv.Inducing.calc new_kernel deriv_prep_inducing in
   let inputs2 = Deriv.Inputs.calc inducing2 deriv_prep_inputs in
-  let model2 = Deriv.Model.calc ~sigma2 inputs in
+  let model2 = Deriv.Model.calc ~sigma2 inputs2 in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
   let dmev = Deriv.Model.calc_log_evidence hyper_model `Log_ell in
