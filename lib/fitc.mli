@@ -1,5 +1,4 @@
 open Interfaces
-open Inducing_input_gpr
 
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec

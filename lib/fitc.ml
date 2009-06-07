@@ -4,7 +4,6 @@ open Lacaml.Impl.D
 
 open Utils
 open Interfaces
-open Inducing_input_gpr
 open Specs
 
 module type Sig = functor (Spec : Specs.Eval) ->

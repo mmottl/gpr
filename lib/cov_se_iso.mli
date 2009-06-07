@@ -4,7 +4,7 @@ module Params : sig type t = { log_ell : float; log_sf2 : float } end
 
 type inducing_hyper = { ind : int; dim : int }
 
-include Interfaces.Inducing_input_gpr.Specs.Deriv
+include Interfaces.Specs.Deriv
   with type Eval.Kernel.params = Params.t
   with type Eval.Inducing.t = mat
   with type Eval.Input.t = vec
