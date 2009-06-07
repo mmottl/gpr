@@ -37,8 +37,8 @@ let main () =
     Eval.Spec.Kernel.create new_params
   in
 
-  let inducing = Deriv.Inducing.calc new_kernel deriv_prep_inducing in
-  let inputs = Deriv.Inputs.calc inducing deriv_prep_inputs in
+  let inducing2 = Deriv.Inducing.calc new_kernel deriv_prep_inducing in
+  let inputs2 = Deriv.Inputs.calc inducing2 deriv_prep_inputs in
   let model2 = Deriv.Model.calc ~sigma2 inputs in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
