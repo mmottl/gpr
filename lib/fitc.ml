@@ -9,7 +9,7 @@ open Specs
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec
 
-(* Computations shared by FIC and FITC, and traditional and variational
+(* Computations shared by FIC and FITC, and standard and variational
    version *)
 module Make_common (Spec : Specs.Eval) = struct
   module Spec = Spec
@@ -154,7 +154,7 @@ module Make_common (Spec : Specs.Eval) = struct
       v_mat, kn_diag
   end
 
-  (* Model computations shared by traditional and variational version *)
+  (* Model computations shared by standard and variational version *)
   module Common_model = struct
     type t = {
       sigma2 : float;
@@ -464,7 +464,7 @@ module Make_common (Spec : Specs.Eval) = struct
   end
 
   (* Computations for predicting covariances shared by FIC and
-     FITC, and traditional and variational version *)
+     FITC, and standard and variational version *)
   module Common_covariances = struct
     type t = { points : Spec.Inputs.t; covariances : mat; sigma2 : float }
 
@@ -522,7 +522,7 @@ module Make_common (Spec : Specs.Eval) = struct
     end
   end
 
-  (* Predicting covariances with FITC (traditionally or variationally) *)
+  (* Predicting covariances with FITC (standard or variational) *)
   module FITC_covariances = struct
     include Common_covariances
 
@@ -551,7 +551,7 @@ module Make_common (Spec : Specs.Eval) = struct
       calc_common ~kmn ~v_mat ~points ~model
   end
 
-  (* Predicting covariances with FIC (traditionally or variationally) *)
+  (* Predicting covariances with FIC (standard or variational) *)
   module FIC_covariances = struct
     include Common_covariances
 
@@ -577,7 +577,7 @@ module Make_common (Spec : Specs.Eval) = struct
   end
 
   (* Computations for sampling the marginal posterior GP distribution
-     shared by traditional and variational version *)
+     shared by standard and variational version *)
   module Common_sampler = struct
     type t = { mean : float; stddev : float }
 
@@ -602,7 +602,7 @@ module Make_common (Spec : Specs.Eval) = struct
   end
 
   (* Computations for sampling the posterior GP distribution shared
-     by FIC and FITC, and traditional and variational version *)
+     by FIC and FITC, and standard and variational version *)
   module Common_cov_sampler = struct
     type t = { means : vec; cov_chol : mat }
 
@@ -901,7 +901,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let get_kernel inputs = Inducing.get_kernel inputs.inducing
     end
 
-    type model_kind = Traditional | Variational
+    type model_kind = Standard | Variational
 
     let calc_u_mat eval_model =
       let v_mat = Eval_model.get_v_mat eval_model in
@@ -998,7 +998,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         in
         let calc_with_kn_diag =
           match model_kind with
-          | Traditional -> Eval_model.calc_with_kn_diag
+          | Standard -> Eval_model.calc_with_kn_diag
           | Variational -> Eval_common.Variational_model.calc_with_kn_diag
         in
         let eval_model = calc_with_kn_diag inputs.Inputs.eval sigma2 kn_diag in
@@ -1015,12 +1015,12 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         calc_internal model_kind shared eval_model inv_km
 
       let calc_eval model = model.eval_model
-      let calc inputs ~sigma2 = calc_common Traditional inputs sigma2
+      let calc inputs ~sigma2 = calc_common Standard inputs sigma2
 
       let update_sigma2 ({ model_kind = model_kind } as model) sigma2 =
         let update_sigma2 =
           match model_kind with
-          | Traditional -> Eval_model.update_sigma2
+          | Standard -> Eval_model.update_sigma2
           | Variational -> Eval_common.Variational_model.update_sigma2
         in
         let eval_model = update_sigma2 model.eval_model sigma2 in
@@ -1030,7 +1030,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let s_vec = Eval_model.get_s_vec model.eval_model in
         let common_v_vec =
           match model.model_kind with
-          | Traditional -> copy s_vec
+          | Standard -> copy s_vec
           | Variational ->
               let n = Vec.dim s_vec in
               let common_v_vec = Vec.create n in
@@ -1056,7 +1056,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let common_calc_log_evidence_sigma2 ({ eval_model = em } as model) v_vec =
         let sum_v1_vec = Vec.sum v_vec in
         match model.model_kind with
-        | Traditional -> sum_v1_vec
+        | Standard -> sum_v1_vec
         | Variational -> sum_v1_vec -. Vec.sum em.Eval_model.is_vec
 
       let calc_log_evidence_sigma2 model =

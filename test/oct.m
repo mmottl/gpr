@@ -85,7 +85,7 @@ s = diag(lam_sigma2);
 is = diag(inv_lam_sigma2);
 
 
-%%%%%%%%%%%%%%%%%%%% Traditional %%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%% Standard %%%%%%%%%%%%%%%%%%%%
 
 %%%%%% Log evidence
 
