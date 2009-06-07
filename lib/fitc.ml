@@ -913,60 +913,58 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let get_kernel inputs = Inducing.get_kernel inputs.inducing
     end
 
-    (* Functionality shared by model and trained model *)
-
-    let calc_u_mat eval_model =
-      let v_mat = Eval_model.get_v_mat eval_model in
-      solve_tri (Eval_model.get_chol_km eval_model) v_mat
-
-    let calc_dkn_term ~v_vec = function
-      | `Vec dkn -> dot ~x:v_vec dkn
-      | `Sparse_vec (_sdkn, _inds) -> (assert false (* XXX *))
-      | `Const c -> c *. Vec.sum v_vec
-      | `Factor _c -> (assert false (* XXX *))
-
-    let calc_dkm_term ~w_mat = function
-      | `Dense dkm -> Mat.symm2_trace w_mat dkm
-      | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
-      | `Const _c -> (assert false (* XXX *))
-      | `Factor _c -> (assert false (* XXX *))
-      | `Diag_vec _ddkm -> (assert false (* XXX *))
-      | `Diag_const _c -> (assert false (* XXX *))
-
-    let calc_dkmn_term ~x_mat = function
-      | `Dense dkm -> Mat.gemm_trace ~transa:`T x_mat dkm
-      | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
-      | `Const _c -> (assert false (* XXX *))
-      | `Factor _c -> (assert false (* XXX *))
-      | `Sparse_cols (_sdkmn, _inds) -> (assert false (* XXX *))
-
+    (* Derivative of hyper parameters *)
     module Shared = struct
-      type t = {
+      type shared = {
         inducing : Spec.Inducing.shared;
         cross : Spec.Inputs.cross;
         diag : Spec.Inputs.diag;
       }
-    end
 
-    module Dfacts = struct
-      type t = { v_vec : vec; w_mat : mat; x_mat : mat }
-    end
+      type dfacts = { v_vec : vec; w_mat : mat; x_mat : mat }
+      type hyper_t = { shared : shared; dfacts : dfacts }
 
-    let common_calc_log_evidence shared dfacts hyper =
-      let { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat } = dfacts in
-      let dkn_term =
-        let dkn = Spec.Inputs.calc_deriv_diag shared.Shared.diag hyper in
-        calc_dkn_term ~v_vec dkn
-      in
-      let dkm_term =
-        let dkm = Spec.Inducing.calc_deriv_upper shared.Shared.inducing hyper in
-        calc_dkm_term ~w_mat dkm
-      in
-      let dkmn_term =
-        let dkmn = Spec.Inputs.calc_deriv_cross shared.Shared.cross hyper in
-        calc_dkmn_term ~x_mat dkmn
-      in
-      -0.5 *. (dkn_term -. dkm_term) -. dkmn_term
+      let calc_u_mat eval_model =
+        let v_mat = Eval_model.get_v_mat eval_model in
+        solve_tri (Eval_model.get_chol_km eval_model) v_mat
+
+      let calc_dkn_term ~v_vec = function
+        | `Vec dkn -> dot ~x:v_vec dkn
+        | `Sparse_vec (_sdkn, _inds) -> (assert false (* XXX *))
+        | `Const c -> c *. Vec.sum v_vec
+        | `Factor _c -> (assert false (* XXX *))
+
+      let calc_dkm_term ~w_mat = function
+        | `Dense dkm -> Mat.symm2_trace w_mat dkm
+        | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
+        | `Const _c -> (assert false (* XXX *))
+        | `Factor _c -> (assert false (* XXX *))
+        | `Diag_vec _ddkm -> (assert false (* XXX *))
+        | `Diag_const _c -> (assert false (* XXX *))
+
+      let calc_dkmn_term ~x_mat = function
+        | `Dense dkm -> Mat.gemm_trace ~transa:`T x_mat dkm
+        | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
+        | `Const _c -> (assert false (* XXX *))
+        | `Factor _c -> (assert false (* XXX *))
+        | `Sparse_cols (_sdkmn, _inds) -> (assert false (* XXX *))
+
+      let calc_log_evidence { shared = shared; dfacts = dfacts } hyper =
+        let { v_vec = v_vec; w_mat = w_mat; x_mat = x_mat } = dfacts in
+        let dkn_term =
+          let dkn = Spec.Inputs.calc_deriv_diag shared.diag hyper in
+          calc_dkn_term ~v_vec dkn
+        in
+        let dkm_term =
+          let dkm = Spec.Inducing.calc_deriv_upper shared.inducing hyper in
+          calc_dkm_term ~w_mat dkm
+        in
+        let dkmn_term =
+          let dkmn = Spec.Inputs.calc_deriv_cross shared.cross hyper in
+          calc_dkmn_term ~x_mat dkmn
+        in
+        -0.5 *. (dkn_term -. dkm_term) -. dkmn_term
+    end
 
     (* Derivative of models *)
     module Common_model = struct
@@ -975,7 +973,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       type t = {
         model_kind : model_kind;
-        model_shared : Shared.t;
+        model_shared : Shared.shared;
         eval_model : Eval_model.t;
         inv_km : mat;
         r_diag : vec;
@@ -1060,7 +1058,6 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let calc_v1_vec model =
         let z = calc_v_vec_common model in
         let is_vec = Eval_model.get_is_vec model.eval_model in
-        (* TODO: add more efficient in-place vector multiplication to LACAML *)
         Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
 
       (* Derivative of sigma2 *)
@@ -1074,34 +1071,26 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let calc_log_evidence_sigma2 model =
         -0.5 *. common_calc_log_evidence_sigma2 model (calc_v1_vec model)
 
-      (* Derivative of general hyper-parameters *)
-
-      type hyper_t = { shared : Shared.t; dfacts : Dfacts.t }
+      (* Prepare derivative of general hyper-parameters *)
 
       let prepare_hyper ({ eval_model = eval_model } as model) =
         let v_vec = calc_v1_vec model in
-        let u_mat = calc_u_mat eval_model in
+        let u_mat = Shared.calc_u_mat eval_model in
         let w_mat =
           let u1_mat = lacpy u_mat in
           Mat.scal_cols (Vec.sqrt v_vec) u1_mat;
           syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:(lacpy ~uplo:`U model.t_mat)
         in
         let x_mat = u_mat in
-        Mat.scal_cols v_vec x_mat;
-        let m = Mat.dim1 x_mat in
-        let n = Mat.dim2 x_mat in
-        (* TODO: add (inplace) addition/subtraction of matrices to LACAML *)
-        let s_mat = model.s_mat in
-        for c = 1 to n do
-          for r = 1 to m do x_mat.{r, c} <- s_mat.{r, c} -. x_mat.{r, c} done
-        done;
+        Mat.scal_cols (Vec.neg v_vec) x_mat;
+        Mat.axpy ~x:model.s_mat x_mat;
         {
+          Shared.
           shared = model.model_shared;
-          dfacts = { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
+          dfacts = { Shared.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
-      let calc_log_evidence hyper_model hyper =
-        common_calc_log_evidence hyper_model.shared hyper_model.dfacts hyper
+      include Shared
     end
 
     module Cm = Common_model
@@ -1120,27 +1109,23 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         t_vec : vec;
         u_vec : vec;
         v_vec : vec;
-        y_minus_kmn_t : vec;
       }
 
       let calc common_model ~targets:y =
         let t_vec = gemv common_model.Cm.s_mat y in
         let eval_model = common_model.Cm.eval_model in
         let kmn = Eval_model.get_kmn eval_model in
-        let y_minus_kmn_t =
-          gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y)
-        in
+        let tmp = gemv ~alpha:(-1.) ~beta:1. ~trans:`T kmn t_vec ~y:(copy y) in
+        let sqr_tmp = Vec.sqr tmp in
         let is_vec = Eval_model.get_is_vec eval_model in
-        let u_vec = Vec.mul is_vec y_minus_kmn_t in
+        let u_vec = Vec.mul is_vec tmp ~z:tmp in
         let eval_trained =
           let l2 = -0.5 *. dot ~x:u_vec y in
           Eval_trained.calc_internal eval_model ~y ~t_vec ~l2
         in
         let v_vec =
           let z = Cm.calc_v_vec_common common_model in
-          let sqrt_tmp = Vec.sqr y_minus_kmn_t in
-          axpy ~alpha:(-1.) ~x:sqrt_tmp z;
-          (* TODO: add more efficient in-place vector multiplication to LACAML *)
+          axpy ~alpha:(-1.) ~x:sqr_tmp z;
           Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
         in
         {
@@ -1149,24 +1134,21 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           t_vec = t_vec;
           u_vec = u_vec;
           v_vec = v_vec;
-          y_minus_kmn_t = y_minus_kmn_t;
         }
 
       let calc_eval trained = trained.eval_trained
 
-      (**)
+      (* Derivative of sigma2 *)
 
       let calc_log_evidence_sigma2 { common_model = cm; v_vec = v_vec } =
         -0.5 *. Cm.common_calc_log_evidence_sigma2 cm v_vec
 
-      (**)
-
-      type hyper_t = { shared : Shared.t; dfacts : Dfacts.t }
+      (* Derivative of general hyper-parameters *)
 
       let prepare_hyper trained =
         let common_model = trained.common_model in
         let eval_model = common_model.Cm.eval_model in
-        let u_mat = calc_u_mat eval_model in
+        let u_mat = Shared.calc_u_mat eval_model in
         let t_vec = trained.t_vec in
         let u_vec = trained.u_vec in
         let w_mat =
@@ -1176,13 +1158,12 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           let u1_mat = lacpy u_mat in
           let sqrt_v1_vec = Cm.calc_v1_vec common_model in
-          (* TODO: add more efficient in-place Vec.sqrt to LACAML *)
           Mat.scal_cols (Vec.sqrt ~y:sqrt_v1_vec sqrt_v1_vec) u1_mat;
           let w_mat = syrk ~alpha:(-1.) u1_mat ~beta:1. ~c:w_mat in
           let u2_mat = u1_mat in
           let u2_mat = lacpy u_mat ~b:u2_mat in
           Mat.scal_cols u_vec u2_mat;
-          syrk u2_mat ~beta:(1.) ~c:w_mat
+          syrk u2_mat ~beta:1. ~c:w_mat
         in
         let v_vec = trained.v_vec in
         let x_mat =
@@ -1192,15 +1173,12 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           ger ~alpha:(-1.) t_vec u_vec x_mat
         in
         {
+          Shared.
           shared = common_model.Cm.model_shared;
-          dfacts = { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
+          dfacts = { Shared.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
-
-      (**)
-
-      let calc_log_evidence hyp_trained hyper =
-        common_calc_log_evidence hyp_trained.shared hyp_trained.dfacts hyper
+      include Shared
     end
   end
 end
