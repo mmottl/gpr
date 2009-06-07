@@ -802,8 +802,12 @@ module type Deriv_sig = functor (Spec : Specs.Deriv) ->
     with module Eval.Spec = Spec.Eval
     with module Deriv.Spec = Spec
 
+(* Computations shared by FIC and FITC, and standard and variational
+   version for derivatives *)
 module Make_common_deriv (Spec : Specs.Deriv) = struct
   open Spec
+
+  (* Eval modules *)
 
   module Eval_common = Make_common (Spec.Eval)
   module Eval_inducing = Eval_common.Inducing
@@ -811,9 +815,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
   module Eval_model = Eval_common.Common_model
   module Eval_trained = Eval_common.Trained
 
+  (* Kind of model *)
+  type model_kind = Standard | Variational
+
   module Deriv_common = struct
+
+    (* Derivative modules *)
+
     module Spec = Spec
 
+    (* Derivative of inducing points *)
     module Inducing = struct
       module Prepared = struct
         type t = {
@@ -843,6 +854,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let get_points inducing = Eval_inducing.get_points inducing.eval
     end
 
+    (* Derivative of inputs *)
     module Inputs = struct
       module Prepared = struct
         type t = {
@@ -901,7 +913,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let get_kernel inputs = Inducing.get_kernel inputs.inducing
     end
 
-    type model_kind = Standard | Variational
+    (* Functionality shared by model and trained model *)
 
     let calc_u_mat eval_model =
       let v_mat = Eval_model.get_v_mat eval_model in
@@ -956,13 +968,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       in
       -0.5 *. (dkn_term -. dkm_term) -. dkmn_term
 
+    (* Derivative of models *)
     module Common_model = struct
 
       (* Precomputations for all derivatives *)
 
       type t = {
         model_kind : model_kind;
-        shared : Shared.t;
+        model_shared : Shared.t;
         eval_model : Eval_model.t;
         inv_km : mat;
         r_diag : vec;
@@ -970,7 +983,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         t_mat : mat;
       }
 
-      let calc_internal model_kind shared eval_model inv_km =
+      let calc_internal model_kind model_shared eval_model inv_km =
         let kmn = Eval_model.get_kmn eval_model in
         let r_mat = Eval_common.solve_chol_b eval_model kmn in
         let r_diag = Mat.syrk_diag ~trans:`T r_mat in
@@ -982,7 +995,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         Mat.axpy ~alpha:(-1.) ~x:(ichol chol_b) t_mat;
         {
           model_kind = model_kind;
-          shared = shared;
+          model_shared = model_shared;
           eval_model = eval_model;
           inv_km = inv_km;
           r_diag = r_diag;
@@ -1004,7 +1017,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_model = calc_with_kn_diag inputs.Inputs.eval sigma2 kn_diag in
         let chol_km = Eval_model.get_chol_km eval_model in
         let inv_km = ichol chol_km in
-        let shared =
+        let model_shared =
           {
             Shared.
             inducing = inputs.Inputs.inducing.Inducing.shared;
@@ -1012,7 +1025,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             diag = shared_diag;
           }
         in
-        calc_internal model_kind shared eval_model inv_km
+        calc_internal model_kind model_shared eval_model inv_km
 
       let calc_eval model = model.eval_model
       let calc inputs ~sigma2 = calc_common Standard inputs sigma2
@@ -1024,31 +1037,30 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | Variational -> Eval_common.Variational_model.update_sigma2
         in
         let eval_model = update_sigma2 model.eval_model sigma2 in
-        calc_internal model_kind model.shared eval_model model.inv_km
+        calc_internal model_kind model.model_shared eval_model model.inv_km
 
-      let calc_common_v_vec model =
+      let calc_v_vec_common model =
         let s_vec = Eval_model.get_s_vec model.eval_model in
-        let common_v_vec =
+        let v_vec_common =
           match model.model_kind with
           | Standard -> copy s_vec
           | Variational ->
               let n = Vec.dim s_vec in
-              let common_v_vec = Vec.create n in
+              let v_vec_common = Vec.create n in
               let r_vec = Eval_model.get_r_vec model.eval_model in
               for i = 1 to n do
                 let s_vec_i = s_vec.{i} in
-                common_v_vec.{i} <- s_vec_i +. (s_vec_i -. r_vec.{i})
+                v_vec_common.{i} <- s_vec_i +. (s_vec_i -. r_vec.{i})
               done;
-              common_v_vec
+              v_vec_common
         in
-        let r_diag = model.r_diag in
-        axpy ~alpha:(-1.) ~x:r_diag common_v_vec;
-        common_v_vec
+        axpy ~alpha:(-1.) ~x:model.r_diag v_vec_common;
+        v_vec_common
 
       let calc_v1_vec model =
-        let z = calc_common_v_vec model in
+        let z = calc_v_vec_common model in
         let is_vec = Eval_model.get_is_vec model.eval_model in
-        (* TODO: add more efficient in-place Vec multiplication to LACAML *)
+        (* TODO: add more efficient in-place vector multiplication to LACAML *)
         Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
 
       (* Derivative of sigma2 *)
@@ -1064,7 +1076,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (* Derivative of general hyper-parameters *)
 
-      type hyper_t = { hyp_shared : Shared.t; dfacts : Dfacts.t }
+      type hyper_t = { shared : Shared.t; dfacts : Dfacts.t }
 
       let prepare_hyper ({ eval_model = eval_model } as model) =
         let v_vec = calc_v1_vec model in
@@ -1078,18 +1090,18 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         Mat.scal_cols v_vec x_mat;
         let m = Mat.dim1 x_mat in
         let n = Mat.dim2 x_mat in
-        (* TODO: add inplace addition/subtraction of matrices to LACAML *)
+        (* TODO: add (inplace) addition/subtraction of matrices to LACAML *)
         let s_mat = model.s_mat in
         for c = 1 to n do
           for r = 1 to m do x_mat.{r, c} <- s_mat.{r, c} -. x_mat.{r, c} done
         done;
         {
-          hyp_shared = model.shared;
-          dfacts = { Dfacts.  v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
+          shared = model.model_shared;
+          dfacts = { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
       let calc_log_evidence hyper_model hyper =
-        common_calc_log_evidence hyper_model.hyp_shared hyper_model.dfacts hyper
+        common_calc_log_evidence hyper_model.shared hyper_model.dfacts hyper
     end
 
     module Cm = Common_model
@@ -1100,8 +1112,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let calc inputs ~sigma2 = calc_common Variational inputs sigma2
     end
 
-    (**)
-
+    (* Derivative of trained models *)
     module Trained = struct
       type t = {
         common_model : Cm.t;
@@ -1126,10 +1137,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           Eval_trained.calc_internal eval_model ~y ~t_vec ~l2
         in
         let v_vec =
-          let z = Cm.calc_common_v_vec common_model in
+          let z = Cm.calc_v_vec_common common_model in
           let sqrt_tmp = Vec.sqr y_minus_kmn_t in
           axpy ~alpha:(-1.) ~x:sqrt_tmp z;
-          (* TODO: add more efficient in-place Vec multiplication to LACAML *)
+          (* TODO: add more efficient in-place vector multiplication to LACAML *)
           Vec.mul is_vec z ~z:(Vec.mul is_vec z ~z)
         in
         {
@@ -1146,7 +1157,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       (**)
 
       let calc_log_evidence_sigma2 { common_model = cm; v_vec = v_vec } =
-        0.5 *. Cm.common_calc_log_evidence_sigma2 cm v_vec
+        -0.5 *. Cm.common_calc_log_evidence_sigma2 cm v_vec
 
       (**)
 
@@ -1181,7 +1192,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           ger ~alpha:(-1.) t_vec u_vec x_mat
         in
         {
-          shared = common_model.Cm.shared;
+          shared = common_model.Cm.model_shared;
           dfacts = { Dfacts.v_vec = v_vec; w_mat = w_mat; x_mat = x_mat };
         }
 
