@@ -86,33 +86,24 @@
 
 \section{FIC computations}
 
-These are computations of the FIC-likelihood as used in the
+These are the equations used for computing the FIC predictive
+distribution and FIC marginal likelihood and its derivatives in the
 OCaml-implementation.  The implementation factorizes the computations
-in exactly that way to minimize computation time.  Numerical stability
-may still need to be improved.
+in that way to minimize computation time (primarily) and memory
+usage.  It also takes into account numerical stability (e.g.\
+avoiding inverses) whenever possible without great loss of efficiency
+and otherwise aims for ease of implementation, e.g.\ combining
+derivative terms to simplify dealing with sparse matrices.\\
+
+Here are a few symbology conventions:
 
 \begin{itemize}
 \item $\mathrm{diag_m}$ is the matrix consisting of only the diagonal
-\end{itemize}
-
-Log-derivatives:
-
-\begin{itemize}
-\item $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
-\end{itemize}
-
-Nonlinear clustering:
-
-\begin{itemize}
-\item $k(x, y) = \langle \phi(x) | \phi(y) \rangle$
-\item $\|\phi(x) - \phi(y)\|^2 = k(x,x)-2k(x,y)+k(y,y)$
-\item find one inducing point
-\item choose point x farthest away wrt.\ k
-\item choose antipodal point y to x wrt.\ k
-\item determine for all points to which of x or y they are closer
-\item create two clusters
-\item recurse
-\item when suitable granularity reached, use PI(T)C
+\item Parts in \red{red} represent terms used for Michalis Titsias'
+variational approximation of the posterior marginal likelihood.
+\item Parts in \blue{blue} give an alternative, more compact, direct
+and hence more efficient way of computing some result if the required
+parameters are already available.
 \end{itemize}
 
 \begin{eqnarray*}
@@ -135,8 +126,9 @@ l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) + \re
 \vect & = & \matS \vecy \\
 \vece & = & \vecy - \Knm \vect \\
 \vecu & = & \vecis \otimes \vece \\
+\uuvecy & = & \Lamssi \vecy \\
 \\
-l_2 & = & -\onehalf \vecu\cdot\vecy = -\onehalf(\uuvecy\cdot\vecy - \|\ichol{B}\Kmn\uuvecy\|^2) \\
+l_2 & = & \blue{-\onehalf \vecu\cdot\vecy} = -\onehalf(\uuvecy\cdot\vecy - \|\ichol{B}\Kmn\uuvecy\|^2) \\
 l & = & l_1 + l_2 \\
 \\
 \matT & = & \imat{K_M} - \imat{B} \\
@@ -177,5 +169,27 @@ l & = & l_1 + l_2 \\
 \tfrac{\partial l}{\partial\sigma^2} & = & -\onehalf(\mathrm{sum}(\vecv) \red{\, - \, \mathrm{sum}(\vecis)}) \\
 \end{eqnarray*}
 }
+
+\section{Notes/reminders for future work}
+
+Log-derivatives:
+
+\begin{itemize}
+\item $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
+\end{itemize}
+
+\subsection{Nonlinear clustering:}
+
+\begin{itemize}
+\item $k(x, y) = \langle \phi(x) | \phi(y) \rangle$
+\item $\|\phi(x) - \phi(y)\|^2 = k(x,x)-2k(x,y)+k(y,y)$
+\item find one inducing point
+\item choose point x farthest away wrt.\ k
+\item choose antipodal point y to x wrt.\ k
+\item determine for all points to which of x or y they are closer
+\item create two clusters
+\item recurse
+\item when suitable granularity reached, use PI(T)C
+\end{itemize}
 
 \end{document}
