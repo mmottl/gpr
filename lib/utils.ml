@@ -41,14 +41,7 @@ let write_mat file = gen_write pp_mat file
 (* General matrix functions *)
 
 (* Compute the sum of all elements in a matrix *)
-let sum_mat mat =
-  let res_ref = ref 0. in
-  let m = Mat.dim1 mat in
-  let n = Mat.dim2 mat in
-  for c = 1 to n do
-    for r = 1 to m do res_ref := !res_ref +. mat.{r, c} done
-  done;
-  !res_ref
+let sum_mat mat = Vec.sum (Mat.as_vec mat)
 
 (* Compute the sum of all elements in a symmetric matrix *)
 let sum_symm_mat mat =
