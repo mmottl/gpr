@@ -234,7 +234,7 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type shared = Eval.Inducing.t * deriv_common
+  type upper = Eval.Inducing.t * deriv_common
 
   let calc_shared_upper kernel prepared_upper =
     let module EI = Eval.Inducing in

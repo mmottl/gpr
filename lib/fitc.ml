@@ -1,4 +1,5 @@
 open Format
+open Bigarray
 
 open Lacaml.Impl.D
 
@@ -239,12 +240,13 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_input_points model = model.inputs.Inputs.points
     let get_kernel model = (get_inducing model).Inducing.kernel
     let get_sigma2 model = model.sigma2
-    let get_kmn model = model.inputs.Inputs.kmn
     let get_chol_km model = Inputs.get_chol_km model.inputs
     let get_r_vec model = model.r_vec
     let get_s_vec model = model.s_vec
     let get_is_vec model = model.is_vec
     let get_km model = (get_inducing model).Inducing.km
+    let get_kmn model = model.inputs.Inputs.kmn
+    let get_kn_diag model = model.kn_diag
   end
 
   (* Model computation (variational version) *)
@@ -843,11 +845,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let get_points prepared = prepared.eval.Eval_inducing.Prepared.points
       end
 
-      type t = { eval : Eval_inducing.t; shared : Spec.Inducing.shared }
+      type t = { eval : Eval_inducing.t; shared_upper : Spec.Inducing.upper }
 
       let calc kernel { Prepared.eval = eval; upper = upper } =
-        let km, shared = Spec.Inducing.calc_shared_upper kernel upper in
-        { eval = Eval_inducing.calc_internal kernel eval km; shared = shared }
+        let km, shared_upper = Spec.Inducing.calc_shared_upper kernel upper in
+        {
+          eval = Eval_inducing.calc_internal kernel eval km;
+          shared_upper = shared_upper;
+        }
 
       let calc_eval inducing = inducing.eval
       let get_kernel inducing = Eval_inducing.get_kernel inducing.eval
@@ -916,9 +921,12 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     (* Derivative of hyper parameters *)
     module Shared = struct
       type shared = {
-        inducing : Spec.Inducing.shared;
-        cross : Spec.Inputs.cross;
-        diag : Spec.Inputs.diag;
+        km : mat;
+        kmn : mat;
+        kn_diag : vec;
+        shared_upper : Spec.Inducing.upper;
+        shared_cross : Spec.Inputs.cross;
+        shared_diag : Spec.Inputs.diag;
       }
 
       type dfacts = { v_vec : vec; w_mat : mat; x_mat : mat }
@@ -928,42 +936,88 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let v_mat = Eval_model.get_v_mat eval_model in
         solve_tri (Eval_model.get_chol_km eval_model) v_mat
 
-      let calc_dkn_term ~v_vec = function
-        | `Vec dkn -> dot ~x:v_vec dkn
-        | `Sparse_vec (_sdkn, _inds) -> (assert false (* XXX *))
+      let calc_dkn_diag_term ~v_vec ~kn_diag = function
+        | `Vec dkn_diag -> dot ~x:v_vec dkn_diag
+        | `Sparse_vec (svec, rows) ->
+            check_sparse_vec_sane ~real_n:(Vec.dim v_vec) ~svec ~rows;
+            let res_ref = ref 0. in
+            for i = 1 to Vec.dim svec do
+              res_ref := !res_ref +. v_vec.{rows.{i}} *. svec.{i}
+            done;
+            !res_ref
+        | `Const 0. | `Factor 0. -> 0.
         | `Const c -> c *. Vec.sum v_vec
-        | `Factor _c -> (assert false (* XXX *))
+        | `Factor c -> c *. dot ~x:kn_diag v_vec
 
-      let calc_dkm_term ~w_mat = function
+      let calc_dkm_term ~w_mat ~km = function
         | `Dense dkm -> Mat.symm2_trace w_mat dkm
-        | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
-        | `Const _c -> (assert false (* XXX *))
-        | `Factor _c -> (assert false (* XXX *))
-        | `Diag_vec _ddkm -> (assert false (* XXX *))
-        | `Diag_const _c -> (assert false (* XXX *))
+        | `Sparse_rows (smat, rows) -> symm2_sparse_trace ~mat:w_mat ~smat ~rows
+        | `Const 0. | `Factor 0. | `Diag_const 0. -> 0.
+        | `Const c -> c *. sum_symm_mat w_mat
+        | `Factor c -> c *. Mat.symm2_trace w_mat km
+        | `Diag_vec ddkm ->
+            let res_ref = ref 0. in
+            for i = 1 to Mat.dim1 w_mat do
+              res_ref := !res_ref +. ddkm.{i} *. w_mat.{i, i}
+            done;
+            !res_ref
+        | `Diag_const c ->
+            let res_ref = ref 0. in
+            for i = 1 to Mat.dim1 w_mat do
+              res_ref := !res_ref +. c *. w_mat.{i, i}
+            done;
+            !res_ref
 
-      let calc_dkmn_term ~x_mat = function
-        | `Dense dkm -> Mat.gemm_trace ~transa:`T x_mat dkm
-        | `Sparse_rows (_sdkm, _inds) -> (assert false (* XXX *))
-        | `Const _c -> (assert false (* XXX *))
-        | `Factor _c -> (assert false (* XXX *))
-        | `Sparse_cols (_sdkmn, _inds) -> (assert false (* XXX *))
+      let calc_dkmn_term ~x_mat ~kmn = function
+        | `Dense dkmn -> Mat.gemm_trace ~transa:`T x_mat dkmn
+        | `Sparse_rows (sdkmn, rows) ->
+            let real_m = Mat.dim1 x_mat in
+            check_sparse_row_mat_sane ~real_m ~smat:sdkmn ~rows;
+            let m = Array1.dim rows in
+            let n = Mat.dim2 sdkmn in
+            let res_ref = ref 0. in
+            for r = 1 to m do
+              let real_r = rows.{r} in
+              for c = 1 to n do
+                res_ref := !res_ref +. x_mat.{real_r, c} *. sdkmn.{r, c}
+              done
+            done;
+            !res_ref
+        | `Const 0. | `Factor 0. -> 0.
+        | `Const c -> c *. sum_mat x_mat
+        | `Factor c -> c *. Mat.gemm_trace ~transa:`T x_mat kmn
+        | `Sparse_cols (sdkmn, cols) ->
+            let real_n = Mat.dim2 x_mat in
+            check_sparse_col_mat_sane ~real_n ~smat:sdkmn ~cols;
+            let m = Mat.dim1 sdkmn in
+            let n = Array1.dim cols in
+            let res_ref = ref 0. in
+            for c = 1 to n do
+              let real_c = cols.{c} in
+              for r = 1 to m do
+                res_ref := !res_ref +. x_mat.{r, real_c} *. sdkmn.{r, c}
+              done
+            done;
+            !res_ref
 
       let calc_log_evidence { shared = shared; dfacts = dfacts } hyper =
         let { v_vec = v_vec; w_mat = w_mat; x_mat = x_mat } = dfacts in
-        let dkn_term =
-          let dkn = Spec.Inputs.calc_deriv_diag shared.diag hyper in
-          calc_dkn_term ~v_vec dkn
+        let dkn_diag_term =
+          let kn_diag = shared.kn_diag in
+          let dkn_diag = Spec.Inputs.calc_deriv_diag shared.shared_diag hyper in
+          calc_dkn_diag_term ~v_vec ~kn_diag dkn_diag
         in
         let dkm_term =
-          let dkm = Spec.Inducing.calc_deriv_upper shared.inducing hyper in
-          calc_dkm_term ~w_mat dkm
+          let km = shared.km in
+          let dkm = Spec.Inducing.calc_deriv_upper shared.shared_upper hyper in
+          calc_dkm_term ~w_mat ~km dkm
         in
         let dkmn_term =
-          let dkmn = Spec.Inputs.calc_deriv_cross shared.cross hyper in
-          calc_dkmn_term ~x_mat dkmn
+          let kmn = shared.kmn in
+          let dkmn = Spec.Inputs.calc_deriv_cross shared.shared_cross hyper in
+          calc_dkmn_term ~x_mat ~kmn dkmn
         in
-        -0.5 *. (dkn_term -. dkm_term) -. dkmn_term
+        -0.5 *. (dkn_diag_term -. dkm_term) -. dkmn_term
     end
 
     (* Derivative of models *)
@@ -1012,15 +1066,21 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           | Standard -> Eval_model.calc_with_kn_diag
           | Variational -> Eval_common.Variational_model.calc_with_kn_diag
         in
-        let eval_model = calc_with_kn_diag inputs.Inputs.eval sigma2 kn_diag in
+        let eval_model = calc_with_kn_diag eval_inputs sigma2 kn_diag in
+        let km = Eval_model.get_km eval_model in
+        let kmn = Eval_model.get_kmn eval_model in
+        let kn_diag = Eval_model.get_kn_diag eval_model in
         let chol_km = Eval_model.get_chol_km eval_model in
         let inv_km = ichol chol_km in
         let model_shared =
           {
             Shared.
-            inducing = inputs.Inputs.inducing.Inducing.shared;
-            cross = inputs.Inputs.shared_cross;
-            diag = shared_diag;
+            km = km;
+            kmn = kmn;
+            kn_diag = kn_diag;
+            shared_upper = inputs.Inputs.inducing.Inducing.shared_upper;
+            shared_cross = inputs.Inputs.shared_cross;
+            shared_diag = shared_diag;
           }
         in
         calc_internal model_kind model_shared eval_model inv_km

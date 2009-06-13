@@ -119,7 +119,7 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type shared = Eval.Inducing.t
+  type upper = Eval.Inducing.t
 
   let calc_shared_upper k prepared_upper =
     let upper = Eval.Inducing.calc_upper k prepared_upper in

@@ -8,6 +8,8 @@ module Indices = struct
 end
 
 module Specs = struct
+  (* NOTE: all returned data must be modifiable *)
+
   module type Kernel = sig
     type t
     type params
@@ -99,10 +101,10 @@ module Specs = struct
         val calc_upper : Eval.Inducing.Prepared.upper -> upper
       end
 
-      type shared
+      type upper
 
-      val calc_shared_upper : Eval.Kernel.t -> Prepared.upper -> mat * shared
-      val calc_deriv_upper : shared -> Hyper.t -> symm_mat_deriv
+      val calc_shared_upper : Eval.Kernel.t -> Prepared.upper -> mat * upper
+      val calc_deriv_upper : upper -> Hyper.t -> symm_mat_deriv
     end
 
     module Inputs : sig

@@ -80,7 +80,7 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type shared = { m : Prepared.upper; deriv_const : float }
+  type upper = { m : Prepared.upper; deriv_const : float }
 
   let calc_shared_upper k m =
     Eval.Inducing.calc_upper k m, { m = m; deriv_const = calc_const_deriv k }
