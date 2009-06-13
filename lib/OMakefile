@@ -15,8 +15,7 @@ section
 
 OCamlPackage(gpr, $(SOURCES))
 OCamlLibrary(gpr, gpr)
-OCamlProgram(bla, bla)
 
-.DEFAULT: gpr.cmxa bla
+.DEFAULT: gpr.cmxa
 
 InstClean()
