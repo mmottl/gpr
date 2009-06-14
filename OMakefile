@@ -4,7 +4,7 @@ ABORT_ON_DEPENDENCY_ERRORS = true
 OCAMLPACKS += unix lacaml gsl
 
 NATIVE_ENABLED = true
-OCAMLFLAGS = -dtypes -g -w A
+OCAMLFLAGS = -dtypes -g -w A -warn-error A
 
 OCAMLINCLUDES += $(dir lib)
 
