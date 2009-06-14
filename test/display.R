@@ -9,7 +9,7 @@ stds <- sqrt(vars)
 inducing_vars <- t(read.table('data/inducing_variances'))
 inducing_stds <- sqrt(inducing_vars)
 one_mean <- read.table('data/one_mean')
-one_var <- t(read.table('data/variance'))
+one_var <- t(read.table('data/one_variance'))
 one_std <- sqrt(one_var)
 sigma2 <- (read.table('data/sigma2'))[,1]
 sigma <- sqrt(sigma2)
