@@ -83,12 +83,8 @@ module Eval = struct
 
     let calc_diag k inputs =
       let n = Mat.dim2 inputs in
-      let res = Vec.create n in
-      let const = k.Kernel.const in
-      for i = 1 to n do
-        (* TODO: optimize sqr_nrm2 and col *)
-        res.{i} <- const *. (Vec.sqr_nrm2 (Mat.col inputs i) +. 1.);
-      done;
+      let res = Mat.syrk_diag ~trans:`T inputs ~beta:1. ~y:(Vec.make n 1.) in
+      scal k.Kernel.const res;
       res
 
     let calc_cross k cross =
@@ -106,11 +102,7 @@ end
 
 module Hyper = struct type t = [ `Log_theta ] end
 
-let calc_deriv_mat res =
-  (* TODO: scale upper only *)
-  (* TODO: even better: introduce passing through matrix and factor *)
-  Mat.scal (-2.) res;
-  `Dense res
+let calc_deriv_common () `Log_theta = `Factor (-2.)
 
 module Inducing = struct
   module Prepared = struct
@@ -119,14 +111,12 @@ module Inducing = struct
     let calc_upper upper = upper
   end
 
-  type upper = Eval.Inducing.t
+  type upper = unit
 
   let calc_shared_upper k prepared_upper =
-    let upper = Eval.Inducing.calc_upper k prepared_upper in
-    upper, upper
+    Eval.Inducing.calc_upper k prepared_upper, ()
 
-  let calc_deriv_upper upper `Log_theta =
-    calc_deriv_mat (lacpy ~uplo:`U upper)
+  let calc_deriv_upper = calc_deriv_common
 end
 
 module Inputs = struct
@@ -136,21 +126,15 @@ module Inputs = struct
     let calc_cross _upper cross = cross
   end
 
-  type diag = vec
-  type cross = Eval.Inputs.t
+  type diag = unit
+  type cross = unit
 
   let calc_shared_diag k diag_eval_inputs =
-    let diag = Eval.Inputs.calc_diag k diag_eval_inputs in
-    diag, diag
+    Eval.Inputs.calc_diag k diag_eval_inputs, ()
 
   let calc_shared_cross k cross_eval_inputs =
-    let cross = Eval.Inputs.calc_cross k cross_eval_inputs in
-    cross, cross
+    Eval.Inputs.calc_cross k cross_eval_inputs, ()
 
-  let calc_deriv_diag diag `Log_theta =
-    let res = copy diag in
-    scal (-2.) res;
-    `Vec res
-
-  let calc_deriv_cross cross `Log_theta = calc_deriv_mat (lacpy cross)
+  let calc_deriv_diag = calc_deriv_common
+  let calc_deriv_cross = calc_deriv_common
 end
