@@ -8,8 +8,6 @@ module Indices = struct
 end
 
 module Specs = struct
-  (* NOTE: all returned data must be modifiable *)
-
   module type Kernel = sig
     type t
     type params

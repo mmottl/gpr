@@ -18,10 +18,7 @@ module Eval = struct
     type t = mat
 
     module Prepared = struct
-      type upper = {
-        upper : mat;
-        inducing : t;
-      }
+      type upper = { upper : mat; inducing : t }
 
       let calc_km points =
         let m = Mat.dim2 points in

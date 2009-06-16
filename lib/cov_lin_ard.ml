@@ -22,10 +22,7 @@ module Eval = struct
     type t = mat
 
     module Prepared = struct
-      type upper = {
-        upper : mat;
-        inducing : t;
-      }
+      type upper = { upper : mat; inducing : t }
 
       let calc_upper points =
         { upper = syrk ~trans:`T points; inducing = points }
@@ -73,10 +70,7 @@ module Eval = struct
     type t = mat
 
     module Prepared = struct
-      type cross = {
-        inducing : Inducing.t;
-        inputs : t;
-      }
+      type cross = { inducing : Inducing.t; inputs : t }
 
       let calc_cross inducing_prepared inputs =
         {
@@ -95,14 +89,7 @@ module Eval = struct
       ard_inputs
 
     let calc_upper k inputs = syrk ~trans:`T (calc_ard_inputs k inputs)
-
-    let calc_diag k inputs =
-      let n = Mat.dim2 inputs in
-      let res = Vec.create n in
-      for i = 1 to n do
-        res.{i} <- Vec.sqr_nrm2 (Input.calc_ard_input k (Mat.col inputs i))
-      done;
-      res
+    let calc_diag k inputs = Mat.syrk_diag ~trans:`T (calc_ard_inputs k inputs)
 
     let calc_cross k { Prepared.inducing = inducing; inputs = inputs } =
       gemm ~transa:`T inducing (calc_ard_inputs k inputs)
@@ -117,18 +104,17 @@ end
 module Hyper = struct type t = [ `Log_ell of int ] end
 
 module Inducing = struct
+  module Eval_prep = Eval.Inducing.Prepared
+
   module Prepared = struct
-    type upper = Eval.Inducing.Prepared.upper
+    type upper = Eval_prep.upper
 
     let calc_upper upper = upper
   end
 
   type upper = Eval.Inducing.t
 
-  let calc_shared_upper _k prepared_upper =
-    let { Eval.Inducing.Prepared.upper = upper; inducing = inducing } =
-      prepared_upper
-    in
+  let calc_shared_upper _k { Eval_prep.upper = upper; inducing = inducing } =
     upper, inducing
 
   let calc_deriv_upper inducing (`Log_ell d) =
