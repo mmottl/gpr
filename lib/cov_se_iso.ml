@@ -270,7 +270,7 @@ module Inducing = struct
           let ind_d = inducing.{dim, i} in
           res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
         done;
-        let rows = Indices.create 1 in
+        let rows = Sparse_indices.create 1 in
         rows.{1} <- ind;
         `Sparse_rows (res, rows)
 end
@@ -323,7 +323,7 @@ module Inputs = struct
           let inp_d = inputs.{dim, c} in
           res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
         done;
-        let rows = Indices.create 1 in
+        let rows = Sparse_indices.create 1 in
         rows.{1} <- ind;
         `Sparse_rows (res, rows)
 end

@@ -1,11 +1,36 @@
 open Bigarray
 open Lacaml.Impl.D
 
-module Indices = struct
+module Sparse_indices = struct
   type t = (int, int_elt, fortran_layout) Array1.t
 
   let create n = Array1.create int fortran_layout n
 end
+
+type common_mat_deriv = [
+  | `Dense of mat
+  | `Sparse_rows of mat * Sparse_indices.t
+  | `Const of float
+  | `Factor of float
+]
+
+type mat_deriv = [
+  | common_mat_deriv
+  | `Sparse_cols of mat * Sparse_indices.t
+]
+
+type symm_mat_deriv = [
+  | common_mat_deriv
+  | `Diag_vec of vec
+  | `Diag_const of float
+]
+
+type diag_deriv = [
+  | `Vec of vec
+  | `Sparse_vec of vec * Sparse_indices.t
+  | `Const of float
+  | `Factor of float
+]
 
 module Specs = struct
   module type Kernel = sig
@@ -61,31 +86,6 @@ module Specs = struct
       val weighted_eval : Kernel.t -> coeffs : vec -> Prepared.cross -> vec
     end
   end
-
-  type common_mat_deriv = [
-    | `Dense of mat
-    | `Sparse_rows of mat * Indices.t
-    | `Const of float
-    | `Factor of float
-  ]
-
-  type mat_deriv = [
-    | common_mat_deriv
-    | `Sparse_cols of mat * Indices.t
-  ]
-
-  type symm_mat_deriv = [
-    | common_mat_deriv
-    | `Diag_vec of vec
-    | `Diag_const of float
-  ]
-
-  type diag_deriv = [
-    | `Vec of vec
-    | `Sparse_vec of vec * Indices.t
-    | `Const of float
-    | `Factor of float
-  ]
 
   module type Deriv = sig
     module Eval : Eval
