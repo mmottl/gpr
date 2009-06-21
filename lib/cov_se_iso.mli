@@ -19,4 +19,7 @@ module Deriv :
     with type Hyper.t =
       [ `Log_ell | `Log_sf2 | `Inducing_hyper of inducing_hyper ]
 
-module SPGP : SPGP with module Deriv = Deriv
+module SPGP :
+  SPGP
+    with module Eval = Eval
+    with module Deriv = Deriv

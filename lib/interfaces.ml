@@ -96,8 +96,8 @@ module Specs = struct
     module Hyper : sig
       type t
 
-      val get_n_hypers : Eval.Kernel.t -> int
-      val of_index : Eval.Kernel.t -> index : int -> t
+      val extract : Eval.Kernel.t -> t array * vec
+      val update : Eval.Kernel.t -> vec -> Eval.Kernel.t
     end
 
     module Inducing : sig
@@ -132,15 +132,16 @@ module Specs = struct
   end
 
   module type SPGP = sig
-    module Deriv : Deriv
+    module Eval : Eval
+    module Deriv : Deriv with module Eval = Eval
 
-    val get_n_inducing_hypers : Deriv.Eval.Inducing.t -> int
+    module Inducing_hypers : sig
+      val extract :
+        Deriv.Eval.Inducing.t -> Deriv.Hyper.t array * vec
 
-    val get_hyper_of_index :
-      Deriv.Eval.Inducing.t -> index : int -> Deriv.Hyper.t
-
-    val update_inducing :
-      Deriv.Eval.Inducing.t -> gradient : vec -> Deriv.Eval.Inducing.t
+      val update :
+        Deriv.Eval.Inducing.t -> vec -> Deriv.Eval.Inducing.t
+    end
   end
 end
 
@@ -351,10 +352,35 @@ module Sigs = struct
         val prepare_hyper : t -> hyper_t
         val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
       end
+
+(*
+      module Optim : sig
+        val solve :
+          ?kernel : Eval.Spec.Kernel.t ->
+          ?inducing : Eval.Spec.Inducing.t ->
+          inputs : Eval.Spec.Inputs.t ->
+          targets : vec ->
+          Eval.Spec.Kernel.t * vec
+      end
+*)
     end
   end
 
   module type SPGP = sig
-    module Deriv : Deriv
+    module Eval : Eval
+    module Deriv : Deriv with module Eval = Eval
+
+    module SPGP : sig
+      module Spec : Specs.SPGP
+        with module Eval = Deriv.Eval.Spec
+        with module Deriv = Deriv.Deriv.Spec
+
+      val solve :
+        ?kernel : Spec.Eval.Kernel.t ->
+        ?inducing : Spec.Eval.Inducing.t ->
+        inputs : Spec.Eval.Inputs.t ->
+        targets : vec ->
+        Spec.Eval.Kernel.t * Spec.Eval.Inducing.t * vec
+    end
   end
 end

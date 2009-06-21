@@ -1,4 +1,5 @@
 open Printf
+open Bigarray
 open Lacaml.Impl.D
 
 open Interfaces
@@ -216,18 +217,14 @@ module Deriv = struct
   module Hyper = struct
     type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
 
-    let n_hypers = 2
-    let get_n_hypers _kernel = n_hypers
+    let extract { Eval.Kernel.params = params } =
+      let values = Vec.create 2 in
+      values.{1} <- params.Params.log_ell;
+      values.{2} <- params.Params.log_sf2;
+      [| `Log_ell; `Log_sf2 |], values
 
-    let of_index _kernel ~index =
-      match index with
-      | 1 -> `Log_ell
-      | 2 -> `Log_sf2
-      | _ ->
-          failwith (
-            sprintf
-              "Gpr.Cov_se_iso.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
-              index n_hypers)
+    let update _kernel (values : vec) =
+      Eval.Kernel.create { Params.log_ell = values.{1}; log_sf2 = values.{2} }
   end
 
   type deriv_common = {
@@ -356,27 +353,26 @@ module Deriv = struct
 end
 
 module SPGP = struct
+  module Eval = Eval
   module Deriv = Deriv
 
-  let get_n_inducing_hypers inducing = Mat.dim1 inducing * Mat.dim2 inducing
+  module Inducing_hypers = struct
+    let extract inducing =
+      let d = Mat.dim1 inducing in
+      let n = Mat.dim2 inducing in
+      let all = d * n in
+      let hypers = Array.create all (`Inducing_hyper { ind = 1; dim = 1 }) in
+      for ind = 1 to n do
+        let indd = (ind - 1) * d in
+        for dim = 1 to d do
+          let inducing_hyper = { ind = ind; dim = dim } in
+          hypers.(indd + dim - 1) <- (`Inducing_hyper inducing_hyper)
+        done
+      done;
+      hypers, Mat.as_vec inducing
 
-  let get_hyper_of_index inducing ~index =
-    let m = Mat.dim1 inducing in
-    let n = Mat.dim2 inducing in
-    let n_inducing_hypers = m * n in
-    if index > n_inducing_hypers then
-      failwith (
-        sprintf
-          "Gpr.Cov_se_iso.SPGP.get_hyper_of_index: \
-          index (%d) > n_inducing_hypers (%d)" index n_inducing_hypers)
-    else
-      let ind_1 = index / m in
-      let dim = index - ind_1 * n in
-      `Inducing_hyper { ind = ind_1 + 1; dim = dim }
-
-  let update_inducing inducing ~gradient =
-    let res = lacpy inducing in
-    let res_vec = Mat.as_vec res in
-    axpy ~x:gradient res_vec;
-    res
+    let update inducing values =
+      let gen = genarray_of_array1 values in
+      reshape_2 gen (Mat.dim1 inducing) (Mat.dim2 inducing)
+  end
 end

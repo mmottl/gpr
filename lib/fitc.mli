@@ -1,5 +1,7 @@
 open Interfaces
 
+(** Evaluation *)
+
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec
 
@@ -46,6 +48,9 @@ module Make (Spec : Specs.Eval) : sig
       with module Sampler = Variational_FITC.Sampler
 end
 
+
+(** Derivatives *)
+
 module type Deriv_sig = functor (Spec : Specs.Deriv) ->
   Sigs.Deriv
     with module Eval.Spec = Spec.Eval
@@ -75,6 +80,7 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Variance = FITC.Eval.Variance
       with module Eval.Variances = FITC.Eval.Variances
       with module Eval.Sampler = FITC.Eval.Sampler
+
       with module Deriv.Inducing = FITC.Deriv.Inducing
       with module Deriv.Inputs = FITC.Deriv.Inputs
       with module Deriv.Model = FITC.Deriv.Model
@@ -100,8 +106,23 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Variance = Variational_FITC.Eval.Variance
       with module Eval.Variances = Variational_FITC.Eval.Variances
       with module Eval.Sampler = Variational_FITC.Eval.Sampler
+
       with module Deriv.Inducing = Variational_FITC.Deriv.Inducing
       with module Deriv.Inputs = Variational_FITC.Deriv.Inputs
       with module Deriv.Model = Variational_FITC.Deriv.Model
       with module Deriv.Trained = Variational_FITC.Deriv.Trained
 end
+
+
+(** SPGP *)
+
+module Make_SPGP
+  (Deriv : Sigs.Deriv)
+  (Spec : Specs.SPGP
+    with module Eval = Deriv.Eval.Spec
+    with module Deriv = Deriv.Deriv.Spec)
+  :
+    Sigs.SPGP
+      with module Eval = Deriv.Eval
+      with module Deriv = Deriv
+      with module SPGP.Spec = Spec

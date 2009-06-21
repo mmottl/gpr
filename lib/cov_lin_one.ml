@@ -111,17 +111,13 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_theta ]
 
-    let n_hypers = 1
-    let get_n_hypers _kernel = n_hypers
+    let extract { Eval.Kernel.params = params } =
+      let values = Vec.create 1 in
+      values.{1} <- params.Params.log_theta;
+      [| `Log_theta |], values
 
-    let of_index _kernel ~index =
-      match index with
-      | 1 -> `Log_theta
-      | _ ->
-          failwith (
-            sprintf
-              "Gpr.Cov_lin_one.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
-              index n_hypers)
+    let update _kernel (values : vec) =
+      Eval.Kernel.create { Params.log_theta = values.{1} }
   end
 
   let calc_deriv_common () `Log_theta = `Factor (-2.)

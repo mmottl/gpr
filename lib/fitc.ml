@@ -1508,3 +1508,24 @@ module Make_deriv (Spec : Specs.Deriv) = struct
     end
   end
 end
+
+
+(* SPGP *)
+
+module Make_SPGP
+  (Deriv : Sigs.Deriv)
+  (Spec : Specs.SPGP
+    with module Eval = Deriv.Eval.Spec
+    with module Deriv = Deriv.Deriv.Spec) =
+struct
+  module Eval = Deriv.Eval
+  module Deriv = Deriv
+
+  module SPGP = struct
+    module Spec = Spec
+
+    let solve ?kernel ?inducing ~inputs ~targets =
+      ignore (kernel, inducing, inputs, targets);
+      (assert false (* XXX *))
+  end
+end

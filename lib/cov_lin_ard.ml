@@ -127,16 +127,13 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_ell of int ]
 
-    let get_n_hypers kernel = Vec.dim kernel.Eval.Kernel.consts
+    let extract { Eval.Kernel.params = params } =
+      let values = copy params.Params.log_ells in
+      let hypers = Array.init (Vec.dim values) (fun i -> `Log_ell (i + 1)) in
+      hypers, values
 
-    let of_index { Eval.Kernel.consts = consts } ~index =
-      let n_hypers = Vec.dim consts in
-      if index > n_hypers then
-        failwith (
-          sprintf
-            "Gpr.Cov_lin_ard.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
-            index n_hypers)
-      else `Log_ell index
+    let update _kernel (log_ells : vec) =
+      Eval.Kernel.create { Params.log_ells = log_ells }
   end
 
   module Inducing = struct
