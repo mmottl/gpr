@@ -32,6 +32,41 @@ module Make_common (Spec : Specs.Eval) = struct
           points = points;
           upper = Spec.Inducing.Prepared.calc_upper points;
         }
+
+      let id x = x
+
+      let check_n_inducing ~n_inducing inputs =
+        let n_inputs = Spec.Inputs.get_n_inputs inputs in
+        if n_inputs < 1 || n_inputs > n_inputs then
+          failwith
+            (sprintf
+              "Gpr.Fitc.Make_common.check_n_inducing: \
+              violating 1 <= n_inducing (%d) <= n_inputs (%d)"
+              n_inducing n_inputs)
+
+      let choose kernel inputs indexes =
+        let chosen_inputs = Spec.Inputs.choose_subset inputs indexes in
+        calc (Spec.Inputs.create_inducing kernel chosen_inputs)
+
+      let choose_first_n_inputs kernel ~n_inducing inputs =
+        check_n_inducing ~n_inducing inputs;
+        let indexes = Int_vec.create n_inducing in
+        for i = 1 to n_inducing do indexes.{i} <- i done;
+        choose kernel inputs indexes
+
+      let choose_random_n_inputs
+            ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
+        check_n_inducing ~n_inducing inputs;
+        let n_inputs = Spec.Inputs.get_n_inputs inputs in
+        let indexes = Int_vec.create n_inputs in
+        for i = 1 to n_inputs do indexes.{i} <- i done;
+        for i = 1 to n_inducing do
+          let rnd_index = Random.State.int rnd_state (n_inputs - i + 1) + 1 in
+          let tmp = indexes.{rnd_index} in
+          indexes.{rnd_index} <- indexes.{i};
+          indexes.{i} <- tmp;
+        done;
+        choose kernel inputs indexes
     end
 
     type t = {
@@ -141,6 +176,10 @@ module Make_common (Spec : Specs.Eval) = struct
       let kernel = inducing.Inducing.kernel in
       let kmn = Inputs.calc_cross kernel prepared.Prepared.cross in
       calc_internal inducing prepared.Prepared.points kmn
+
+    let create_default_kernel inputs =
+      let params = Spec.Inputs.create_default_kernel_params inputs in
+      Kernel.create params
 
     let get_kernel t = t.inducing.Inducing.kernel
     let get_km t = t.inducing.Inducing.km
@@ -973,7 +1012,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         | `Sparse_rows (sdkmn, rows) ->
             let real_m = Mat.dim1 x_mat in
             check_sparse_row_mat_sane ~real_m ~smat:sdkmn ~rows;
-            let m = Array1.dim rows in
+            let m = Int_vec.dim rows in
             let n = Mat.dim2 sdkmn in
             let res_ref = ref 0. in
             for r = 1 to m do
@@ -990,7 +1029,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             let real_n = Mat.dim2 x_mat in
             check_sparse_col_mat_sane ~real_n ~smat:sdkmn ~cols;
             let m = Mat.dim1 sdkmn in
-            let n = Array1.dim cols in
+            let n = Int_vec.dim cols in
             let res_ref = ref 0. in
             for c = 1 to n do
               let real_c = cols.{c} in

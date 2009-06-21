@@ -75,9 +75,6 @@ module Eval = struct
     let get_n_inputs = Mat.dim2
     let choose_subset inputs indexes = choose_cols inputs indexes
 
-    let create_default_kernel_params inputs =
-      { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
-
     let create_inducing { Kernel.consts = consts } inputs =
       let m = Mat.dim1 inputs in
       let n = Mat.dim2 inputs in
@@ -88,6 +85,9 @@ module Eval = struct
         for c = 1 to n do res.{r, c} <- const *. inputs.{r, c} done;
       done;
       res
+
+    let create_default_kernel_params inputs =
+      { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
 
     module Prepared = struct
       type cross = { inducing : Inducing.t; inputs : t }

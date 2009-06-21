@@ -53,8 +53,8 @@ module Eval = struct
 
     let get_n_inputs n = n
     let choose_subset _inputs indexes = Array1.dim indexes
-    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
     let create_inducing _kernel n = n
+    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
 
     module Prepared = struct
       type cross = { m : int; n : int }

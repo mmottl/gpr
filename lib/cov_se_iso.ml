@@ -131,11 +131,10 @@ module Eval = struct
 
     let get_n_inputs = Mat.dim2
     let choose_subset inputs indexes = choose_cols inputs indexes
+    let create_inducing _kernel inputs = inputs
 
     let create_default_kernel_params _inputs =
       { Params.log_ell = 0.; log_sf2 = 0. }
-
-    let create_inducing _kernel inputs = inputs
 
     module Prepared = struct
       type cross = {

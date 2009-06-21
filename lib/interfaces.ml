@@ -3,11 +3,7 @@ open Lacaml.Impl.D
 
 open Utils
 
-module Sparse_indices = struct
-  type t = int_vec
-
-  let create n = Array1.create int fortran_layout n
-end
+module Sparse_indices = Int_vec
 
 type common_mat_deriv = [
   | `Dense of mat
@@ -76,9 +72,9 @@ module Specs = struct
       type t
 
       val get_n_inputs : t -> int
-      val choose_subset : t -> int_vec -> t
-      val create_default_kernel_params : t -> Kernel.params
+      val choose_subset : t -> Int_vec.t -> t
       val create_inducing : Kernel.t -> t -> Inducing.t
+      val create_default_kernel_params : t -> Kernel.params
 
       module Prepared : sig
         type cross
@@ -157,6 +153,16 @@ module Sigs = struct
         type t
 
         val calc : Spec.Inducing.t -> t
+
+        val choose_first_n_inputs :
+          Spec.Kernel.t -> n_inducing : int -> Spec.Inputs.t -> t
+
+        val choose_random_n_inputs :
+          ?rnd_state : Random.State.t ->
+          Spec.Kernel.t ->
+          n_inducing : int ->
+          Spec.Inputs.t ->
+          t
       end
 
       type t
@@ -185,6 +191,7 @@ module Sigs = struct
 
       type t
 
+      val create_default_kernel : Spec.Inputs.t -> Spec.Kernel.t
       val calc : Inducing.t -> Prepared.t -> t
     end
 
@@ -345,5 +352,9 @@ module Sigs = struct
         val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
       end
     end
+  end
+
+  module type SPGP = sig
+    module Deriv : Deriv
   end
 end

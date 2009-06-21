@@ -5,7 +5,12 @@ open Lacaml.Impl.D
 
 (* Global definitions *)
 
-type int_vec = (int, int_elt, fortran_layout) Array1.t
+module Int_vec = struct
+  type t = (int, int_elt, fortran_layout) Array1.t
+  let create n : t = Array1.create int fortran_layout n
+  let dim (t : t) = Array1.dim t
+  let sub (t : t) n = Array1.sub t n
+end
 
 let debug = ref true
 let cholesky_jitter = ref 1e-9
