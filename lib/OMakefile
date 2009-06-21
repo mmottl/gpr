@@ -1,7 +1,7 @@
 SOURCES[] =
   block_diag
-  interfaces
   utils
+  interfaces
   cov_const
   cov_lin_one
   cov_lin_ard

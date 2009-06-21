@@ -5,6 +5,8 @@ open Lacaml.Impl.D
 
 (* Global definitions *)
 
+type int_vec = (int, int_elt, fortran_layout) Array1.t
+
 let debug = ref true
 let cholesky_jitter = ref 1e-9
 
@@ -39,6 +41,22 @@ let write_mat file = gen_write pp_mat file
 
 
 (* General matrix functions *)
+
+(* Choose columns of a matrix *)
+let choose_cols mat indexes =
+  let m = Mat.dim1 mat in
+  let n = Mat.dim2 mat in
+  let k = Array1.dim indexes in
+  let res = Mat.create m k in
+  for c = 1 to k do
+    let real_c = indexes.{c} in
+    if real_c < 1 || real_c > n then
+      failwith (
+        sprintf "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
+          real_c n)
+    else for r = 1 to m do res.{r, c} <- mat.{r, real_c} done
+  done;
+  res
 
 (* Compute the sum of all elements in a matrix *)
 let sum_mat mat = Vec.sum (Mat.as_vec mat)

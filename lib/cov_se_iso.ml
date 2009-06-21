@@ -1,6 +1,8 @@
+open Printf
 open Lacaml.Impl.D
 
 open Interfaces
+open Utils
 
 module Params = struct type t = { log_ell : float; log_sf2 : float } end
 
@@ -127,6 +129,14 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let get_n_inputs = Mat.dim2
+    let choose_subset inputs indexes = choose_cols inputs indexes
+
+    let create_default_kernel_params _inputs =
+      { Params.log_ell = 0.; log_sf2 = 0. }
+
+    let create_inducing _kernel inputs = inputs
+
     module Prepared = struct
       type cross = {
         sq_diff_mat : mat;
@@ -199,131 +209,175 @@ module Eval = struct
   end
 end
 
-type gen_deriv = [ `Log_ell | `Log_sf2 ]
+module Deriv = struct
+  module Eval = Eval
 
-module Hyper = struct
-  type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
-end
+  type gen_deriv = [ `Log_ell | `Log_sf2 ]
 
-type deriv_common = {
-  kernel : Eval.Kernel.t;
-  sq_diff_mat : mat;
-  eval_mat : mat;
-}
+  module Hyper = struct
+    type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
 
-let calc_gen_deriv ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
-  function
-  | `Log_sf2 -> `Factor 1.
-  | `Log_ell ->
-      let m = Mat.dim1 sq_diff_mat in
-      let n = Mat.dim2 sq_diff_mat in
-      let res = Mat.create m n in
-      let { Eval.Kernel.inv_ell2 = inv_ell2 } = sh.kernel in
-      (* TODO: Lacaml-version of element-wise multiplication? *)
-      for c = 1 to n do
-        for r = 1 to m do
-          res.{r, c} <- eval_mat.{r, c} *. sq_diff_mat.{r, c} *. inv_ell2
-        done
-      done;
-      `Dense res
+    let n_hypers = 2
+    let get_n_hypers _kernel = n_hypers
 
-module Inducing = struct
-  module Prepared = struct
-    type upper = Eval.Inducing.Prepared.upper
-
-    let calc_upper upper = upper
+    let of_index _kernel ~index =
+      match index with
+      | 1 -> `Log_ell
+      | 2 -> `Log_sf2
+      | _ ->
+          failwith (
+            sprintf
+              "Gpr.Cov_se_iso.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
+              index n_hypers)
   end
 
-  type upper = Eval.Inducing.t * deriv_common
+  type deriv_common = {
+    kernel : Eval.Kernel.t;
+    sq_diff_mat : mat;
+    eval_mat : mat;
+  }
 
-  let calc_shared_upper kernel prepared_upper =
-    let module EI = Eval.Inducing in
-    let module EIP = EI.Prepared in
-    let upper = EI.calc_upper kernel prepared_upper in
-    let shared =
-      (
-        prepared_upper.EIP.inducing,
-        {
-          kernel = kernel;
-          sq_diff_mat = prepared_upper.EIP.sq_diff_mat;
-          eval_mat = upper;
-        }
-      )
-    in
-    upper, shared
-
-  let calc_deriv_upper (inducing, common) = function
-    | #gen_deriv as hyper -> calc_gen_deriv common hyper
-    | `Inducing_hyper inducing_hyper ->
-        let { ind = ind; dim = dim } = inducing_hyper in
-        let eval_mat = common.eval_mat in
-        let m = Mat.dim2 eval_mat in
-        let res = Mat.create 1 m in
-        let indx_d = inducing.{dim, ind} in
-        let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
-        for i = 1 to ind - 1 do
-          let ind_d = inducing.{dim, i} in
-          res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{i, ind}
-        done;
-        res.{1, ind} <- 0.;
-        for i = ind + 1 to m do
-          let ind_d = inducing.{dim, i} in
-          res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
-        done;
-        let rows = Sparse_indices.create 1 in
-        rows.{1} <- ind;
-        `Sparse_rows (res, rows)
-end
-
-module Inputs = struct
-  module Prepared = struct
-    type cross = Eval.Inputs.Prepared.cross
-
-    let calc_cross _upper cross = cross
-  end
-
-  type diag = Eval.Kernel.t
-
-  type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
-
-  let calc_shared_diag k diag_eval_inputs =
-    Eval.Inputs.calc_diag k diag_eval_inputs, k
-
-  let calc_shared_cross kernel prepared_cross =
-    let module EI = Eval.Inputs in
-    let module EIP = EI.Prepared in
-    let cross = EI.calc_cross kernel prepared_cross in
-    let shared =
-      (
-        prepared_cross.EIP.inducing,
-        prepared_cross.EIP.inputs,
-        {
-          kernel = kernel;
-          sq_diff_mat = prepared_cross.EIP.sq_diff_mat;
-          eval_mat = cross;
-        }
-      )
-    in
-    cross, shared
-
-  let calc_deriv_diag _diag = function
+  let calc_gen_deriv
+        ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
+    function
     | `Log_sf2 -> `Factor 1.
-    | `Log_ell | `Inducing_hyper _ -> `Const 0.
-
-  let calc_deriv_cross (inducing, inputs, common) = function
-    | #gen_deriv as hyper -> calc_gen_deriv common hyper
-    | `Inducing_hyper inducing_hyper ->
-        let { ind = ind; dim = dim } = inducing_hyper in
-        let eval_mat = common.eval_mat in
-        let n = Mat.dim2 eval_mat in
-        let res = Mat.create 1 n in
-        let indx_d = inducing.{dim, ind} in
-        let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+    | `Log_ell ->
+        let m = Mat.dim1 sq_diff_mat in
+        let n = Mat.dim2 sq_diff_mat in
+        let res = Mat.create m n in
+        let { Eval.Kernel.inv_ell2 = inv_ell2 } = sh.kernel in
+        (* TODO: Lacaml-version of element-wise multiplication? *)
         for c = 1 to n do
-          let inp_d = inputs.{dim, c} in
-          res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
+          for r = 1 to m do
+            res.{r, c} <- eval_mat.{r, c} *. sq_diff_mat.{r, c} *. inv_ell2
+          done
         done;
-        let rows = Sparse_indices.create 1 in
-        rows.{1} <- ind;
-        `Sparse_rows (res, rows)
+        `Dense res
+
+  module Inducing = struct
+    module Prepared = struct
+      type upper = Eval.Inducing.Prepared.upper
+
+      let calc_upper upper = upper
+    end
+
+    type upper = Eval.Inducing.t * deriv_common
+
+    let calc_shared_upper kernel prepared_upper =
+      let module EI = Eval.Inducing in
+      let module EIP = EI.Prepared in
+      let upper = EI.calc_upper kernel prepared_upper in
+      let shared =
+        (
+          prepared_upper.EIP.inducing,
+          {
+            kernel = kernel;
+            sq_diff_mat = prepared_upper.EIP.sq_diff_mat;
+            eval_mat = upper;
+          }
+        )
+      in
+      upper, shared
+
+    let calc_deriv_upper (inducing, common) = function
+      | #gen_deriv as hyper -> calc_gen_deriv common hyper
+      | `Inducing_hyper inducing_hyper ->
+          let { ind = ind; dim = dim } = inducing_hyper in
+          let eval_mat = common.eval_mat in
+          let m = Mat.dim2 eval_mat in
+          let res = Mat.create 1 m in
+          let indx_d = inducing.{dim, ind} in
+          let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+          for i = 1 to ind - 1 do
+            let ind_d = inducing.{dim, i} in
+            res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{i, ind}
+          done;
+          res.{1, ind} <- 0.;
+          for i = ind + 1 to m do
+            let ind_d = inducing.{dim, i} in
+            res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
+          done;
+          let rows = Sparse_indices.create 1 in
+          rows.{1} <- ind;
+          `Sparse_rows (res, rows)
+  end
+
+  module Inputs = struct
+    module Prepared = struct
+      type cross = Eval.Inputs.Prepared.cross
+
+      let calc_cross _upper cross = cross
+    end
+
+    type diag = Eval.Kernel.t
+
+    type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
+
+    let calc_shared_diag k diag_eval_inputs =
+      Eval.Inputs.calc_diag k diag_eval_inputs, k
+
+    let calc_shared_cross kernel prepared_cross =
+      let module EI = Eval.Inputs in
+      let module EIP = EI.Prepared in
+      let cross = EI.calc_cross kernel prepared_cross in
+      let shared =
+        (
+          prepared_cross.EIP.inducing,
+          prepared_cross.EIP.inputs,
+          {
+            kernel = kernel;
+            sq_diff_mat = prepared_cross.EIP.sq_diff_mat;
+            eval_mat = cross;
+          }
+        )
+      in
+      cross, shared
+
+    let calc_deriv_diag _diag = function
+      | `Log_sf2 -> `Factor 1.
+      | `Log_ell | `Inducing_hyper _ -> `Const 0.
+
+    let calc_deriv_cross (inducing, inputs, common) = function
+      | #gen_deriv as hyper -> calc_gen_deriv common hyper
+      | `Inducing_hyper inducing_hyper ->
+          let { ind = ind; dim = dim } = inducing_hyper in
+          let eval_mat = common.eval_mat in
+          let n = Mat.dim2 eval_mat in
+          let res = Mat.create 1 n in
+          let indx_d = inducing.{dim, ind} in
+          let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+          for c = 1 to n do
+            let inp_d = inputs.{dim, c} in
+            res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
+          done;
+          let rows = Sparse_indices.create 1 in
+          rows.{1} <- ind;
+          `Sparse_rows (res, rows)
+  end
+end
+
+module SPGP = struct
+  module Deriv = Deriv
+
+  let get_n_inducing_hypers inducing = Mat.dim1 inducing * Mat.dim2 inducing
+
+  let get_hyper_of_index inducing ~index =
+    let m = Mat.dim1 inducing in
+    let n = Mat.dim2 inducing in
+    let n_inducing_hypers = m * n in
+    if index > n_inducing_hypers then
+      failwith (
+        sprintf
+          "Gpr.Cov_se_iso.SPGP.get_hyper_of_index: \
+          index (%d) > n_inducing_hypers (%d)" index n_inducing_hypers)
+    else
+      let ind_1 = index / m in
+      let dim = index - ind_1 * n in
+      `Inducing_hyper { ind = ind_1 + 1; dim = dim }
+
+  let update_inducing inducing ~gradient =
+    let res = lacpy inducing in
+    let res_vec = Mat.as_vec res in
+    axpy ~x:gradient res_vec;
+    res
 end

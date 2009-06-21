@@ -1,5 +1,8 @@
+open Printf
 open Lacaml.Impl.D
 open Lacaml.Io
+
+open Utils
 
 module Params = struct type t = { log_ells : vec } end
 
@@ -69,6 +72,23 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let get_n_inputs = Mat.dim2
+    let choose_subset inputs indexes = choose_cols inputs indexes
+
+    let create_default_kernel_params inputs =
+      { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
+
+    let create_inducing { Kernel.consts = consts } inputs =
+      let m = Mat.dim1 inputs in
+      let n = Mat.dim2 inputs in
+      let res = Mat.create m n in
+      (* TODO: implement Mat.scal_rows in Lacaml *)
+      for r = 1 to m do
+        let const = consts.{r} in
+        for c = 1 to n do res.{r, c} <- const *. inputs.{r, c} done;
+      done;
+      res
+
     module Prepared = struct
       type cross = { inducing : Inducing.t; inputs : t }
 
@@ -101,73 +121,90 @@ module Eval = struct
   end
 end
 
-module Hyper = struct type t = [ `Log_ell of int ] end
+module Deriv = struct
+  module Eval = Eval
 
-module Inducing = struct
-  module Eval_prep = Eval.Inducing.Prepared
+  module Hyper = struct
+    type t = [ `Log_ell of int ]
 
-  module Prepared = struct
-    type upper = Eval_prep.upper
+    let get_n_hypers kernel = Vec.dim kernel.Eval.Kernel.consts
 
-    let calc_upper upper = upper
+    let of_index { Eval.Kernel.consts = consts } ~index =
+      let n_hypers = Vec.dim consts in
+      if index > n_hypers then
+        failwith (
+          sprintf
+            "Gpr.Cov_lin_ard.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
+            index n_hypers)
+      else `Log_ell index
   end
 
-  type upper = Eval.Inducing.t
+  module Inducing = struct
+    module Eval_prep = Eval.Inducing.Prepared
 
-  let calc_shared_upper _k { Eval_prep.upper = upper; inducing = inducing } =
-    upper, inducing
+    module Prepared = struct
+      type upper = Eval_prep.upper
 
-  let calc_deriv_upper inducing (`Log_ell d) =
-    let m = Mat.dim2 inducing in
-    let res = Mat.create m m in
-    for c = 1 to m do
-      for r = 1 to c do
-        res.{r, c} <- -2. *. inducing.{d, r} *. inducing.{d, c}
-      done
-    done;
-    `Dense res
-end
+      let calc_upper upper = upper
+    end
 
-module Inputs = struct
-  module Prepared = struct
-    type cross = Eval.Inputs.Prepared.cross
+    type upper = Eval.Inducing.t
 
-    let calc_cross _upper cross = cross
+    let calc_shared_upper _k { Eval_prep.upper = upper; inducing = inducing } =
+      upper, inducing
+
+    let calc_deriv_upper inducing (`Log_ell d) =
+      let m = Mat.dim2 inducing in
+      let res = Mat.create m m in
+      for c = 1 to m do
+        for r = 1 to c do
+          res.{r, c} <- -2. *. inducing.{d, r} *. inducing.{d, c}
+        done
+      done;
+      `Dense res
   end
 
-  type diag = Eval.Kernel.t * Eval.Inputs.t
-  type cross = Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
+  module Inputs = struct
+    module Prepared = struct
+      type cross = Eval.Inputs.Prepared.cross
 
-  let calc_shared_diag k inputs =
-    Eval.Inputs.calc_diag k inputs, (k, inputs)
+      let calc_cross _upper cross = cross
+    end
 
-  let calc_shared_cross k prepared_cross =
-    let { Eval.Inputs.Prepared.inducing = inducing; inputs = inputs } =
-      prepared_cross
-    in
-    Eval.Inputs.calc_cross k prepared_cross, (k, inducing, inputs)
+    type diag = Eval.Kernel.t * Eval.Inputs.t
+    type cross = Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
 
-  let calc_const k d = let kd = k.Eval.Kernel.consts.{d} in -2. *. kd *. kd
+    let calc_shared_diag k inputs =
+      Eval.Inputs.calc_diag k inputs, (k, inputs)
 
-  let calc_deriv_diag (k, inputs) (`Log_ell d) =
-    let n = Mat.dim2 inputs in
-    let res = Vec.create n in
-    let const = calc_const k d in
-    for i = 1 to n do
-      let el = inputs.{d, i} in
-      res.{i} <- (const *. el) *. el
-    done;
-    `Vec res
+    let calc_shared_cross k prepared_cross =
+      let { Eval.Inputs.Prepared.inducing = inducing; inputs = inputs } =
+        prepared_cross
+      in
+      Eval.Inputs.calc_cross k prepared_cross, (k, inducing, inputs)
 
-  let calc_deriv_cross (k, inducing, inputs) (`Log_ell d) =
-    let m = Mat.dim2 inducing in
-    let n = Mat.dim2 inputs in
-    let res = Mat.create m n in
-    let const = calc_const k d in
-    for c = 1 to n do
-      for r = 1 to m do
-        res.{r, c} <- const *. inducing.{d, r} *. inputs.{d, c}
-      done
-    done;
-    `Dense res
+    let calc_const k d = let kd = k.Eval.Kernel.consts.{d} in -2. *. kd *. kd
+
+    let calc_deriv_diag (k, inputs) (`Log_ell d) =
+      let n = Mat.dim2 inputs in
+      let res = Vec.create n in
+      let const = calc_const k d in
+      for i = 1 to n do
+        let el = inputs.{d, i} in
+        res.{i} <- (const *. el) *. el
+      done;
+      `Vec res
+
+    let calc_deriv_cross (k, inducing, inputs) (`Log_ell d) =
+      let m = Mat.dim2 inducing in
+      let n = Mat.dim2 inputs in
+      let res = Mat.create m n in
+      let const = calc_const k d in
+      for c = 1 to n do
+        for r = 1 to m do
+          res.{r, c} <- const *. inducing.{d, r} *. inputs.{d, c}
+        done
+      done;
+      `Dense res
+  end
 end

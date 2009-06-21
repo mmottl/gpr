@@ -1,3 +1,5 @@
+open Bigarray
+open Printf
 open Lacaml.Impl.D
 open Lacaml.Io
 
@@ -49,6 +51,11 @@ module Eval = struct
   module Inputs = struct
     type t = int
 
+    let get_n_inputs n = n
+    let choose_subset _inputs indexes = Array1.dim indexes
+    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
+    let create_inducing _kernel n = n
+
     module Prepared = struct
       type cross = { m : int; n : int }
 
@@ -69,54 +76,73 @@ module Eval = struct
   end
 end
 
-module Hyper = struct type t = [ `Log_theta ] end
+module Deriv = struct
+  module Eval = Eval
 
-let calc_const_deriv k = -2. *. k.Eval.Kernel.const
+  module Hyper = struct
+    type t = [ `Log_theta ]
 
-module Inducing = struct
-  module Prepared = struct
-    type upper = Eval.Inducing.Prepared.upper
+    let n_hypers = 2
+    let get_n_hypers _kernel = n_hypers
 
-    let calc_upper upper = upper
+    let of_index _kernel ~index =
+      match index with
+      | 1 -> `Log_theta
+      | _ ->
+          failwith (
+            sprintf
+              "Gpr.Cov_const.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
+              index n_hypers)
   end
 
-  type upper = { m : Prepared.upper; deriv_const : float }
+  let calc_const_deriv k = -2. *. k.Eval.Kernel.const
 
-  let calc_shared_upper k m =
-    Eval.Inducing.calc_upper k m, { m = m; deriv_const = calc_const_deriv k }
+  module Inducing = struct
+    module Prepared = struct
+      type upper = Eval.Inducing.Prepared.upper
 
-  let calc_deriv_upper shared `Log_theta = `Const shared.deriv_const
-end
+      let calc_upper upper = upper
+    end
 
-module Inputs = struct
-  module Prepared = struct
-    type cross = Eval.Inputs.Prepared.cross
+    type upper = { m : Prepared.upper; deriv_const : float }
 
-    let calc_cross m cross =
-      if m <> cross.Eval.Inputs.Prepared.m then
-        failwith
-          "Gpr.Cov_const.Deriv.Inputs.Prepared.calc_cross: dimension mismatch";
-      { cross with Eval.Inputs.Prepared.m = m }
+    let calc_shared_upper k m =
+      Eval.Inducing.calc_upper k m, { m = m; deriv_const = calc_const_deriv k }
+
+    let calc_deriv_upper shared `Log_theta = `Const shared.deriv_const
   end
 
-  type diag = { diag_eval_inputs : Eval.Inputs.t; diag_const_deriv : float }
-  type cross = { cross_const_deriv : float }
+  module Inputs = struct
+    module Prepared = struct
+      type cross = Eval.Inputs.Prepared.cross
 
-  let calc_shared_diag k diag_eval_inputs =
-    (
-      Eval.Inputs.calc_diag k diag_eval_inputs,
-      {
-        diag_eval_inputs = diag_eval_inputs;
-        diag_const_deriv = calc_const_deriv k;
-      }
-    )
+      let calc_cross m cross =
+        if m <> cross.Eval.Inputs.Prepared.m then
+          failwith
+            "Gpr.Cov_const.Deriv.Inputs.Prepared.calc_cross: \
+            dimension mismatch";
+        { cross with Eval.Inputs.Prepared.m = m }
+    end
 
-  let calc_shared_cross k prepared_cross =
-    (
-      Eval.Inputs.calc_cross k prepared_cross,
-      { cross_const_deriv = calc_const_deriv k }
-    )
+    type diag = { diag_eval_inputs : Eval.Inputs.t; diag_const_deriv : float }
+    type cross = { cross_const_deriv : float }
 
-  let calc_deriv_diag diag `Log_theta = `Const diag.diag_const_deriv
-  let calc_deriv_cross cross `Log_theta = `Const cross.cross_const_deriv
+    let calc_shared_diag k diag_eval_inputs =
+      (
+        Eval.Inputs.calc_diag k diag_eval_inputs,
+        {
+          diag_eval_inputs = diag_eval_inputs;
+          diag_const_deriv = calc_const_deriv k;
+        }
+      )
+
+    let calc_shared_cross k prepared_cross =
+      (
+        Eval.Inputs.calc_cross k prepared_cross,
+        { cross_const_deriv = calc_const_deriv k }
+      )
+
+    let calc_deriv_diag diag `Log_theta = `Const diag.diag_const_deriv
+    let calc_deriv_cross cross `Log_theta = `Const cross.cross_const_deriv
+  end
 end

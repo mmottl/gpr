@@ -1,8 +1,10 @@
 open Bigarray
 open Lacaml.Impl.D
 
+open Utils
+
 module Sparse_indices = struct
-  type t = (int, int_elt, fortran_layout) Array1.t
+  type t = int_vec
 
   let create n = Array1.create int fortran_layout n
 end
@@ -73,6 +75,11 @@ module Specs = struct
     module Inputs : sig
       type t
 
+      val get_n_inputs : t -> int
+      val choose_subset : t -> int_vec -> t
+      val create_default_kernel_params : t -> Kernel.params
+      val create_inducing : Kernel.t -> t -> Inducing.t
+
       module Prepared : sig
         type cross
 
@@ -90,7 +97,12 @@ module Specs = struct
   module type Deriv = sig
     module Eval : Eval
 
-    module Hyper : sig type t end
+    module Hyper : sig
+      type t
+
+      val get_n_hypers : Eval.Kernel.t -> int
+      val of_index : Eval.Kernel.t -> index : int -> t
+    end
 
     module Inducing : sig
       module Prepared : sig
@@ -121,6 +133,18 @@ module Specs = struct
       val calc_deriv_diag : diag -> Hyper.t -> diag_deriv
       val calc_deriv_cross : cross -> Hyper.t -> mat_deriv
     end
+  end
+
+  module type SPGP = sig
+    module Deriv : Deriv
+
+    val get_n_inducing_hypers : Deriv.Eval.Inducing.t -> int
+
+    val get_hyper_of_index :
+      Deriv.Eval.Inducing.t -> index : int -> Deriv.Hyper.t
+
+    val update_inducing :
+      Deriv.Eval.Inducing.t -> gradient : vec -> Deriv.Eval.Inducing.t
   end
 end
 

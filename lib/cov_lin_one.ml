@@ -1,5 +1,8 @@
+open Printf
 open Lacaml.Impl.D
 open Lacaml.Io
+
+open Utils
 
 module Params = struct type t = { log_theta : float } end
 
@@ -66,6 +69,11 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let get_n_inputs = Mat.dim2
+    let choose_subset inputs indexes = choose_cols inputs indexes
+    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
+    let create_inducing _kernel inputs = inputs
+
     module Prepared = struct
       type cross = t
 
@@ -97,41 +105,59 @@ module Eval = struct
   end
 end
 
-module Hyper = struct type t = [ `Log_theta ] end
+module Deriv = struct
+  module Eval = Eval
 
-let calc_deriv_common () `Log_theta = `Factor (-2.)
+  module Hyper = struct
+    type t = [ `Log_theta ]
 
-module Inducing = struct
-  module Prepared = struct
-    type upper = Eval.Inducing.Prepared.upper
+    let n_hypers = 1
+    let get_n_hypers _kernel = n_hypers
 
-    let calc_upper upper = upper
+    let of_index _kernel ~index =
+      match index with
+      | 1 -> `Log_theta
+      | _ ->
+          failwith (
+            sprintf
+              "Gpr.Cov_lin_one.Deriv.Hyper.of_index: index (%d) > n_hypers (%d)"
+              index n_hypers)
   end
 
-  type upper = unit
+  let calc_deriv_common () `Log_theta = `Factor (-2.)
 
-  let calc_shared_upper k prepared_upper =
-    Eval.Inducing.calc_upper k prepared_upper, ()
+  module Inducing = struct
+    module Prepared = struct
+      type upper = Eval.Inducing.Prepared.upper
 
-  let calc_deriv_upper = calc_deriv_common
-end
+      let calc_upper upper = upper
+    end
 
-module Inputs = struct
-  module Prepared = struct
-    type cross = Eval.Inputs.Prepared.cross
+    type upper = unit
 
-    let calc_cross _upper cross = cross
+    let calc_shared_upper k prepared_upper =
+      Eval.Inducing.calc_upper k prepared_upper, ()
+
+    let calc_deriv_upper = calc_deriv_common
   end
 
-  type diag = unit
-  type cross = unit
+  module Inputs = struct
+    module Prepared = struct
+      type cross = Eval.Inputs.Prepared.cross
 
-  let calc_shared_diag k diag_eval_inputs =
-    Eval.Inputs.calc_diag k diag_eval_inputs, ()
+      let calc_cross _upper cross = cross
+    end
 
-  let calc_shared_cross k cross_eval_inputs =
-    Eval.Inputs.calc_cross k cross_eval_inputs, ()
+    type diag = unit
+    type cross = unit
 
-  let calc_deriv_diag = calc_deriv_common
-  let calc_deriv_cross = calc_deriv_common
+    let calc_shared_diag k diag_eval_inputs =
+      Eval.Inputs.calc_diag k diag_eval_inputs, ()
+
+    let calc_shared_cross k cross_eval_inputs =
+      Eval.Inputs.calc_cross k cross_eval_inputs, ()
+
+    let calc_deriv_diag = calc_deriv_common
+    let calc_deriv_cross = calc_deriv_common
+  end
 end
