@@ -12,16 +12,16 @@ open Gen_data
 let find_sigma2 () =
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
-  let eval_prep_inducing = Eval.Inducing.Prepared.calc inducing_inputs in
-  let deriv_prep_inducing = Deriv.Inducing.Prepared.calc eval_prep_inducing in
-  let inducing = Deriv.Inducing.calc kernel deriv_prep_inducing in
-  let eval_prep_inputs =
-    Eval.Inputs.Prepared.calc eval_prep_inducing training_inputs
+  let eval_inducing_prep = Eval.Inducing.Prepared.calc inducing_inputs in
+  let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
+  let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
+  let eval_inputs_prep =
+    Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
   in
-  let deriv_prep_inputs =
-    Deriv.Inputs.Prepared.calc deriv_prep_inducing eval_prep_inputs
+  let deriv_inputs_prep =
+    Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
   in
-  let inputs = Deriv.Inputs.calc inducing deriv_prep_inputs in
+  let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
   let eval_inputs = Deriv.Inputs.calc_eval inputs in
 
   let model_ref = ref None in
@@ -93,14 +93,13 @@ let find_sigma2 () =
     let log_evidence = -. nll in
     let diff = abs_float (1. -. (log_evidence /. last_log_evidence)) in
     printf "diff: %f\n%!" diff;
-    if diff < 0.001 then nll
+    if diff < 0.001 then -. nll, exp x.{0}
     else (
       printf "log evidence: %f\n%!" log_evidence;
       Gd.iterate mumin;
       loop log_evidence)
   in
-  let nll = loop neg_infinity in
-  -. nll, exp x.{0}
+  loop neg_infinity
 
 let main () =
   let log_evidence, sigma2 = find_sigma2 () in

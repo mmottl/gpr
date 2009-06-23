@@ -353,16 +353,25 @@ module Sigs = struct
         val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
       end
 
-(*
       module Optim : sig
+        module Solution : sig
+          type t = {
+            kernel : Eval.Spec.Kernel.t;
+            sigma2 : float;
+            coeffs : vec;
+            log_evidence : float;
+          }
+        end
+
         val solve :
           ?kernel : Eval.Spec.Kernel.t ->
+          ?sigma2 : float ->
           ?inducing : Eval.Spec.Inducing.t ->
+          ?n_inducing : int ->
           inputs : Eval.Spec.Inputs.t ->
           targets : vec ->
-          Eval.Spec.Kernel.t * vec
+          Solution.t
       end
-*)
     end
   end
 
@@ -375,12 +384,17 @@ module Sigs = struct
         with module Eval = Deriv.Eval.Spec
         with module Deriv = Deriv.Deriv.Spec
 
+      module Solution : sig
+      end
+
       val solve :
-        ?kernel : Spec.Eval.Kernel.t ->
-        ?inducing : Spec.Eval.Inducing.t ->
-        inputs : Spec.Eval.Inputs.t ->
+        ?kernel : Eval.Spec.Kernel.t ->
+        ?sigma2 : float ->
+        ?inducing : Eval.Spec.Inducing.t ->
+        ?n_inducing : int ->
+        inputs : Eval.Spec.Inputs.t ->
         targets : vec ->
-        Spec.Eval.Kernel.t * Spec.Eval.Inducing.t * vec
+        Eval.Spec.Kernel.t * Eval.Spec.Inducing.t * vec
     end
   end
 end
