@@ -158,7 +158,7 @@ module Sigs = struct
         val choose_first_n_inputs :
           Spec.Kernel.t -> n_inducing : int -> Spec.Inputs.t -> t
 
-        val choose_random_n_inputs :
+        val choose_n_random_inputs :
           ?rnd_state : Random.State.t ->
           Spec.Kernel.t ->
           n_inducing : int ->
@@ -351,26 +351,6 @@ module Sigs = struct
 
         val prepare_hyper : t -> hyper_t
         val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
-      end
-
-      module Optim : sig
-        module Solution : sig
-          type t = {
-            kernel : Eval.Spec.Kernel.t;
-            sigma2 : float;
-            coeffs : vec;
-            log_evidence : float;
-          }
-        end
-
-        val solve :
-          ?kernel : Eval.Spec.Kernel.t ->
-          ?sigma2 : float ->
-          ?inducing : Eval.Spec.Inducing.t ->
-          ?n_inducing : int ->
-          inputs : Eval.Spec.Inputs.t ->
-          targets : vec ->
-          Solution.t
       end
     end
   end

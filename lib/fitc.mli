@@ -112,17 +112,3 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Deriv.Model = Variational_FITC.Deriv.Model
       with module Deriv.Trained = Variational_FITC.Deriv.Trained
 end
-
-
-(** SPGP *)
-
-module Make_SPGP
-  (Deriv : Sigs.Deriv)
-  (Spec : Specs.SPGP
-    with module Eval = Deriv.Eval.Spec
-    with module Deriv = Deriv.Deriv.Spec)
-  :
-    Sigs.SPGP
-      with module Eval = Deriv.Eval
-      with module Deriv = Deriv
-      with module SPGP.Spec = Spec
