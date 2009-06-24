@@ -48,13 +48,13 @@ module Make_common (Spec : Specs.Eval) = struct
         let chosen_inputs = Spec.Inputs.choose_subset inputs indexes in
         calc (Spec.Inputs.create_inducing kernel chosen_inputs)
 
-      let choose_first_n_inputs kernel ~n_inducing inputs =
+      let choose_n_first_inputs kernel ~n_inducing inputs =
         check_n_inducing ~n_inducing inputs;
         let indexes = Int_vec.create n_inducing in
         for i = 1 to n_inducing do indexes.{i} <- i done;
         choose kernel inputs indexes
 
-      let choose_random_n_inputs
+      let choose_n_random_inputs
             ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
         check_n_inducing ~n_inducing inputs;
         let n_inputs = Spec.Inputs.get_n_inputs inputs in

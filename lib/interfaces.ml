@@ -155,7 +155,7 @@ module Sigs = struct
 
         val calc : Spec.Inducing.t -> t
 
-        val choose_first_n_inputs :
+        val choose_n_first_inputs :
           Spec.Kernel.t -> n_inducing : int -> Spec.Inputs.t -> t
 
         val choose_n_random_inputs :

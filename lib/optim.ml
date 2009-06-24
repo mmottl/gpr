@@ -9,8 +9,8 @@ module Make (Spec : Sigs.Deriv) = struct
 
   module Solution = struct
     type t = {
-      kernel : Eval.Spec.Kernel.t;
       sigma2 : float;
+      kernel : Eval.Spec.Kernel.t;
       coeffs : vec;
       log_evidence : float;
     }
