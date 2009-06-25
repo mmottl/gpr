@@ -19,7 +19,7 @@ module Gsl = struct
       }
     end
 
-    let solve ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets =
+    let solve ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
       let kernel =
         match kernel with
         | None -> Eval.Inputs.create_default_kernel inputs
@@ -27,7 +27,7 @@ module Gsl = struct
       in
       let sigma2 =
         match sigma2 with
-        | None -> Vec.sqr_nrm2 targets
+        | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
         | Some sigma2 -> max sigma2 min_float
       in
       let eval_inducing_prepared =
@@ -36,7 +36,7 @@ module Gsl = struct
             let n_inducing =
               let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
               match n_rand_inducing with
-              | None -> n_inputs / 10
+              | None -> min (n_inputs / 10) 1000
               | Some n_rand_inducing -> max (min n_inputs n_rand_inducing) 0
             in
             Eval.Inducing.Prepared.choose_n_random_inputs
@@ -54,7 +54,8 @@ module Gsl = struct
       in
       let hyper_vars, hyper_vals = Deriv.Spec.Hyper.extract kernel in
       let n_hypers = Array.length hyper_vars in
-      let gsl_hypers = Gsl_vector.create (n_hypers + 1) in
+      let n_gsl_hypers = n_hypers + 1 in
+      let gsl_hypers = Gsl_vector.create n_gsl_hypers in
       gsl_hypers.{0} <- log sigma2;
       for i = 1 to n_hypers do gsl_hypers.{i} <- hyper_vals.{i} done;
       let module Gd = Gsl_multimin.Deriv in
@@ -115,8 +116,8 @@ module Gsl = struct
         }
       in
       let mumin =
-        Gd.make Gd.VECTOR_BFGS2 n_hypers
-          multim_fun_fdf ~x:gsl_hypers ~step:1e-3 ~tol:1e-4
+        Gd.make Gd.VECTOR_BFGS2 n_gsl_hypers
+          multim_fun_fdf ~x:gsl_hypers ~step:1e-1 ~tol:1e-1
       in
       let rec loop last_log_evidence =
         let neg_log_likelihood = Gd.minimum ~x:gsl_hypers mumin in

@@ -25,6 +25,7 @@ module Gsl : sig
       ?n_rand_inducing : int ->
       inputs : Eval.Spec.Inputs.t ->
       targets : vec ->
+      unit ->
       Solution.t
   end
 

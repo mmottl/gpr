@@ -66,6 +66,7 @@ module Make_common (Spec : Specs.Eval) = struct
           indexes.{rnd_index} <- indexes.{i};
           indexes.{i} <- tmp;
         done;
+        let indexes = Array1.sub indexes 1 n_inducing in
         choose kernel inputs indexes
     end
 
