@@ -68,6 +68,8 @@ module Make_common (Spec : Specs.Eval) = struct
         done;
         let indexes = Array1.sub indexes 1 n_inducing in
         choose kernel inputs indexes
+
+      let get_points inducing = inducing.points
     end
 
     type t = {

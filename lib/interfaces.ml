@@ -136,11 +136,8 @@ module Specs = struct
     module Deriv : Deriv with module Eval = Eval
 
     module Inducing_hypers : sig
-      val extract :
-        Deriv.Eval.Inducing.t -> Deriv.Hyper.t array * vec
-
-      val update :
-        Deriv.Eval.Inducing.t -> vec -> Deriv.Eval.Inducing.t
+      val extract : Deriv.Eval.Inducing.t -> Deriv.Hyper.t array * vec
+      val update : Deriv.Eval.Inducing.t -> vec -> Deriv.Eval.Inducing.t
     end
   end
 end
@@ -164,6 +161,8 @@ module Sigs = struct
           n_inducing : int ->
           Spec.Inputs.t ->
           t
+
+        val get_points : t -> Spec.Inducing.t
       end
 
       type t
@@ -397,9 +396,10 @@ module Sigs = struct
         ?kernel : Eval.Spec.Kernel.t ->
         ?sigma2 : float ->
         ?inducing : Eval.Spec.Inducing.t ->
-        ?n_inducing : int ->
+        ?n_rand_inducing : int ->
         inputs : Eval.Spec.Inputs.t ->
         targets : vec ->
+        unit ->
         Eval.Trained.t
     end
   end
