@@ -11,7 +11,8 @@ open Gen_data
 
 let main () =
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
-  write_float "sigma2" noise_sigma2;
+  let sigma2 = noise_sigma2 in
+  write_float "sigma2" sigma2;
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
   write_mat "inducing_inputs" inducing_inputs;
@@ -30,7 +31,9 @@ let main () =
   let trained = FITC.Trained.calc model ~targets:training_targets in
   printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
 
-  let means = FITC.Means.calc_model_inputs trained in
+  let mean_predictor = FITC.Mean_predictor.calc_trained trained in
+  let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in
+  let means = FITC.Means.calc_induced mean_predictor inputs in
   let inducing_means =
     FITC.Means.Inducing.get (FITC.Means.Inducing.calc trained)
   in
@@ -43,10 +46,10 @@ let main () =
     write_vec "one_inducing" input;
     let prepared = FITC.Input.Prepared.calc prep_inducing input in
     let induced = FITC.Input.calc inducing prepared in
-    let mean = FITC.Mean.get (FITC.Mean.calc_induced trained induced) in
+    let mean = FITC.Mean.get (FITC.Mean.calc_induced mean_predictor induced) in
     let variance =
       FITC.Variance.get ~predictive:false
-        (FITC.Variance.calc_induced model induced)
+        (FITC.Variance.calc_induced co_variance_predictor ~sigma2 induced)
     in
     mean, variance
   in

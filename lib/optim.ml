@@ -10,16 +10,7 @@ module Gsl = struct
   module Make (Spec : Sigs.Deriv) = struct
     open Spec
 
-    module Solution = struct
-      type t = {
-        sigma2 : float;
-        kernel : Eval.Spec.Kernel.t;
-        coeffs : vec;
-        log_evidence : float;
-      }
-    end
-
-    let solve ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
+    let train ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
       let kernel =
         match kernel with
         | None -> Eval.Inputs.create_default_kernel inputs
@@ -132,15 +123,7 @@ module Gsl = struct
             Eval.Inputs.calc eval_inducing eval_inputs_prepared
           in
           let model = Eval.Model.calc eval_inputs ~sigma2 in
-          let trained = Eval.Trained.calc model ~targets in
-          let coeffs = Eval.Trained.get_coeffs trained in
-          {
-            Solution.
-            kernel = kernel;
-            sigma2 = sigma2;
-            coeffs = coeffs;
-            log_evidence = log_evidence;
-          }
+          Eval.Trained.calc model ~targets
         else begin
           Gd.iterate mumin;
           loop log_evidence
@@ -167,7 +150,7 @@ module Gsl = struct
       module Solution = struct
       end
 
-      let solve ?kernel ?sigma2 ?inducing ?n_inducing ~inputs ~targets =
+      let train ?kernel ?sigma2 ?inducing ?n_inducing ~inputs ~targets =
         ignore (kernel, sigma2, inducing, n_inducing, inputs, targets);
         (assert false (* TODO *))
     end

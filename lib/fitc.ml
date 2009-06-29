@@ -287,6 +287,12 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_km model = (get_inducing model).Inducing.km
     let get_kmn model = model.inputs.Inputs.kmn
     let get_kn_diag model = model.kn_diag
+
+    let calc_co_variance_coeffs model =
+      let res = ichol (get_chol_km model) in
+      Mat.axpy ~alpha:(-1.) ~x:(ichol model.chol_b) res;
+      potrf ~jitter res;
+      res
   end
 
   (* Model computation (variational version) *)
@@ -332,34 +338,54 @@ module Make_common (Spec : Specs.Eval) = struct
       trsv model.Common_model.chol_b t_vec;
       calc_internal model ~y ~t_vec ~l2
 
-    let get_coeffs trained = trained.coeffs
+    let calc_mean_coeffs trained = trained.coeffs
     let calc_log_evidence trained = trained.l
 
     let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
     let get_upper trained = Common_model.get_upper trained.model
+    let get_model trained = trained.model
+  end
+
+  module Mean_predictor = struct
+    type t = {
+      kernel : Spec.Kernel.t;
+      inducing : Spec.Inducing.t;
+      coeffs : vec;
+    }
+
+    let calc_trained trained =
+      {
+        kernel = Trained.get_kernel trained;
+        inducing = Inducing.get_points (Trained.get_inducing trained);
+        coeffs = Trained.calc_mean_coeffs trained;
+      }
+
+    let calc kernel inducing ~coeffs =
+      {
+        kernel = kernel;
+        inducing = inducing;
+        coeffs = coeffs;
+      }
   end
 
   (* Prediction of mean for one input point *)
   module Mean = struct
     type t = { point : Spec.Input.t; value : float }
 
-    let make ~point ~value = { point = point; value = value }
-
-    let calc_input trained point =
-      let upper = Trained.get_upper trained in
-      let prepared = Spec.Input.Prepared.calc_cross upper point in
-      let kernel = Trained.get_kernel trained in
-      let coeffs = Trained.get_coeffs trained in
-      let value = Spec.Input.weighted_eval kernel ~coeffs prepared in
-      make ~point ~value
-
-    let calc_induced trained input =
-      if Trained.get_inducing trained <> input.Input.inducing then
+    let calc_induced mean_predictor input =
+      if
+        mean_predictor.Mean_predictor.inducing
+        != Inducing.get_points input.Input.inducing
+      then
         failwith
-          "Mean.calc_induced: trained and input disagree about inducing points";
-      let value = dot ~x:input.Input.k_m trained.Trained.coeffs in
-      make ~point:input.Input.point ~value
+          "Mean.calc_induced: mean predictor and input disagree \
+          about inducing points"
+      else
+        let value =
+          dot ~x:input.Input.k_m mean_predictor.Mean_predictor.coeffs
+        in
+        { point = input.Input.point; value = value }
 
     let get mean = mean.value
   end
@@ -368,69 +394,84 @@ module Make_common (Spec : Specs.Eval) = struct
   module Means = struct
     type t = { points : Spec.Inputs.t; values : vec }
 
-    let make ~points ~values = { points = points; values = values }
-
-    let calc_model_inputs { Trained.coeffs = coeffs; model = model } =
-      make
-        ~points:(Common_model.get_input_points model)
-        ~values:(gemv ~trans:`T (Common_model.get_kmn model) coeffs)
-
-    let calc_inputs trained points =
-      let upper = Trained.get_upper trained in
-      let prepared = Spec.Inputs.Prepared.calc_cross upper points in
-      let kernel = Trained.get_kernel trained in
-      let coeffs = Trained.get_coeffs trained in
-      let values = Spec.Inputs.weighted_eval kernel ~coeffs prepared in
-      make ~points ~values
-
-    let calc_induced trained inputs =
-      let { Inputs.points = points; kmn = kmn } = inputs in
-      if Trained.get_inducing trained <> inputs.Inputs.inducing then
+    let calc_induced mean_predictor inputs =
+      if
+        mean_predictor.Mean_predictor.inducing !=
+        Inducing.get_points inputs.Inputs.inducing
+      then
         failwith
           "Means.calc_induced: \
-          trained and inputs disagree about inducing points";
-      make ~points ~values:(gemv ~trans:`T kmn trained.Trained.coeffs)
+          trained and inputs disagree about inducing points"
+      else
+        let { Inputs.points = points; kmn = kmn } = inputs in
+        let values = gemv ~trans:`T kmn mean_predictor.Mean_predictor.coeffs in
+        { points = points; values = values }
 
     let get means = means.values
 
     module Inducing = struct
       type t = { points : Spec.Inducing.t; values : vec }
 
-      let make ~points ~values = { points = points; values = values }
-
       let calc { Trained.coeffs = coeffs; model = model } =
-        make
-          ~points:(Common_model.get_inducing_points model)
-          ~values:(symv (Common_model.get_km model) coeffs)
+        {
+          points = Common_model.get_inducing_points model;
+          values = symv (Common_model.get_km model) coeffs;
+        }
 
       let get means = means.values
     end
+  end
+
+  module Co_variance_predictor = struct
+    type t = {
+      kernel : Spec.Kernel.t;
+      inducing : Spec.Inducing.t;
+      coeffs : mat;
+    }
+
+    let calc_model model =
+      {
+        kernel = Common_model.get_kernel model;
+        inducing = Inducing.get_points (Common_model.get_inducing model);
+        coeffs = Common_model.calc_co_variance_coeffs model;
+      }
+
+    let calc kernel inducing ~coeffs =
+      {
+        kernel = kernel;
+        inducing = inducing;
+        coeffs = coeffs;
+      }
   end
 
   (* Prediction of variance for one input point *)
   module Variance = struct
     type t = { point : Spec.Input.t; variance : float; sigma2 : float }
 
-    let calc_induced model induced =
-      let { Input.point = point; k_m = k_m } = induced in
-      let kernel = Common_model.get_kernel model in
-      let prior_variance = Spec.Input.eval_one kernel point in
-      let ichol_km_k_m = copy k_m in
-      let ichol_km_k_m_mat = Mat.from_col_vec ichol_km_k_m in
-      let inducing = induced.Input.inducing in
-      potrs ~factorize:false inducing.Inducing.chol_km ichol_km_k_m_mat;
-      let km_arg = dot ~x:k_m ichol_km_k_m in
-      let ichol_b_k_m = copy k_m ~y:ichol_km_k_m in
-      let ichol_b_k_m_mat = ichol_km_k_m_mat in
-      potrs ~factorize:false model.Common_model.chol_b ichol_b_k_m_mat;
-      let b_arg = dot ~x:k_m ichol_b_k_m in
-      let explained_variance = km_arg -. b_arg in
-      let variance = prior_variance -. explained_variance in
-      {
-        point = point;
-        variance = variance;
-        sigma2 = Common_model.get_sigma2 model;
-      }
+    let calc_induced co_variance_predictor ~sigma2 input =
+      if
+        co_variance_predictor.Co_variance_predictor.inducing
+        != Inducing.get_points input.Input.inducing
+      then
+        failwith
+          "Variance.calc_induced: \
+          co-variance predictor and input disagree about inducing points"
+      else
+        let { Input.point = point; k_m = k_m } = input in
+        let kernel = co_variance_predictor.Co_variance_predictor.kernel in
+        let prior_variance = Spec.Input.eval_one kernel point in
+        let coeffs = co_variance_predictor.Co_variance_predictor.coeffs in
+        let explained_variance =
+          let tmp = copy k_m in
+          trmv coeffs tmp;
+          Vec.sqr_nrm2 tmp
+        in
+        let posterior_variance = prior_variance -. explained_variance in
+        {
+          point = point;
+          variance = posterior_variance;
+          sigma2 = sigma2;
+        }
 
     let get ?predictive t =
       match predictive with
@@ -444,32 +485,37 @@ module Make_common (Spec : Specs.Eval) = struct
   module Variances = struct
     type t = { points : Spec.Inputs.t; variances : vec; sigma2 : float }
 
-    let make ~points ~variances ~model =
-      let sigma2 = Common_model.get_sigma2 model in
+    let make ~points ~variances ~sigma2 =
       { points = points; variances = variances; sigma2 = sigma2 }
 
     let calc_model_inputs model =
       let r_mat = solve_chol_b model (Common_model.get_kmn model) in
-      let y = copy (Common_model.get_r_vec model) in
-      let variances = Mat.syrk_diag ~trans:`T r_mat ~beta:1. ~y in
-      make ~points:(Common_model.get_input_points model) ~variances ~model
+      let variances =
+        Mat.syrk_diag ~trans:`T r_mat ~beta:1.
+          ~y:(copy (Common_model.get_r_vec model))
+      in
+      let sigma2 = Common_model.get_sigma2 model in
+      make ~points:(Common_model.get_input_points model) ~variances ~sigma2
 
-    let calc_induced model inputs =
-      if Common_model.get_inducing model <> inputs.Inputs.inducing then
+    let calc_induced co_variance_predictor ~sigma2 inputs =
+      if
+        co_variance_predictor.Co_variance_predictor.inducing
+        != Inducing.get_points inputs.Inputs.inducing
+      then
         failwith
           "Variances.calc_induced: \
-          model and inputs disagree about inducing points";
-      let kmt = inputs.Inputs.kmn in
-      let ichol_km_kmt, kt_diag = Inputs.nystrom_marginals inputs in
-      let ichol_b_kmt = solve_chol_b model kmt in
-      let variances =
-        let y =
-          Mat.syrk_diag ~trans:`T ichol_b_kmt
-            ~beta:1. ~y:(copy kt_diag)
+          co-variance predictor and inputs disagree about inducing points"
+      else
+        let { Inputs.points = points; kmn = kmt } = inputs in
+        let kernel = co_variance_predictor.Co_variance_predictor.kernel in
+        let prior_variances = Spec.Inputs.calc_diag kernel points in
+        let coeffs = co_variance_predictor.Co_variance_predictor.coeffs in
+        let posterior_variances =
+          let tmp = lacpy kmt in
+          trmm coeffs ~b:tmp;
+          Mat.syrk_diag tmp ~alpha:(-1.) ~y:prior_variances
         in
-        Mat.syrk_diag ~alpha:(-1.) ~trans:`T ichol_km_kmt ~beta:1. ~y
-      in
-      make ~points:inputs.Inputs.points ~variances ~model
+        make ~points ~variances:posterior_variances ~sigma2
 
     let get_common ?predictive ~variances ~sigma2 =
       match predictive with
@@ -489,16 +535,14 @@ module Make_common (Spec : Specs.Eval) = struct
         sigma2 : float;
       }
 
-      let make ~points ~variances ~model =
-        let sigma2 = Common_model.get_sigma2 model in
-        { points = points; variances = variances; sigma2 = sigma2 }
-
       let calc model =
         let km = lacpy ~uplo:`U (Common_model.get_km model) in
         Mat.detri km;
         let ichol_b_km = solve_chol_b model km in
         let variances = Mat.syrk_diag ~trans:`T ichol_b_km in
-        make ~points:(Common_model.get_inducing_points model) ~variances ~model
+        let points = Common_model.get_inducing_points model in
+        let sigma2 = Common_model.get_sigma2 model in
+        { points = points; variances = variances; sigma2 = sigma2 }
 
       let get ?predictive { variances = variances; sigma2 = sigma2 } =
         get_common ?predictive ~variances ~sigma2
@@ -510,12 +554,26 @@ module Make_common (Spec : Specs.Eval) = struct
   module Common_covariances = struct
     type t = { points : Spec.Inputs.t; covariances : mat; sigma2 : float }
 
-    let make ~points ~covariances ~model =
-      let sigma2 = Common_model.get_sigma2 model in
-      { points = points; covariances = covariances; sigma2 = sigma2 }
+    let check_inducing ~loc co_variance_predictor inputs =
+      if
+        co_variance_predictor.Co_variance_predictor.inducing
+        != Inducing.get_points inputs.Inputs.inducing
+      then
+        failwith (
+          sprintf
+            "%s_covariances.calc_induced: \
+            co-variance predictor and inputs disagree about inducing points"
+            loc)
 
-    let make_b_only ~points ~ichol_b_k ~model =
-      make ~points ~covariances:(syrk ~trans:`T ichol_b_k) ~model
+    let make_with_prior co_variance_predictor sigma2 inputs prior_covariances =
+      let coeffs = co_variance_predictor.Co_variance_predictor.coeffs in
+      let { Inputs.points = points; kmn = kmt } = inputs in
+      let covariances =
+        let tmp = lacpy kmt in
+        trmm coeffs ~b:tmp;
+        syrk ~trans:`T ~alpha:(-1.) tmp ~c:prior_covariances
+      in
+      { points = points; covariances = covariances; sigma2 = sigma2 }
 
     let get_common ?predictive ~covariances ~sigma2 =
       match predictive with
@@ -528,7 +586,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let get ?predictive { covariances = covariances; sigma2 = sigma2 } =
       get_common ?predictive ~covariances ~sigma2
 
-    let variances { points = points; covariances = covs; sigma2 = sigma2 } =
+    let get_variances { points = points; covariances = covs; sigma2 = sigma2 } =
       {
         Variances.points = points;
         variances = Mat.copy_diag covs;
@@ -554,7 +612,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let get ?predictive { covariances = covariances; sigma2 = sigma2 } =
         get_common ?predictive ~covariances ~sigma2
 
-      let variances { points = points; covariances = covs; sigma2 = sigma2 } =
+      let get_variances
+            { points = points; covariances = covs; sigma2 = sigma2 } =
         {
           Variances.Inducing.
           points = points;
@@ -568,29 +627,25 @@ module Make_common (Spec : Specs.Eval) = struct
   module FITC_covariances = struct
     include Common_covariances
 
-    let calc_common ~kmn ~v_mat ~points ~model =
+    let calc_model_inputs model =
+      let kmn = model.Common_model.inputs.Inputs.kmn in
+      let v_mat = model.Common_model.v_mat in
+      let points = Common_model.get_input_points model in
       let kernel = Common_model.get_kernel model in
       let covariances = Spec.Inputs.calc_upper kernel points in
       ignore (syrk ~trans:`T ~alpha:(-1.) v_mat ~beta:1. ~c:covariances);
       let r_mat = solve_chol_b model kmn in
       ignore (syrk ~trans:`T ~alpha:1. r_mat ~beta:1. ~c:covariances);
-      make ~points ~covariances ~model
+      let sigma2 = Common_model.get_sigma2 model in
+      { points = points; covariances = covariances; sigma2 = sigma2 }
 
-    let calc_model_inputs model =
-      let kmn = model.Common_model.inputs.Inputs.kmn in
-      let v_mat = model.Common_model.v_mat in
-      let points = Common_model.get_input_points model in
-      calc_common ~kmn ~v_mat ~points ~model
-
-    let calc_induced model inputs =
-      if Common_model.get_inducing model <> inputs.Inputs.inducing then
-        failwith (
-          "FITC_covariances.calc_induced: \
-          model and inputs disagree about inducing points");
-      let kmn = inputs.Inputs.kmn in
-      let v_mat, _ = Inputs.nystrom_marginals inputs in
-      let points = inputs.Inputs.points in
-      calc_common ~kmn ~v_mat ~points ~model
+    let calc_induced co_variance_predictor ~sigma2 inputs =
+      check_inducing ~loc:"FITC" co_variance_predictor inputs;
+      let kernel = co_variance_predictor.Co_variance_predictor.kernel in
+      let prior_covariances =
+        Spec.Inputs.calc_upper kernel inputs.Inputs.points
+      in
+      make_with_prior co_variance_predictor sigma2 inputs prior_covariances
   end
 
   (* Predicting covariances with FIC (standard or variational) *)
@@ -606,16 +661,18 @@ module Make_common (Spec : Specs.Eval) = struct
       for i = 1 to Vec.dim r_vec do
         covariances.{i, i} <- covariances.{i, i} +. r_vec.{i}
       done;
-      make ~points ~covariances ~model
+      let sigma2 = Common_model.get_sigma2 model in
+      { points = points; covariances = covariances; sigma2 = sigma2 }
 
-    let calc_induced model inputs =
-      if Common_model.get_inducing model <> inputs.Inputs.inducing then
-        failwith (
-          "FIC_covariances.calc_induced: \
-          model and inputs disagree about inducing points");
-      let kmt = inputs.Inputs.kmn in
-      let points = inputs.Inputs.points in
-      make_b_only ~points ~ichol_b_k:(solve_chol_b model kmt) ~model
+    let calc_induced co_variance_predictor ~sigma2 inputs =
+      check_inducing ~loc:"FIC" co_variance_predictor inputs;
+      let prior_covariances = 
+        let v_mat, kn_diag = Inputs.nystrom_marginals inputs in
+        let res = syrk ~trans:`T v_mat in
+        for i = 1 to Vec.dim kn_diag do res.{i, i} <- kn_diag.{i} done;
+        res
+      in
+      make_with_prior co_variance_predictor sigma2 inputs prior_covariances
   end
 
   (* Computations for sampling the marginal posterior GP distribution
@@ -624,7 +681,7 @@ module Make_common (Spec : Specs.Eval) = struct
     type t = { mean : float; stddev : float }
 
     let calc ~loc ?predictive mean variance =
-      if mean.Mean.point <> variance.Variance.point then
+      if mean.Mean.point != variance.Variance.point then
         failwith (
           loc ^ ".Sampler: mean and variance disagree about input point");
       let used_variance =
@@ -650,7 +707,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc ~loc ?predictive means covariances =
       let module Covariances = Common_covariances in
-      if means.Means.points <> covariances.Covariances.points then
+      if means.Means.points != covariances.Covariances.points then
         failwith (
           loc ^
           ".Cov_sampler: means and covariances disagree about input points");

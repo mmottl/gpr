@@ -22,6 +22,8 @@ module Make (Spec : Specs.Eval) : sig
       with module Inputs = FITC.Inputs
       with module Model = FITC.Model
       with module Trained = FITC.Trained
+      with module Mean_predictor = FITC.Mean_predictor
+      with module Co_variance_predictor = FITC.Co_variance_predictor
       with module Mean = FITC.Mean
       with module Means = FITC.Means
       with module Variance = FITC.Variance
@@ -41,6 +43,8 @@ module Make (Spec : Specs.Eval) : sig
       with module Inputs = Variational_FITC.Inputs
       with module Model = Variational_FITC.Model
       with module Trained = Variational_FITC.Trained
+      with module Mean_predictor = Variational_FITC.Mean_predictor
+      with module Co_variance_predictor = Variational_FITC.Co_variance_predictor
       with module Mean = Variational_FITC.Mean
       with module Means = Variational_FITC.Means
       with module Variance = Variational_FITC.Variance
@@ -75,6 +79,8 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Inputs = FITC.Eval.Inputs
       with module Eval.Model = FITC.Eval.Model
       with module Eval.Trained = FITC.Eval.Trained
+      with module Eval.Mean_predictor = FITC.Eval.Mean_predictor
+      with module Eval.Co_variance_predictor = FITC.Eval.Co_variance_predictor
       with module Eval.Mean = FITC.Eval.Mean
       with module Eval.Means = FITC.Eval.Means
       with module Eval.Variance = FITC.Eval.Variance
@@ -101,6 +107,9 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Inputs = Variational_FITC.Eval.Inputs
       with module Eval.Model = Variational_FITC.Eval.Model
       with module Eval.Trained = Variational_FITC.Eval.Trained
+      with module Eval.Mean_predictor = Variational_FITC.Eval.Mean_predictor
+      with module Eval.Co_variance_predictor =
+        Variational_FITC.Eval.Co_variance_predictor
       with module Eval.Mean = Variational_FITC.Eval.Mean
       with module Eval.Means = Variational_FITC.Eval.Means
       with module Eval.Variance = Variational_FITC.Eval.Variance

@@ -202,32 +202,39 @@ module Sigs = struct
       val calc : Inputs.t -> sigma2 : float -> t
       val update_sigma2 : t -> float -> t
       val calc_log_evidence : t -> float
+      val calc_co_variance_coeffs : t -> mat
+
+      val get_sigma2 : t -> float
     end
 
     module Trained : sig
       type t
 
       val calc : Model.t -> targets : vec -> t
-      val get_coeffs : t -> vec
+      val calc_mean_coeffs : t -> vec
       val calc_log_evidence : t -> float
+
+      val get_model : t -> Model.t
+    end
+
+    module Mean_predictor : sig
+      type t
+
+      val calc : Spec.Kernel.t -> Spec.Inducing.t -> coeffs : vec -> t
+      val calc_trained : Trained.t -> t
     end
 
     module Mean : sig
       type t
 
-      val calc_input : Trained.t -> Spec.Input.t -> t
-      val calc_induced : Trained.t -> Input.t -> t
-
+      val calc_induced : Mean_predictor.t -> Input.t -> t
       val get : t -> float
     end
 
     module Means : sig
       type t
 
-      val calc_model_inputs : Trained.t -> t
-      val calc_inputs : Trained.t -> Spec.Inputs.t -> t
-      val calc_induced : Trained.t -> Inputs.t -> t
-
+      val calc_induced : Mean_predictor.t -> Inputs.t -> t
       val get : t -> vec
 
       module Inducing : sig
@@ -238,10 +245,19 @@ module Sigs = struct
       end
     end
 
+    module Co_variance_predictor : sig
+      type t
+
+      val calc : Spec.Kernel.t -> Spec.Inducing.t -> coeffs : mat -> t
+      val calc_model : Model.t -> t
+    end
+
     module Variance : sig
       type t
 
-      val calc_induced : Model.t -> Input.t -> t
+      val calc_induced :
+        Co_variance_predictor.t -> sigma2 : float -> Input.t -> t
+
       val get : ?predictive : bool -> t -> float
     end
 
@@ -249,7 +265,10 @@ module Sigs = struct
       type t
 
       val calc_model_inputs : Model.t -> t
-      val calc_induced : Model.t -> Inputs.t -> t
+
+      val calc_induced :
+        Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
+
       val get : ?predictive : bool -> t -> vec
 
       module Inducing : sig
@@ -264,16 +283,19 @@ module Sigs = struct
       type t
 
       val calc_model_inputs : Model.t -> t
-      val calc_induced : Model.t -> Inputs.t -> t
+
+      val calc_induced :
+        Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
+
       val get : ?predictive : bool -> t -> mat
-      val variances : t -> Variances.t
+      val get_variances : t -> Variances.t
 
       module Inducing : sig
         type t
 
         val calc : Model.t -> t
         val get : ?predictive : bool -> t -> mat
-        val variances : t -> Variances.Inducing.t
+        val get_variances : t -> Variances.Inducing.t
       end
     end
 
@@ -364,17 +386,14 @@ module Sigs = struct
         with module Eval = Deriv.Eval.Spec
         with module Deriv = Deriv.Deriv.Spec
 
-      module Solution : sig
-      end
-
-      val solve :
+      val train :
         ?kernel : Eval.Spec.Kernel.t ->
         ?sigma2 : float ->
         ?inducing : Eval.Spec.Inducing.t ->
         ?n_inducing : int ->
         inputs : Eval.Spec.Inputs.t ->
         targets : vec ->
-        Eval.Spec.Kernel.t * Eval.Spec.Inducing.t * vec
+        Eval.Trained.t
     end
   end
 end

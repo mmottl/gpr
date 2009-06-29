@@ -9,16 +9,7 @@ module Gsl : sig
   module Make (Spec : Sigs.Deriv) : sig
     open Spec
 
-    module Solution : sig
-      type t = {
-        sigma2 : float;
-        kernel : Eval.Spec.Kernel.t;
-        coeffs : vec;
-        log_evidence : float;
-      }
-    end
-
-    val solve :
+    val train :
       ?kernel : Eval.Spec.Kernel.t ->
       ?sigma2 : float ->
       ?inducing : Eval.Spec.Inducing.t ->
@@ -26,7 +17,7 @@ module Gsl : sig
       inputs : Eval.Spec.Inputs.t ->
       targets : vec ->
       unit ->
-      Solution.t
+      Eval.Trained.t
   end
 
 
