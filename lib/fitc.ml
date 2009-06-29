@@ -188,6 +188,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_chol_km t = t.inducing.Inducing.chol_km
     let get_log_det_km t = t.inducing.Inducing.log_det_km
     let get_kmn t = t.kmn
+    let get_points t = t.points
 
     let nystrom_marginals inputs =
       let kernel, inducing = get_kernel inputs, inputs.inducing in
@@ -278,6 +279,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_inducing model = model.inputs.Inputs.inducing
     let get_inducing_points model = Inducing.get_points (get_inducing model)
     let get_upper model = Inducing.get_upper (get_inducing model)
+    let get_inputs model = model.inputs
     let get_input_points model = model.inputs.Inputs.points
     let get_kernel model = (get_inducing model).Inducing.kernel
     let get_sigma2 model = model.sigma2

@@ -197,6 +197,7 @@ module Sigs = struct
 
       val create_default_kernel : Spec.Inputs.t -> Spec.Kernel.t
       val calc : Inducing.t -> Prepared.t -> t
+      val get_points : t -> Spec.Inputs.t
     end
 
     module Model : sig
@@ -207,7 +208,9 @@ module Sigs = struct
       val calc_log_evidence : t -> float
       val calc_co_variance_coeffs : t -> mat
 
+      val get_kernel : t -> Spec.Kernel.t
       val get_sigma2 : t -> float
+      val get_inputs : t -> Inputs.t
       val get_inducing : t -> Inducing.t
     end
 

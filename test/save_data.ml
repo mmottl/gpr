@@ -9,20 +9,20 @@ open Utils
 open Test_kernels.SE_iso
 open Gen_data
 
+module FITC = FITC.Eval
+
 let main () =
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
 
-  let module FITC = FITC.Eval in
-  let inputs =
-    let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
-    let inducing = FITC.Inducing.calc kernel prep_inducing in
-    let prep_inputs = FITC.Inputs.Prepared.calc prep_inducing training_inputs in
-    FITC.Inputs.calc inducing prep_inputs
-  in
-
   let trained =
+    let inputs =
+      let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
+      let inducing = FITC.Inducing.calc kernel prep_inducing in
+      let prep_inputs = FITC.Inputs.Prepared.calc prep_inducing training_inputs in
+      FITC.Inputs.calc inducing prep_inputs
+    in
     let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
     FITC.Trained.calc model ~targets:training_targets
   in
@@ -31,10 +31,14 @@ let main () =
   printf "model log evidence: %.9f@." (FITC.Model.calc_log_evidence model);
   printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
 
+  let inputs = FITC.Model.get_inputs model in
+
   let sigma2 = FITC.Model.get_sigma2 (FITC.Trained.get_model trained) in
   write_float "sigma2" sigma2;
 
+  let params = FITC.Spec.Kernel.get_params (FITC.Model.get_kernel model) in
   let inducing = FITC.Model.get_inducing model in
+  let inducing_inputs = FITC.Inducing.get_points inducing in
   let prep_inducing = FITC.Inducing.get_prepared inducing in
 
   write_mat "inducing_inputs" inducing_inputs;
