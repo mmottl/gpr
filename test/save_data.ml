@@ -13,24 +13,33 @@ let main () =
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
-  write_mat "inducing_inputs" inducing_inputs;
-  write_float "log_ell" params.Cov_se_iso.Params.log_ell;
-  write_float "log_sf2" params.Cov_se_iso.Params.log_sf2;
 
   let module FITC = FITC.Eval in
-  let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
-  let inducing = FITC.Inducing.calc kernel prep_inducing in
-  let prep_inputs = FITC.Inputs.Prepared.calc prep_inducing training_inputs in
-  let inputs = FITC.Inputs.calc inducing prep_inputs in
+  let inputs =
+    let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
+    let inducing = FITC.Inducing.calc kernel prep_inducing in
+    let prep_inputs = FITC.Inputs.Prepared.calc prep_inducing training_inputs in
+    FITC.Inputs.calc inducing prep_inputs
+  in
 
-  let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
+  let trained =
+    let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
+    FITC.Trained.calc model ~targets:training_targets
+  in
+
+  let model = FITC.Trained.get_model trained in
   printf "model log evidence: %.9f@." (FITC.Model.calc_log_evidence model);
-
-  let trained = FITC.Trained.calc model ~targets:training_targets in
   printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
 
   let sigma2 = FITC.Model.get_sigma2 (FITC.Trained.get_model trained) in
   write_float "sigma2" sigma2;
+
+  let inducing = FITC.Model.get_inducing model in
+  let prep_inducing = FITC.Inducing.get_prepared inducing in
+
+  write_mat "inducing_inputs" inducing_inputs;
+  write_float "log_ell" params.Cov_se_iso.Params.log_ell;
+  write_float "log_sf2" params.Cov_se_iso.Params.log_sf2;
 
   let mean_predictor = FITC.Mean_predictor.calc_trained trained in
   let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in

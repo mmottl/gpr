@@ -169,6 +169,9 @@ module Sigs = struct
       type t
 
       val calc : Spec.Kernel.t -> Prepared.t -> t
+
+      val get_points : t -> Spec.Inducing.t
+      val get_prepared : t -> Prepared.t
     end
 
     module Input : sig
@@ -205,6 +208,7 @@ module Sigs = struct
       val calc_co_variance_coeffs : t -> mat
 
       val get_sigma2 : t -> float
+      val get_inducing : t -> Inducing.t
     end
 
     module Trained : sig

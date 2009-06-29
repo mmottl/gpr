@@ -96,6 +96,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let get_kernel inducing = inducing.kernel
     let get_points inducing = inducing.prepared.Prepared.points
+    let get_prepared inducing = inducing.prepared
     let get_upper inducing = inducing.prepared.Prepared.upper
   end
 
