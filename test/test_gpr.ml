@@ -16,16 +16,19 @@ let main () =
 
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
-  let eval_prep_inducing = Eval.Inducing.Prepared.calc inducing_inputs in
-  let deriv_prep_inducing = Deriv.Inducing.Prepared.calc eval_prep_inducing in
-  let inducing = Deriv.Inducing.calc kernel deriv_prep_inducing in
-  let eval_prep_inputs =
-    Eval.Inputs.Prepared.calc eval_prep_inducing training_inputs
+  let eval_inducing_prep =
+    Eval.Inducing.Prepared.choose_n_random_inputs
+      kernel ~n_inducing training_inputs
   in
-  let deriv_prep_inputs =
-    Deriv.Inputs.Prepared.calc deriv_prep_inducing eval_prep_inputs
+  let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
+  let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
+  let eval_inputs_prep =
+    Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
   in
-  let inputs = Deriv.Inputs.calc inducing deriv_prep_inputs in
+  let deriv_inputs_prep =
+    Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
+  in
+  let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
   let model = Deriv.Model.calc ~sigma2 inputs in
 
   let new_kernel =
@@ -37,8 +40,8 @@ let main () =
     Eval.Spec.Kernel.create new_params
   in
 
-  let inducing2 = Deriv.Inducing.calc new_kernel deriv_prep_inducing in
-  let inputs2 = Deriv.Inputs.calc inducing2 deriv_prep_inputs in
+  let inducing2 = Deriv.Inducing.calc new_kernel deriv_inducing_prep in
+  let inputs2 = Deriv.Inputs.calc inducing2 deriv_inputs_prep in
   let model2 = Deriv.Model.calc ~sigma2 inputs2 in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
@@ -77,16 +80,16 @@ let main () =
 
   Utils.print_mat "inducing_inputs" inducing_inputs;
   let run () =
-    let eval_prep_inducing = Eval.Inducing.Prepared.calc inducing_inputs in
-    let deriv_prep_inducing = Deriv.Inducing.Prepared.calc eval_prep_inducing in
-    let inducing = Deriv.Inducing.calc kernel deriv_prep_inducing in
-    let eval_prep_inputs =
-      Eval.Inputs.Prepared.calc eval_prep_inducing training_inputs
+    let eval_inducing_prep = Eval.Inducing.Prepared.calc inducing_inputs in
+    let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
+    let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
+    let eval_inputs_prep =
+      Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
     in
-    let deriv_prep_inputs =
-      Deriv.Inputs.Prepared.calc deriv_prep_inducing eval_prep_inputs
+    let deriv_inputs_prep =
+      Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
     in
-    let inputs = Deriv.Inputs.calc inducing deriv_prep_inputs in
+    let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
     let model = Deriv.Model.calc ~sigma2 inputs in
 
     let hyper_model = Deriv.Model.prepare_hyper model in

@@ -254,6 +254,10 @@ module Gsl = struct
             gradient.{i} <-
               -. Deriv.Trained.calc_log_evidence hyper_t hyper_vars.(i - 1)
           done;
+          for i = 1 to n_inducing_hypers do
+            gradient.{n_hypers + i} <-
+              -. Deriv.Trained.calc_log_evidence hyper_t inducing_hypers.(i - 1)
+          done;
           trained
         in
         let multim_df ~x ~g = ignore (multim_dcommon ~x ~g) in

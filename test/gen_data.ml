@@ -3,8 +3,8 @@ open Lacaml.Impl.D
 open Gpr
 open Utils
 
-let n_inputs = 10
-let n_inducing_inputs = 5
+let n_inputs = 1000
+let n_inducing = 10
 let noise_sigma = 1.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
@@ -23,13 +23,4 @@ let get_data ?with_noise n =
   done;
   inputs, targets
 
-let get_training () =
-  let training_inputs, training_targets = get_data ~with_noise:true n_inputs in
-  let inducing_inputs = Mat.create 1 n_inducing_inputs in
-  for i = 1 to n_inducing_inputs do
-    inducing_inputs.{1, i} <-
-      -5. +. float i *. 10. /. float (n_inducing_inputs + 1)
-  done;
-  training_inputs, training_targets, inducing_inputs
-
-let training_inputs, training_targets, inducing_inputs = get_training ()
+let training_inputs, training_targets = get_data ~with_noise:true n_inputs

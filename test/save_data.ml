@@ -9,22 +9,32 @@ open Utils
 open Test_kernels.SE_iso
 open Gen_data
 
+module FITC_all = FITC
 module FITC = FITC.Eval
 
 let main () =
+  Random.self_init ();
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
 
   let trained =
+    let module S = Optim.Gsl.Make_SPGP (FITC_all) (Cov_se_iso.SPGP) in
+    S.SPGP.train ~kernel ~n_rand_inducing:n_inducing
+      ~inputs:training_inputs ~targets:training_targets ()
+(*
     let inputs =
-      let prep_inducing = FITC.Inducing.Prepared.calc inducing_inputs in
-      let inducing = FITC.Inducing.calc kernel prep_inducing in
-      let prep_inputs = FITC.Inputs.Prepared.calc prep_inducing training_inputs in
-      FITC.Inputs.calc inducing prep_inputs
+      let inducing_prep =
+        FITC.Inducing.Prepared.choose_n_random_inputs
+          kernel ~n_inducing training_inputs
+      in
+      let inducing = FITC.Inducing.calc kernel inducing_prep in
+      let inputs_prep = FITC.Inputs.Prepared.calc inducing_prep training_inputs in
+      FITC.Inputs.calc inducing inputs_prep
     in
     let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
     FITC.Trained.calc model ~targets:training_targets
+*)
   in
 
   let model = FITC.Trained.get_model trained in
@@ -39,7 +49,7 @@ let main () =
   let params = FITC.Spec.Kernel.get_params (FITC.Model.get_kernel model) in
   let inducing = FITC.Model.get_inducing model in
   let inducing_inputs = FITC.Inducing.get_points inducing in
-  let prep_inducing = FITC.Inducing.get_prepared inducing in
+  let inducing_prep = FITC.Inducing.get_prepared inducing in
 
   write_mat "inducing_inputs" inducing_inputs;
   write_float "log_ell" params.Cov_se_iso.Params.log_ell;
@@ -56,9 +66,9 @@ let main () =
   write_vec "means" means_vec;
 
   let mean, variance =
-    let input = Mat.col inducing_inputs 5 in
+    let input = Mat.col inducing_inputs n_inducing in
     write_vec "one_inducing" input;
-    let prepared = FITC.Input.Prepared.calc prep_inducing input in
+    let prepared = FITC.Input.Prepared.calc inducing_prep input in
     let induced = FITC.Input.calc inducing prepared in
     let mean = FITC.Mean.get (FITC.Mean.calc_induced mean_predictor induced) in
     let variance =
