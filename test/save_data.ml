@@ -11,8 +11,6 @@ open Gen_data
 
 let main () =
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
-  let sigma2 = noise_sigma2 in
-  write_float "sigma2" sigma2;
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
   write_mat "inducing_inputs" inducing_inputs;
@@ -30,6 +28,9 @@ let main () =
 
   let trained = FITC.Trained.calc model ~targets:training_targets in
   printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
+
+  let sigma2 = FITC.Model.get_sigma2 (FITC.Trained.get_model trained) in
+  write_float "sigma2" sigma2;
 
   let mean_predictor = FITC.Mean_predictor.calc_trained trained in
   let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in
