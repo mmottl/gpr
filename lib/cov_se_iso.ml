@@ -51,8 +51,10 @@ module Eval = struct
         for c = 2 to m do
           let ssqr_inducing_c = ssqr_inducing.{c} in
           for r = 1 to c - 1 do
+            let sq_diff_el = sq_diff_mat.{r, c} in
             sq_diff_mat.{r, c} <-
-              ssqr_inducing.{r} -. 2. *. sq_diff_mat.{r, c} +. ssqr_inducing_c
+              (ssqr_inducing.{r} -. sq_diff_el) +.
+              (ssqr_inducing_c -. sq_diff_el)
           done
         done;
         for i = 1 to m do sq_diff_mat.{i, i} <- 0. done;
@@ -92,8 +94,9 @@ module Eval = struct
         let sq_diff_vec = gemv ~trans:`T inducing input in
         let ssqr_input = Vec.sqr_nrm2 input in
         for i = 1 to Vec.dim sq_diff_vec do
+          let sq_diff_el = sq_diff_vec.{i} in
           sq_diff_vec.{i} <-
-            ssqr_inducing.{i} -. 2. *. sq_diff_vec.{i} +. ssqr_input
+            (ssqr_inducing.{i} -. sq_diff_el) +. (ssqr_input -. sq_diff_el)
         done;
         { sq_diff_vec = sq_diff_vec; inducing = inducing }
     end
@@ -154,17 +157,14 @@ module Eval = struct
         in
         let m = Mat.dim2 inducing in
         let n = Mat.dim2 inputs in
+        let ssqr_inputs = Mat.syrk_diag ~trans:`T inputs in
         let sq_diff_mat = gemm ~transa:`T inducing inputs in
-        let ssqr_inputs = Vec.create n in
-        for i = 1 to n do
-          (* TODO: optimize sqr_nrm2 and col *)
-          ssqr_inputs.{i} <- Vec.sqr_nrm2 (Mat.col inputs i)
-        done;
         for c = 1 to n do
           let ssqr_inputs_c = ssqr_inputs.{c} in
           for r = 1 to m do
+            let sq_diff_el = sq_diff_mat.{r, c} in
             sq_diff_mat.{r, c} <-
-              ssqr_inducing.{r} -. 2. *. sq_diff_mat.{r, c} +. ssqr_inputs_c
+              (ssqr_inducing.{r} -. sq_diff_el) +. (ssqr_inputs_c -. sq_diff_el)
           done
         done;
         { sq_diff_mat = sq_diff_mat; inducing = inducing; inputs = inputs }
@@ -173,9 +173,7 @@ module Eval = struct
     let calc_upper k inputs =
       Inducing.calc_upper k (Inducing.Prepared.calc_upper inputs)
 
-    let calc_diag k inputs =
-      (* TODO: return sparse data? *)
-      Vec.make (Mat.dim2 inputs) k.Kernel.sf2
+    let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
     let calc_cross k cross =
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
@@ -242,7 +240,6 @@ module Deriv = struct
         let n = Mat.dim2 sq_diff_mat in
         let res = Mat.create m n in
         let { Eval.Kernel.inv_ell2 = inv_ell2 } = sh.kernel in
-        (* TODO: Lacaml-version of element-wise multiplication? *)
         for c = 1 to n do
           for r = 1 to m do
             res.{r, c} <- eval_mat.{r, c} *. sq_diff_mat.{r, c} *. inv_ell2

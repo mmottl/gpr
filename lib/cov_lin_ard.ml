@@ -155,7 +155,8 @@ module Deriv = struct
       let res = Mat.create m m in
       for c = 1 to m do
         for r = 1 to c do
-          res.{r, c} <- -2. *. inducing.{d, r} *. inducing.{d, c}
+          let prod = inducing.{d, r} *. inducing.{d, c} in
+          res.{r, c} <- -. prod -. prod
         done
       done;
       `Dense res
