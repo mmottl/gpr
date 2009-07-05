@@ -1,0 +1,7 @@
+name="gpr"
+version="0.9"
+description="Gaussian Process Regression"
+requires=""
+archive(byte)="gpr.cma"
+archive(native)="gpr.cmxa"
+linkopts = ""
