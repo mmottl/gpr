@@ -17,9 +17,9 @@ section
 OCamlPackage(gpr, $(SOURCES))
 OCamlLibrary(gpr, gpr)
 
-LIBINSTALL_FILES = gpr.cmi gpr.cmxa gpr.cma gpr.a
+LIBINSTALL_FILES = gpr.cmi gpr.cmxa gpr.a
 
-.PHONY: libinstall
+.PHONY: install-findlib
 install-findlib: $(LIBINSTALL_FILES)
   ocamlfind install gpr META $(LIBINSTALL_FILES)
 

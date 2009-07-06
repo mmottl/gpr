@@ -87,7 +87,8 @@ module Eval = struct
       let calc_cross inducing_prepared input =
         let
           {
-            Inducing.Prepared.ssqr_inducing = ssqr_inducing;
+            Inducing.Prepared.
+            ssqr_inducing = ssqr_inducing;
             inducing = inducing
           } = inducing_prepared
         in
