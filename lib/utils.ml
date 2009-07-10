@@ -13,7 +13,7 @@ module Int_vec = struct
 end
 
 let debug = ref true
-let cholesky_jitter = ref 1e-9
+let cholesky_jitter = ref 1e-6
 
 let pi = 4. *. atan 1.
 let log_2pi = log (pi +. pi)
