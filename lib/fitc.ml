@@ -372,6 +372,10 @@ module Make_common (Spec : Specs.Eval) = struct
         inducing = inducing;
         coeffs = coeffs;
       }
+
+    let get_kernel t = t.kernel
+    let get_inducing t = t.inducing
+    let get_coeffs t = t.coeffs
   end
 
   (* Prediction of mean for one input point *)

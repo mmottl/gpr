@@ -228,6 +228,10 @@ module Sigs = struct
 
       val calc : Spec.Kernel.t -> Spec.Inducing.t -> coeffs : vec -> t
       val calc_trained : Trained.t -> t
+
+      val get_kernel : t -> Spec.Kernel.t
+      val get_inducing : t -> Spec.Inducing.t
+      val get_coeffs : t -> vec
     end
 
     module Mean : sig
