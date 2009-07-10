@@ -26,7 +26,7 @@ function [fw,dfw] = spgp_lik(w,y,x,n,del)
 %
 % Edward Snelson (2006)
 
-if nargin < 5; del = 1e-9; end % default jitter
+if nargin < 5; del = 1e-6; end % default jitter
 
 [N,dim] = size(x); xb = reshape(w(1:end-dim-2),n,dim);
 b = exp(w(end-dim-1:end-2)); c = exp(w(end-1)); sig = exp(w(end));
