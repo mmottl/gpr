@@ -346,6 +346,13 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_mean_coeffs trained = trained.coeffs
     let calc_log_evidence trained = trained.l
 
+    let calc_means trained =
+      gemv ~trans:`T (Common_model.get_kmn trained.model) trained.coeffs
+
+    let calc_rmse trained =
+      let means = calc_means trained in
+      sqrt ((Vec.ssqr_diff trained.y means) /. float (Vec.dim trained.y))
+
     let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
     let get_upper trained = Common_model.get_upper trained.model

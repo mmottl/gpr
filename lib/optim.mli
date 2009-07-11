@@ -5,11 +5,18 @@ open Interfaces
 (** Hyper parameter optimization with the GNU Scientific Library *)
 module Gsl : sig
 
+  exception Optim_exception of exn
+
   (** Ordinary hyper parameter optimization *)
   module Make (Spec : Sigs.Deriv) : sig
     open Spec
 
     val train :
+      ?step : float ->
+      ?tol : float ->
+      ?epsabs : float ->
+      ?report_trained_model :
+        (iter : int -> Eval.Trained.t -> unit) ->
       ?kernel : Eval.Spec.Kernel.t ->
       ?sigma2 : float ->
       ?inducing : Eval.Spec.Inducing.t ->

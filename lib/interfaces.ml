@@ -219,6 +219,7 @@ module Sigs = struct
       val calc : Model.t -> targets : vec -> t
       val calc_mean_coeffs : t -> vec
       val calc_log_evidence : t -> float
+      val calc_rmse : t -> float
 
       val get_model : t -> Model.t
       val get_targets : t -> vec
@@ -397,15 +398,21 @@ module Sigs = struct
         with module Eval = Deriv.Eval.Spec
         with module Deriv = Deriv.Deriv.Spec
 
-      val train :
-        ?kernel : Eval.Spec.Kernel.t ->
-        ?sigma2 : float ->
-        ?inducing : Eval.Spec.Inducing.t ->
-        ?n_rand_inducing : int ->
-        inputs : Eval.Spec.Inputs.t ->
-        targets : vec ->
-        unit ->
-        Eval.Trained.t
+      module Gsl : sig
+        val train :
+          ?step : float ->
+          ?tol : float ->
+          ?epsabs : float ->
+          ?report_trained_model : (iter : int -> Eval.Trained.t -> unit) ->
+          ?kernel : Eval.Spec.Kernel.t ->
+          ?sigma2 : float ->
+          ?inducing : Eval.Spec.Inducing.t ->
+          ?n_rand_inducing : int ->
+          inputs : Eval.Spec.Inputs.t ->
+          targets : vec ->
+          unit ->
+          Eval.Trained.t
+      end
     end
   end
 end
