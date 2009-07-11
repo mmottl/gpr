@@ -221,6 +221,7 @@ module Sigs = struct
       val calc_log_evidence : t -> float
 
       val get_model : t -> Model.t
+      val get_targets : t -> vec
     end
 
     module Mean_predictor : sig

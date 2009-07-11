@@ -349,6 +349,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
     let get_upper trained = Common_model.get_upper trained.model
+    let get_targets trained = trained.y
     let get_model trained = trained.model
   end
 
