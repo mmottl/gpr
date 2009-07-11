@@ -404,6 +404,7 @@ module Sigs = struct
           ?tol : float ->
           ?epsabs : float ->
           ?report_trained_model : (iter : int -> Eval.Trained.t -> unit) ->
+          ?report_gradient_norm : (iter : int -> float -> unit) ->
           ?kernel : Eval.Spec.Kernel.t ->
           ?sigma2 : float ->
           ?inducing : Eval.Spec.Inducing.t ->

@@ -15,12 +15,6 @@ module Gsl = struct
 
   let ignore_report ~iter:_ _ = ()
 
-  let vec_of_gsl_vector gvec =
-    let n = Gsl_vector.length gvec in
-    let vec = Vec.create n in
-    for i = 1 to n do vec.{i} <- gvec.{i - 1} done;
-    vec
-
 
   (* Ordinary hyper parameter optimization *)
 
@@ -30,6 +24,7 @@ module Gsl = struct
     let train
           ?(step = 1e-1) ?(tol = 1e-1) ?(epsabs = 0.1)
           ?(report_trained_model = ignore_report)
+          ?(report_gradient_norm = (fun ~iter:_ _ -> ()))
           ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
       let kernel =
         match kernel with
@@ -155,10 +150,15 @@ module Gsl = struct
         Gd.make Gd.VECTOR_BFGS2 n_gsl_hypers
           multim_fun_fdf ~x:gsl_hypers ~step ~tol
       in
+      let gsl_dhypers = Gsl_vector.create n_gsl_hypers in
       let rec loop () =
-        let neg_log_likelihood = Gd.minimum ~x:gsl_hypers mumin in
+        let neg_log_likelihood =
+          Gd.minimum ~x:gsl_hypers ~g:gsl_dhypers mumin
+        in
         check_exception seen_exception_ref neg_log_likelihood;
-        if Gd.test_gradient mumin epsabs then get_best_model ()
+        let gnorm = Gsl_blas.nrm2 gsl_dhypers in
+        report_gradient_norm ~iter:!iter_count gnorm;
+        if gnorm < epsabs then get_best_model ()
         else begin
           incr iter_count;
           Gd.iterate mumin;
@@ -189,6 +189,7 @@ module Gsl = struct
         let train
               ?(step = 1e-1) ?(tol = 1e-1) ?(epsabs = 0.1)
               ?(report_trained_model = ignore_report)
+              ?(report_gradient_norm = (fun ~iter:_ _ -> ()))
               ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
           let kernel =
             match kernel with
@@ -352,10 +353,10 @@ module Gsl = struct
             let neg_log_likelihood =
               Gd.minimum ~x:gsl_hypers ~g:gsl_dhypers mumin
             in
-            Printf.printf "|g|^2: %f\n%!"
-              (Vec.sqr_nrm2 (vec_of_gsl_vector gsl_dhypers));
             check_exception seen_exception_ref neg_log_likelihood;
-            if Gd.test_gradient mumin epsabs then get_best_model ()
+            let gnorm = Gsl_blas.nrm2 gsl_dhypers in
+            report_gradient_norm ~iter:!iter_count gnorm;
+            if gnorm < epsabs then get_best_model ()
             else begin
               incr iter_count;
               Gd.iterate mumin;
