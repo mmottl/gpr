@@ -20,7 +20,7 @@ let main () =
 
   let trained =
     let module S = Optim.Gsl.Make_SPGP (FITC_all) (Cov_se_iso.SPGP) in
-    S.SPGP.train ~kernel ~n_rand_inducing:n_inducing
+    S.SPGP.Gsl.train ~kernel ~n_rand_inducing:n_inducing
       ~inputs:training_inputs ~targets:training_targets ()
 (*
     let inputs =
