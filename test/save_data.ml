@@ -20,7 +20,11 @@ let main () =
 
   let trained =
     let module S = Optim.Gsl.Make_SPGP (FITC_all) (Cov_se_iso.SPGP) in
-    S.SPGP.Gsl.train ~kernel ~n_rand_inducing:n_inducing
+    let report_gradient_norm ~iter norm =
+      Printf.printf "iter %4d:  norm = %.5f\n%!" iter norm
+    in
+    S.SPGP.Gsl.train
+      ~report_gradient_norm ~kernel ~n_rand_inducing:n_inducing
       ~inputs:training_inputs ~targets:training_targets ()
 (*
     let inputs =

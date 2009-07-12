@@ -6,7 +6,7 @@ SOURCES[] =
   cov_lin_one
   cov_lin_ard
   cov_se_iso
-  fitc
+  fitc_gp
   optim
 
 section
