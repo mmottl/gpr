@@ -9,7 +9,7 @@ open Utils
 open Test_kernels.SE_iso
 open Gen_data
 
-let main () =
+let test_log_ell () =
   let sigma2 = noise_sigma2 in
 
   let epsilon = 1e-6 in
@@ -67,8 +67,7 @@ let main () =
   print_float "derivative of trained model log evidence" dev;
   print_float "trained model finite diff" ((f2 -. f1) /. epsilon)
 
-(*
-let main () =
+let test_inducing () =
   Lacaml.Io.Context.set_dim_defaults (Some (Context.create 5));
 
   let sigma2 = noise_sigma2 in
@@ -78,7 +77,11 @@ let main () =
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
 
-  Utils.print_mat "inducing_inputs" inducing_inputs;
+  let inducing_inputs =
+    let training_inputs = lacpy ~n:3 training_inputs in
+    Eval.Spec.Inputs.create_inducing kernel training_inputs
+  in
+
   let run () =
     let eval_inducing_prep = Eval.Inducing.Prepared.calc inducing_inputs in
     let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
@@ -93,21 +96,24 @@ let main () =
     let model = Deriv.Model.calc ~sigma2 inputs in
 
     let hyper_model = Deriv.Model.prepare_hyper model in
-    let mev, _model_log_evidence =
-      Deriv.Model.calc_log_evidence hyper_model (`Inducing_hyper {
-        Cov_se_iso.ind = 3; dim = 1 })
+    let dmev =
+      Deriv.Model.calc_log_evidence hyper_model
+        (`Inducing_hyper { Cov_se_iso.ind = 3; dim = 1 })
     in
 
     let mf = Eval.Model.calc_log_evidence (Deriv.Model.calc_eval model) in
-    mev, mf
+    dmev, mf
   in
 
   let mev, mf1 = run () in
   inducing_inputs.{1, 3} <- inducing_inputs.{1, 3} +. epsilon;
   let _, mf2 = run () in
 
-  print_float "mdlog_evidence" mev;
-  print_float "mdfinite" ((mf2 -. mf1) /. epsilon)
-*)
+  print_float "inducing mdlog_evidence" mev;
+  print_float "inducing mdfinite" ((mf2 -. mf1) /. epsilon)
+
+let main () =
+  test_log_ell ();
+  test_inducing ()
 
 let () = main ()
