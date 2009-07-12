@@ -318,7 +318,9 @@ module Gsl = struct
             done;
             for i = 1 to n_inducing_hypers do
               gradient.{n_hypers + i} <-
-                -. Deriv.Trained.calc_log_evidence hyper_t inducing_hypers.(i - 1)
+                -.
+                  Deriv.Trained.calc_log_evidence
+                    hyper_t inducing_hypers.(i - 1)
             done;
             trained
           in
