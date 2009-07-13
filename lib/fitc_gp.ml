@@ -1443,10 +1443,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         | `Sparse_cols (sdkmn, cols) ->
             let m = Mat.dim1 sdkmn in
             let n = Int_vec.dim cols in
-            for r = 1 to m do
-              for c = 1 to n do
-                let real_c = cols.{c} in
-                check ~deriv:sdkmn.{r, c} ~r ~c:real_c done
+            for c = 1 to n do
+              let real_c = cols.{c} in
+              for r = 1 to m do check ~deriv:sdkmn.{r, c} ~r ~c:real_c done
             done
     end
   end
