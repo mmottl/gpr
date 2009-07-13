@@ -15,6 +15,21 @@ module Gsl = struct
 
   let ignore_report ~iter:_ _ = ()
 
+  let get_n_rand_inducing loc n_inputs = function
+    | None -> min (n_inputs / 10) 1000
+    | Some n_rand_inducing ->
+        if n_rand_inducing < 1 then
+          failwith (
+            Printf.sprintf
+              "Gpr.Optim%s.train: n_rand_inducing (%d) < 1" loc
+                n_rand_inducing)
+        else if n_rand_inducing > n_inputs then
+          failwith (
+            Printf.sprintf
+              "Gpr.Optim%s.train: n_rand_inducing (%d) > n_inputs (%d)" loc
+                n_rand_inducing n_inputs)
+        else n_rand_inducing
+
 
   (* Ordinary hyper parameter optimization *)
 
@@ -41,9 +56,7 @@ module Gsl = struct
         | None ->
             let n_inducing =
               let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
-              match n_rand_inducing with
-              | None -> min (n_inputs / 10) 1000
-              | Some n_rand_inducing -> max (min n_inputs n_rand_inducing) 0
+              get_n_rand_inducing "" n_inputs n_rand_inducing
             in
             Eval.Inducing.Prepared.choose_n_random_inputs
               kernel ~n_inducing inputs
@@ -206,9 +219,7 @@ module Gsl = struct
             | None ->
                 let n_inducing =
                   let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
-                  match n_rand_inducing with
-                  | None -> min (n_inputs / 10) 1000
-                  | Some n_rand_inducing -> max (min n_inputs n_rand_inducing) 0
+                  get_n_rand_inducing "SPGP" n_inputs n_rand_inducing
                 in
                 Eval.Inducing.Prepared.choose_n_random_inputs
                   kernel ~n_inducing inputs

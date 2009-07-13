@@ -37,7 +37,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
       let check_n_inducing ~n_inducing inputs =
         let n_inputs = Spec.Inputs.get_n_inputs inputs in
-        if n_inputs < 1 || n_inputs > n_inputs then
+        if n_inputs < 1 || n_inducing > n_inputs then
           failwith
             (sprintf
               "Gpr.Fitc.Make_common.check_n_inducing: \
