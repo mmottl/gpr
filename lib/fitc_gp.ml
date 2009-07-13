@@ -1396,31 +1396,58 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_cross1 = Eval_inputs.calc eval_inducing1 eval_inputs_prepared in
         let eval_inducing2 = Eval_inducing.calc kernel2 eval_inducing_prepared in
         let eval_cross2 = Eval_inputs.calc eval_inducing2 eval_inputs_prepared in
+        let kmn1 = eval_cross1.Eval_inputs.kmn in
         let finite_diff_mat =
           let res = lacpy eval_cross2.Eval_inputs.kmn in
-          Mat.axpy ~alpha:(-1.) ~x:eval_cross1.Eval_inputs.kmn res;
+          Mat.axpy ~alpha:(-1.) ~x:kmn1 res;
           Mat.scal (1. /. eps) res;
           res
         in
         let inducing = Inducing.calc kernel1 inducing_prepared in
         let inputs = Inputs.calc inducing inputs_prepared in
+        let check ~deriv ~r ~c =
+          let finite = finite_diff_mat.{r, c} in
+          if abs_float (finite -. deriv) > tol then
+            failwith (
+              sprintf
+                "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
+                finite difference (%f) and derivative (%f) differ \
+                by more than %f on dkmn.{%d, %d}" finite deriv tol r c)
+        in
         match Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper with
         | `Dense deriv_mat ->
-            let m = Mat.dim1 deriv_mat in
-            let n = Mat.dim2 deriv_mat in
+            let m = Mat.dim1 kmn1 in
+            let n = Mat.dim2 kmn1 in
             for c = 1 to n do
-              for r = 1 to m do
-                let finite = finite_diff_mat.{r, c} in
-                let deriv = deriv_mat.{r, c} in
-                if abs_float (finite -. deriv) > tol then
-                  failwith (
-                    sprintf
-                      "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
-                      finite difference (%f) and derivative (%f) differ \
-                      by more than %f on dkmn.{%d, %d}" finite deriv tol r c)
-              done
+              for r = 1 to m do check ~deriv:deriv_mat.{r, c} ~r ~c done
             done
-        | _ -> (assert false (* XXX *))
+        | `Sparse_rows (sdkmn, rows) ->
+            let m = Int_vec.dim rows in
+            let n = Mat.dim2 sdkmn in
+            for r = 1 to m do
+              let real_r = rows.{r} in
+              for c = 1 to n do check ~deriv:sdkmn.{r, c} ~r:real_r ~c done
+            done
+        | `Const const ->
+            let m = Mat.dim1 kmn1 in
+            let n = Mat.dim2 kmn1 in
+            for c = 1 to n do
+              for r = 1 to m do check ~deriv:const ~r ~c done
+            done
+        | `Factor const ->
+            let m = Mat.dim1 kmn1 in
+            let n = Mat.dim2 kmn1 in
+            for c = 1 to n do
+              for r = 1 to m do check ~deriv:(const *. kmn1.{r, c}) ~r ~c done
+            done
+        | `Sparse_cols (sdkmn, cols) ->
+            let m = Mat.dim1 sdkmn in
+            let n = Int_vec.dim cols in
+            for r = 1 to m do
+              for c = 1 to n do
+                let real_c = cols.{c} in
+                check ~deriv:sdkmn.{r, c} ~r ~c:real_c done
+            done
     end
   end
 end
