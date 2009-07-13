@@ -389,6 +389,16 @@ module Sigs = struct
         val prepare_hyper : t -> hyper_t
         val calc_log_evidence : hyper_t -> Spec.Hyper.t -> float
       end
+
+      module Test : sig
+        val check_deriv_hyper :
+          Eval.Spec.Kernel.t ->
+          Inputs.Prepared.t ->
+          Spec.Hyper.t ->
+          eps : float ->
+          tol : float ->
+          unit
+      end
     end
   end
 

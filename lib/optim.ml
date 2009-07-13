@@ -219,7 +219,7 @@ module Gsl = struct
             | None ->
                 let n_inducing =
                   let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
-                  get_n_rand_inducing "SPGP" n_inputs n_rand_inducing
+                  get_n_rand_inducing ".SPGP" n_inputs n_rand_inducing
                 in
                 Eval.Inducing.Prepared.choose_n_random_inputs
                   kernel ~n_inducing inputs

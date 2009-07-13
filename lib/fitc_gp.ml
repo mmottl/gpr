@@ -40,7 +40,7 @@ module Make_common (Spec : Specs.Eval) = struct
         if n_inputs < 1 || n_inducing > n_inputs then
           failwith
             (sprintf
-              "Gpr.Fitc.Make_common.check_n_inducing: \
+              "Gpr.Fitc_gp.Make_common.check_n_inducing: \
               violating 1 <= n_inducing (%d) <= n_inputs (%d)"
               n_inducing n_inputs)
 
@@ -1360,6 +1360,67 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         }
 
       include Shared
+    end
+
+    module Test = struct
+      let check_deriv_hyper kernel1 inputs_prepared hyper ~eps ~tol =
+        let kernel2 =
+          let hypers, values = Spec.Hyper.extract kernel1 in
+          let rec loop i =
+            if i < 0 then
+              failwith
+                "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
+                hyper variable is unknown"
+            else
+              if hypers.(i) = hyper then
+                let i1 = i + 1 in
+                let value = values.{i1} in
+                let value_eps = value +. eps in
+                let values_eps = copy values in
+                values_eps.{i1} <- value_eps;
+                Spec.Hyper.update kernel1 values_eps
+              else loop (i - 1)
+          in
+          loop (Array.length hypers - 1)
+        in
+        let
+          {
+            Inputs.Prepared.
+            inducing_prepared =
+              ({ Inducing.Prepared.eval = eval_inducing_prepared }
+              as inducing_prepared);
+            eval = eval_inputs_prepared;
+          } = inputs_prepared
+        in
+        let eval_inducing1 = Eval_inducing.calc kernel1 eval_inducing_prepared in
+        let eval_cross1 = Eval_inputs.calc eval_inducing1 eval_inputs_prepared in
+        let eval_inducing2 = Eval_inducing.calc kernel2 eval_inducing_prepared in
+        let eval_cross2 = Eval_inputs.calc eval_inducing2 eval_inputs_prepared in
+        let finite_diff_mat =
+          let res = lacpy eval_cross2.Eval_inputs.kmn in
+          Mat.axpy ~alpha:(-1.) ~x:eval_cross1.Eval_inputs.kmn res;
+          Mat.scal (1. /. eps) res;
+          res
+        in
+        let inducing = Inducing.calc kernel1 inducing_prepared in
+        let inputs = Inputs.calc inducing inputs_prepared in
+        match Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper with
+        | `Dense deriv_mat ->
+            let m = Mat.dim1 deriv_mat in
+            let n = Mat.dim2 deriv_mat in
+            for c = 1 to n do
+              for r = 1 to m do
+                let finite = finite_diff_mat.{r, c} in
+                let deriv = deriv_mat.{r, c} in
+                if abs_float (finite -. deriv) > tol then
+                  failwith (
+                    sprintf
+                      "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
+                      finite difference (%f) and derivative (%f) differ \
+                      by more than %f on dkmn.{%d, %d}" finite deriv tol r c)
+              done
+            done
+        | _ -> (assert false (* XXX *))
     end
   end
 end
