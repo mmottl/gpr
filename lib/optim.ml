@@ -41,26 +41,37 @@ module Gsl = struct
           ?(report_trained_model = ignore_report)
           ?(report_gradient_norm = (fun ~iter:_ _ -> ()))
           ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
-      let kernel =
-        match kernel with
-        | None -> Eval.Inputs.create_default_kernel inputs
-        | Some kernel -> kernel
-      in
       let sigma2 =
         match sigma2 with
         | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
         | Some sigma2 -> max sigma2 min_float
       in
-      let eval_inducing_prepared =
+      let kernel, eval_inducing_prepared =
         match inducing with
         | None ->
             let n_inducing =
-              let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
+              let n_inputs = Eval.Spec.Inputs.get_n_points inputs in
               get_n_rand_inducing "" n_inputs n_rand_inducing
             in
-            Eval.Inducing.Prepared.choose_n_random_inputs
-              kernel ~n_inducing inputs
-        | Some inducing -> Eval.Inducing.Prepared.calc inducing
+            let kernel =
+              match kernel with
+              | None -> Eval.Inputs.create_default_kernel ~n_inducing inputs
+              | Some kernel -> kernel
+            in
+            (
+              kernel,
+              Eval.Inducing.Prepared.choose_n_random_inputs
+                kernel ~n_inducing inputs
+            )
+        | Some inducing ->
+            let kernel =
+              match kernel with
+              | None ->
+                  let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
+                  Eval.Inputs.create_default_kernel ~n_inducing inputs
+              | Some kernel -> kernel
+            in
+            kernel, Eval.Inducing.Prepared.calc inducing
       in
       let eval_inputs_prepared =
         Eval.Inputs.Prepared.calc eval_inducing_prepared inputs
@@ -204,26 +215,37 @@ module Gsl = struct
               ?(report_trained_model = ignore_report)
               ?(report_gradient_norm = (fun ~iter:_ _ -> ()))
               ?kernel ?sigma2 ?inducing ?n_rand_inducing ~inputs ~targets () =
-          let kernel =
-            match kernel with
-            | None -> Eval.Inputs.create_default_kernel inputs
-            | Some kernel -> kernel
-          in
           let sigma2 =
             match sigma2 with
             | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
             | Some sigma2 -> max sigma2 min_float
           in
-          let eval_inducing_prepared =
+          let kernel, eval_inducing_prepared =
             match inducing with
             | None ->
                 let n_inducing =
-                  let n_inputs = Eval.Spec.Inputs.get_n_inputs inputs in
+                  let n_inputs = Eval.Spec.Inputs.get_n_points inputs in
                   get_n_rand_inducing ".SPGP" n_inputs n_rand_inducing
                 in
-                Eval.Inducing.Prepared.choose_n_random_inputs
-                  kernel ~n_inducing inputs
-            | Some inducing -> Eval.Inducing.Prepared.calc inducing
+                let kernel =
+                  match kernel with
+                  | None -> Eval.Inputs.create_default_kernel ~n_inducing inputs
+                  | Some kernel -> kernel
+                in
+                (
+                  kernel,
+                  Eval.Inducing.Prepared.choose_n_random_inputs
+                    kernel ~n_inducing inputs
+                )
+            | Some inducing ->
+                let kernel =
+                  match kernel with
+                  | None ->
+                      let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
+                      Eval.Inputs.create_default_kernel ~n_inducing inputs
+                  | Some kernel -> kernel
+                in
+                kernel, Eval.Inducing.Prepared.calc inducing
           in
           let hyper_vars, hyper_vals = Deriv.Spec.Hyper.extract kernel in
           let n_hypers = Array.length hyper_vars in

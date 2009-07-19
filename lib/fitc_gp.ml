@@ -36,7 +36,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let id x = x
 
       let check_n_inducing ~n_inducing inputs =
-        let n_inputs = Spec.Inputs.get_n_inputs inputs in
+        let n_inputs = Spec.Inputs.get_n_points inputs in
         if n_inputs < 1 || n_inducing > n_inputs then
           failwith
             (sprintf
@@ -57,7 +57,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let choose_n_random_inputs
             ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
         check_n_inducing ~n_inducing inputs;
-        let n_inputs = Spec.Inputs.get_n_inputs inputs in
+        let n_inputs = Spec.Inputs.get_n_points inputs in
         let indexes = Int_vec.create n_inputs in
         for i = 1 to n_inputs do indexes.{i} <- i done;
         for i = 1 to n_inducing do
@@ -181,8 +181,8 @@ module Make_common (Spec : Specs.Eval) = struct
       let kmn = Inputs.calc_cross kernel prepared.Prepared.cross in
       calc_internal inducing prepared.Prepared.points kmn
 
-    let create_default_kernel inputs =
-      let params = Spec.Inputs.create_default_kernel_params inputs in
+    let create_default_kernel ~n_inducing inputs =
+      let params = Spec.Inputs.create_default_kernel_params ~n_inducing inputs in
       Kernel.create params
 
     let get_kernel t = t.inducing.Inducing.kernel

@@ -20,6 +20,8 @@ module Eval = struct
   module Inducing = struct
     type t = mat
 
+    let get_n_points = Mat.dim2
+
     module Prepared = struct
       type upper = { upper : mat; inducing : t }
 
@@ -69,10 +71,11 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
-    let get_n_inputs = Mat.dim2
+    let get_n_points = Mat.dim2
     let choose_subset inputs indexes = choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
-    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
+    let create_default_kernel_params ~n_inducing:_ _inputs =
+      { Params.log_theta = 0. }
 
     module Prepared = struct
       type cross = t

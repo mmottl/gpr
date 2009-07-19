@@ -52,6 +52,7 @@ module Specs = struct
       end
 
       val calc_upper : Kernel.t -> Prepared.upper -> mat
+      val get_n_points : t -> int
     end
 
     module Input : sig
@@ -71,10 +72,10 @@ module Specs = struct
     module Inputs : sig
       type t
 
-      val get_n_inputs : t -> int
+      val get_n_points : t -> int
       val choose_subset : t -> Int_vec.t -> t
       val create_inducing : Kernel.t -> t -> Inducing.t
-      val create_default_kernel_params : t -> Kernel.params
+      val create_default_kernel_params : n_inducing : int -> t -> Kernel.params
 
       module Prepared : sig
         type cross
@@ -194,7 +195,9 @@ module Sigs = struct
 
       type t
 
-      val create_default_kernel : Spec.Inputs.t -> Spec.Kernel.t
+      val create_default_kernel :
+        n_inducing : int -> Spec.Inputs.t -> Spec.Kernel.t
+
       val calc : Inducing.t -> Prepared.t -> t
       val get_points : t -> Spec.Inputs.t
     end

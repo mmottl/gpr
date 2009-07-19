@@ -27,6 +27,7 @@ module Eval = struct
 
     (* TODO: build upper triangle only *)
     let calc_upper k m = Mat.make m m k.Kernel.const
+    let get_n_points m = m
   end
 
   module Input = struct
@@ -51,10 +52,12 @@ module Eval = struct
   module Inputs = struct
     type t = int
 
-    let get_n_inputs n = n
+    let get_n_points n = n
     let choose_subset _inputs indexes = Array1.dim indexes
     let create_inducing _kernel n = n
-    let create_default_kernel_params _inputs = { Params.log_theta = 0. }
+
+    let create_default_kernel_params ~n_inducing:_ _inputs =
+      { Params.log_theta = 0. }
 
     module Prepared = struct
       type cross = { m : int; n : int }
