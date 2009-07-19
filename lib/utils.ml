@@ -51,7 +51,7 @@ let write_mat file = gen_write pp_mat file
 let choose_cols mat indexes =
   let m = Mat.dim1 mat in
   let n = Mat.dim2 mat in
-  let k = Array1.dim indexes in
+  let k = Int_vec.dim indexes in
   let res = Mat.create m k in
   for c = 1 to k do
     let real_c = indexes.{c} in
@@ -109,7 +109,7 @@ let check_sparse_row_mat_sane ~real_m ~smat ~rows =
     if real_m < 0 then
       failwith "Gpr.Utils.check_sparse_row_mat_sane: real_m < 0";
     let m = Mat.dim1 smat in
-    let n_rows = Array1.dim rows in
+    let n_rows = Int_vec.dim rows in
     if n_rows <> m then
       failwith (
         sprintf
@@ -142,7 +142,7 @@ let check_sparse_col_mat_sane ~real_n ~smat ~cols =
     if real_n < 0 then
       failwith "Gpr.Utils.check_sparse_col_mat_sane: real_n < 0";
     let n = Mat.dim2 smat in
-    let n_cols = Array1.dim cols in
+    let n_cols = Int_vec.dim cols in
     if n_cols <> n then
       failwith (
         sprintf
@@ -173,7 +173,7 @@ let check_sparse_col_mat_sane ~real_n ~smat ~cols =
 let check_sparse_vec_sane ~real_n ~svec ~rows =
   if !debug then
     let k = Vec.dim svec in
-    if Array1.dim rows <> k then
+    if Int_vec.dim rows <> k then
       failwith
         "Gpr.Utils.check_sparse_vec_sane: \
         size of sparse vector disagrees with indexes";
@@ -184,12 +184,12 @@ let check_sparse_vec_sane ~real_n ~svec ~rows =
           failwith "Gpr.Utils.check_sparse_vec_sane: rows inconsistent"
         else loop ~last:ind (i - 1)
     in
-    loop ~last:real_n (Array1.dim rows)
+    loop ~last:real_n (Int_vec.dim rows)
 
 (* Computes the trace of the product of a symmetric and sparse
    symmetric matrix *)
 let symm2_sparse_trace ~mat ~smat ~rows =
-  let m = Array1.dim rows in
+  let m = Int_vec.dim rows in
   let n = Mat.dim2 smat in
   let full_ref = ref 0. in
   let half_ref = ref 0. in
