@@ -1437,7 +1437,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               done
           | `Sparse_rows (sdkm, rows) ->
               let m = Int_vec.dim rows in
-              let n = Mat.dim2 sdkm in
+              let n = Mat.dim1 sdkm in
               let rows_ix_ref = ref 1 in
               for sparse_r = 1 to m do
                 let c = rows.{sparse_r} in
