@@ -29,6 +29,16 @@ let main () =
     let report_gradient_norm ~iter norm =
       Printf.printf "iter %4d:  |gradient| = %.5f\n%!" iter norm
     in
+    let inducing_points =
+      FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
+    in
+    FITC_all.Deriv.Test.check_deriv_hyper
+      kernel
+      inducing_points
+      training_inputs
+      `Log_ell
+      ~eps:1e-9
+      ~tol:1e-2;
     S.SPGP.Gsl.train
       ~report_trained_model ~report_gradient_norm
       ~kernel ~n_rand_inducing:n_inducing
