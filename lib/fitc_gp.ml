@@ -21,120 +21,78 @@ module Make_common (Spec : Specs.Eval) = struct
 
   (* Evaluation of inducing points *)
   module Inducing = struct
-    module Prepared = struct
-      type t = {
-        points : Spec.Inducing.t;
-        upper : Spec.Inducing.Prepared.upper;
-      }
-
-      let calc points =
-        {
-          points = points;
-          upper = Spec.Inducing.Prepared.calc_upper points;
-        }
-
-      let id x = x
-
-      let check_n_inducing ~n_inducing inputs =
-        let n_inputs = Spec.Inputs.get_n_points inputs in
-        if n_inputs < 1 || n_inducing > n_inputs then
-          failwith
-            (sprintf
-              "Gpr.Fitc_gp.Make_common.check_n_inducing: \
-              violating 1 <= n_inducing (%d) <= n_inputs (%d)"
-              n_inducing n_inputs)
-
-      let choose kernel inputs indexes =
-        let chosen_inputs = Spec.Inputs.choose_subset inputs indexes in
-        calc (Spec.Inputs.create_inducing kernel chosen_inputs)
-
-      let choose_n_first_inputs kernel ~n_inducing inputs =
-        check_n_inducing ~n_inducing inputs;
-        let indexes = Int_vec.create n_inducing in
-        for i = 1 to n_inducing do indexes.{i} <- i done;
-        choose kernel inputs indexes
-
-      let choose_n_random_inputs
-            ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
-        check_n_inducing ~n_inducing inputs;
-        let n_inputs = Spec.Inputs.get_n_points inputs in
-        let indexes = Int_vec.create n_inputs in
-        for i = 1 to n_inputs do indexes.{i} <- i done;
-        for i = 1 to n_inducing do
-          let rnd_index = Random.State.int rnd_state (n_inputs - i + 1) + 1 in
-          let tmp = indexes.{rnd_index} in
-          indexes.{rnd_index} <- indexes.{i};
-          indexes.{i} <- tmp;
-        done;
-        let indexes = Array1.sub indexes 1 n_inducing in
-        choose kernel inputs indexes
-
-      let get_points inducing = inducing.points
-    end
-
     type t = {
       kernel : Kernel.t;
-      prepared : Prepared.t;
+      points : Spec.Inducing.t;
       km : mat;
       chol_km : mat;
       log_det_km : float;
     }
 
-    let calc_internal kernel prepared km =
+    let check_n_inducing ~n_inducing inputs =
+      let n_inputs = Spec.Inputs.get_n_points inputs in
+      if n_inputs < 1 || n_inducing > n_inputs then
+        failwith
+          (sprintf
+            "Gpr.Fitc_gp.Make_common.check_n_inducing: \
+            violating 1 <= n_inducing (%d) <= n_inputs (%d)"
+            n_inducing n_inputs)
+
+    let calc_internal kernel points km =
       let chol_km = lacpy ~uplo:`U km in
       potrf ~jitter chol_km;
       let log_det_km = log_det chol_km in
       {
         kernel = kernel;
-        prepared = prepared;
+        points = points;
         km = km;
         chol_km = chol_km;
         log_det_km = log_det_km;
       }
 
-    let calc kernel prepared =
-      let km = Spec.Inducing.calc_upper kernel prepared.Prepared.upper in
-      calc_internal kernel prepared km
+    let calc kernel points =
+      calc_internal kernel points (Spec.Inducing.calc_upper kernel points)
+
+    let choose kernel inputs indexes =
+      let chosen_inputs = Spec.Inputs.choose_subset inputs indexes in
+      Spec.Inputs.create_inducing kernel chosen_inputs
+
+    let choose_n_first_inputs kernel ~n_inducing inputs =
+      check_n_inducing ~n_inducing inputs;
+      let indexes = Int_vec.create n_inducing in
+      for i = 1 to n_inducing do indexes.{i} <- i done;
+      choose kernel inputs indexes
+
+    let choose_n_random_inputs
+          ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
+      check_n_inducing ~n_inducing inputs;
+      let n_inputs = Spec.Inputs.get_n_points inputs in
+      let indexes = Int_vec.create n_inputs in
+      for i = 1 to n_inputs do indexes.{i} <- i done;
+      for i = 1 to n_inducing do
+        let rnd_index = Random.State.int rnd_state (n_inputs - i + 1) + 1 in
+        let tmp = indexes.{rnd_index} in
+        indexes.{rnd_index} <- indexes.{i};
+        indexes.{i} <- tmp;
+      done;
+      let indexes = Array1.sub indexes 1 n_inducing in
+      choose kernel inputs indexes
 
     let get_kernel inducing = inducing.kernel
-    let get_points inducing = inducing.prepared.Prepared.points
-    let get_prepared inducing = inducing.prepared
-    let get_upper inducing = inducing.prepared.Prepared.upper
+    let get_upper inducing = inducing.km
+    let get_points inducing = inducing.points
   end
 
   (* Evaluation of one input point *)
   module Input = struct
-    module Prepared = struct
-      type t = {
-        point : Spec.Input.t;
-        inducing_points : Spec.Inducing.t;
-        cross : Spec.Input.Prepared.cross;
-      }
+    type t = { inducing : Inducing.t; point : Spec.Input.t; k_m : vec }
 
-      let calc ind_prep input =
-        let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
-        {
-          point = input;
-          inducing_points = points;
-          cross = Spec.Input.Prepared.calc_cross upper input;
-        }
-    end
-
-    type t = {
-      inducing : Inducing.t;
-      point : Spec.Input.t;
-      k_m : vec;
-    }
-
-    let calc inducing prepared =
-      if Inducing.get_points inducing != prepared.Prepared.inducing_points then
-        failwith
-          "Input.calc: inducing points incompatible with \
-          those used for prepared";
+    let calc inducing point =
+      let { Inducing.kernel = kernel; points = inducing_points } = inducing in
       {
         inducing = inducing;
-        point = prepared.Prepared.point;
-        k_m = Spec.Input.eval inducing.Inducing.kernel prepared.Prepared.cross;
+        point = point;
+        k_m = Spec.Input.eval kernel inducing_points point;
       }
 
     let get_kernel t = t.inducing.Inducing.kernel
@@ -142,48 +100,19 @@ module Make_common (Spec : Specs.Eval) = struct
 
   (* Evaluation of input points *)
   module Inputs = struct
-    module Prepared = struct
-      type t = {
-        points : Spec.Inputs.t;
-        inducing_points : Spec.Inducing.t;
-        cross : Spec.Inputs.Prepared.cross;
-      }
-
-      let calc ind_prep inputs =
-        let { Inducing.Prepared.points = points; upper = upper } = ind_prep in
-        {
-          points = inputs;
-          inducing_points = points;
-          cross = Spec.Inputs.Prepared.calc_cross upper inputs;
-        }
-    end
-
-    type t = {
-      inducing : Inducing.t;
-      points : Inputs.t;
-      kmn : mat;
-    }
+    type t = { inducing : Inducing.t; points : Inputs.t; kmn : mat }
 
     let calc_internal inducing points kmn =
-      {
-        inducing = inducing;
-        points = points;
-        kmn = kmn;
-      }
+      { inducing = inducing; points = points; kmn = kmn }
 
-    let calc inducing prepared =
-      if Inducing.get_points inducing != prepared.Prepared.inducing_points
-      then
-        failwith
-          "Inputs.calc: inducing points incompatible with \
-          those used for prepared";
+    let calc inducing points =
       let kernel = inducing.Inducing.kernel in
-      let kmn = Inputs.calc_cross kernel prepared.Prepared.cross in
-      calc_internal inducing prepared.Prepared.points kmn
+      let kmn = Inputs.calc_cross kernel inducing.Inducing.points points in
+      calc_internal inducing points kmn
 
     let create_default_kernel ~n_inducing inputs =
-      let params = Spec.Inputs.create_default_kernel_params ~n_inducing inputs in
-      Kernel.create params
+      Kernel.create (
+        Spec.Inputs.create_default_kernel_params ~n_inducing inputs)
 
     let get_kernel t = t.inducing.Inducing.kernel
     let get_km t = t.inducing.Inducing.km
@@ -946,29 +875,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
     (* Derivative of inducing points *)
     module Inducing = struct
-      module Prepared = struct
-        type t = {
-          eval : Eval_inducing.Prepared.t;
-          upper : Spec.Inducing.Prepared.upper;
-        }
-
-        let calc eval =
-          {
-            eval = eval;
-            upper =
-              Spec.Inducing.Prepared.calc_upper
-                eval.Eval_inducing.Prepared.upper;
-          }
-
-        let get_points prepared = prepared.eval.Eval_inducing.Prepared.points
-      end
-
       type t = { eval : Eval_inducing.t; shared_upper : Spec.Inducing.upper }
 
-      let calc kernel { Prepared.eval = eval; upper = upper } =
-        let km, shared_upper = Spec.Inducing.calc_shared_upper kernel upper in
+      let calc kernel eval_inducing =
+        let km, shared_upper =
+          Spec.Inducing.calc_shared_upper kernel eval_inducing
+        in
         {
-          eval = Eval_inducing.calc_internal kernel eval km;
+          eval = Eval_inducing.calc_internal kernel eval_inducing km;
           shared_upper = shared_upper;
         }
 
@@ -979,55 +893,20 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
     (* Derivative of inputs *)
     module Inputs = struct
-      module Prepared = struct
-        type t = {
-          inducing_prepared : Inducing.Prepared.t;
-          eval : Eval_inputs.Prepared.t;
-          cross : Spec.Inputs.Prepared.cross;
-        }
-
-        let calc inducing_prepared eval =
-          if
-            Inducing.Prepared.get_points inducing_prepared
-              != eval.Eval_inputs.Prepared.inducing_points
-          then
-            failwith
-              "Deriv.Inputs.Prepared.calc: prepared inducing points \
-              incompatible with those used for prepared inputs";
-          {
-            inducing_prepared = inducing_prepared;
-            eval = eval;
-            cross =
-              Spec.Inputs.Prepared.calc_cross
-                inducing_prepared.Inducing.Prepared.upper
-                eval.Eval_inputs.Prepared.cross;
-          }
-
-        let get_inducing_points prepared =
-          Inducing.Prepared.get_points prepared.inducing_prepared
-      end
-
       type t = {
         inducing : Inducing.t;
         eval : Eval_inputs.t;
         shared_cross : Spec.Inputs.cross;
       }
 
-      let calc inducing prepared =
-        if Inducing.get_points inducing != Prepared.get_inducing_points prepared
-        then
-          failwith
-            "Deriv.Inputs.calc: inducing points \
-            incompatible with those used for prepared inputs";
+      let calc inducing points =
         let kernel = Inducing.get_kernel inducing in
         let kmn, shared_cross =
-          Spec.Inputs.calc_shared_cross kernel prepared.Prepared.cross
+          Spec.Inputs.calc_shared_cross kernel
+            inducing.Inducing.eval.Eval_inducing.points points
         in
         let eval =
-          Eval_inputs.calc_internal
-            inducing.Inducing.eval
-            prepared.Prepared.eval.Eval_inputs.Prepared.points
-            kmn
+          Eval_inputs.calc_internal inducing.Inducing.eval points kmn
         in
         { inducing = inducing; eval = eval; shared_cross = shared_cross }
 
@@ -1363,7 +1242,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     end
 
     module Test = struct
-      let check_deriv_hyper kernel1 inputs_prepared hyper ~eps ~tol =
+      let check_deriv_hyper kernel1 inducing_points points hyper ~eps ~tol =
         let kernel2 =
           let hypers, values = Spec.Hyper.extract kernel1 in
           let rec loop i =
@@ -1383,27 +1262,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           loop (Array.length hypers - 1)
         in
-        let
-          {
-            Inputs.Prepared.
-            inducing_prepared =
-              ({ Inducing.Prepared.eval = eval_inducing_prepared }
-              as inducing_prepared);
-            eval = eval_inputs_prepared;
-          } = inputs_prepared
-        in
-        let eval_inducing1 =
-          Eval_inducing.calc kernel1 eval_inducing_prepared
-        in
-        let eval_cross1 =
-          Eval_inputs.calc eval_inducing1 eval_inputs_prepared
-        in
-        let eval_inducing2 =
-          Eval_inducing.calc kernel2 eval_inducing_prepared
-        in
-        let eval_cross2 =
-          Eval_inputs.calc eval_inducing2 eval_inputs_prepared
-        in
+        let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points in
+        let eval_cross1 = Eval_inputs.calc eval_inducing1 points in
+        let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points in
+        let eval_cross2 = Eval_inputs.calc eval_inducing2 points in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
           Mat.axpy ~alpha:(-1.) ~x:mat1 res;
@@ -1414,7 +1276,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let finite_dkm =
           make_finite ~mat1:km1 ~mat2:eval_inducing2.Eval_inducing.km
         in
-        let inducing = Inducing.calc kernel1 inducing_prepared in
+        let inducing = Inducing.calc kernel1 inducing_points in
         let check ~name ~deriv ~finite ~r ~c =
           let finite_el = finite.{r, c} in
           if abs_float (finite_el -. deriv) > tol then
@@ -1465,7 +1327,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               for c = 1 to m do check ~deriv:const ~r:c ~c done
         end;
         (* Check dkmn *)
-        let inputs = Inputs.calc inducing inputs_prepared in
+        let inputs = Inputs.calc inducing points in
         begin
           let kmn1 = eval_cross1.Eval_inputs.kmn in
           let finite_dkmn =

@@ -6,4 +6,5 @@
 .*\.(cm[iox]|o|a)
 dist.mex
 test/data
+test/\.R(Data|history)
 doc/gpr.(dvi|log|pdf|fls)

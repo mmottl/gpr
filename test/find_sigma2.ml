@@ -12,19 +12,11 @@ open Gen_data
 let find_sigma2 () =
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
-  let eval_inducing_prep =
-    Eval.Inducing.Prepared.choose_n_random_inputs
-      kernel ~n_inducing training_inputs
+  let inducing_points =
+    Eval.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
   in
-  let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
-  let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
-  let eval_inputs_prep =
-    Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
-  in
-  let deriv_inputs_prep =
-    Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
-  in
-  let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
+  let inducing = Deriv.Inducing.calc kernel inducing_points in
+  let inputs = Deriv.Inputs.calc inducing training_inputs in
   let eval_inputs = Deriv.Inputs.calc_eval inputs in
 
   let model_ref = ref None in

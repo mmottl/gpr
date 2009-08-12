@@ -42,93 +42,60 @@ module Eval = struct
 
     let get_n_points = Mat.dim2
 
-    module Prepared = struct
-      type upper = { sq_diff_mat : mat; ssqr_inducing : vec; inducing : t }
+    let calc_sqr_diff_mat inducing =
+      let d = Mat.dim1 inducing in
+      let m = Mat.dim2 inducing in
+      let res = Mat.create m m in
+      let ssqr_diff_ref = ref 0. in
+      for c = 2 to m do
+        for r = 1 to c - 1 do
+          for i = 1 to d do
+            let diff = inducing.{i, c} -. inducing.{i, r} in
+            ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+          done;
+          res.{r, c} <- !ssqr_diff_ref;
+          ssqr_diff_ref := 0.
+        done
+      done;
+      res
 
-      let calc_upper inducing =
-        let sq_diff_mat = syrk ~trans:`T inducing in
-        let m = Mat.dim2 sq_diff_mat in
-        let ssqr_inducing = Vec.create m in
-        for i = 1 to m do ssqr_inducing.{i} <- sq_diff_mat.{i, i} done;
-        for c = 2 to m do
-          let ssqr_inducing_c = ssqr_inducing.{c} in
-          for r = 1 to c - 1 do
-            let sq_diff_el = sq_diff_mat.{r, c} in
-            sq_diff_mat.{r, c} <-
-              (ssqr_inducing.{r} -. sq_diff_el) +.
-              (ssqr_inducing_c -. sq_diff_el)
-          done
-        done;
-        for i = 1 to m do sq_diff_mat.{i, i} <- 0. done;
-        {
-          sq_diff_mat = sq_diff_mat;
-          ssqr_inducing = ssqr_inducing;
-          inducing = inducing;
-        }
-    end
-
-    let calc_upper k { Prepared.sq_diff_mat = sq_diff_mat } =
-      let m = Mat.dim2 sq_diff_mat in
+    let calc_upper_with_sqr_diff_mat k sqr_diff_mat =
+      let m = Mat.dim2 sqr_diff_mat in
       let res = Mat.create m m in
       let { inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2; sf2 = sf2 } = k in
       for c = 2 to m do
         for r = 1 to c - 1 do
-          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sq_diff_mat.{r, c});
-        done
+          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c});
+        done;
       done;
       for i = 1 to m do res.{i, i} <- sf2 done;
       res
+
+    let calc_upper k inducing =
+      calc_upper_with_sqr_diff_mat k (calc_sqr_diff_mat inducing)
   end
 
   module Input = struct
     type t = vec
 
-    module Prepared = struct
-      type cross = { sq_diff_vec : vec; inducing : Inducing.t }
-
-      let calc_cross inducing_prepared input =
-        let
-          {
-            Inducing.Prepared.
-            ssqr_inducing = ssqr_inducing;
-            inducing = inducing
-          } = inducing_prepared
-        in
-        let sq_diff_vec = gemv ~trans:`T inducing input in
-        let ssqr_input = Vec.sqr_nrm2 input in
-        for i = 1 to Vec.dim sq_diff_vec do
-          let sq_diff_el = sq_diff_vec.{i} in
-          sq_diff_vec.{i} <-
-            (ssqr_inducing.{i} -. sq_diff_el) +. (ssqr_input -. sq_diff_el)
-        done;
-        { sq_diff_vec = sq_diff_vec; inducing = inducing }
-    end
-
-    let eval k prepared =
-      let sq_diff_vec = prepared.Prepared.sq_diff_vec in
-      let m = Vec.dim sq_diff_vec in
+    let eval k inducing input =
+      let d = Mat.dim1 inducing in
+      let m = Mat.dim2 inducing in
       let res = Vec.create m in
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
-      for i = 1 to m do
-        res.{i} <- exp (log_sf2 +. inv_ell2_05 *. sq_diff_vec.{i})
+      let ssqr_diff_ref = ref 0. in
+      for c = 1 to m do
+        for i = 1 to d do
+          let diff = input.{i} -. inducing.{i, c} in
+          ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+        done;
+        res.{c} <- exp (log_sf2 +. inv_ell2_05 *. !ssqr_diff_ref);
+        ssqr_diff_ref := 0.;
       done;
       res
 
-    let weighted_eval k ~coeffs prepared =
-      let sq_diff_vec = prepared.Prepared.sq_diff_vec in
-      let m = Vec.dim sq_diff_vec in
-      if Vec.dim coeffs <> m then
-        failwith "Gpr.Cov_se_iso.Eval.Input.weighted_eval: dim(coeffs) <> m";
-      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
-      let rec loop acc i =
-        if i = 0 then acc
-        else
-          let new_acc =
-            coeffs.{i} *. exp (log_sf2 +. inv_ell2_05 *. sq_diff_vec.{i})
-          in
-          loop new_acc (i - 1)
-      in
-      loop 0. m
+    let weighted_eval k inducing ~coeffs input =
+      dot ~x:coeffs (eval k inducing input)
 
     let eval_one k _input = k.Kernel.sf2
   end
@@ -143,58 +110,46 @@ module Eval = struct
     let create_default_kernel_params ~n_inducing:_ _inputs =
       { Params.log_ell = 0.; log_sf2 = 0. }
 
-    module Prepared = struct
-      type cross = {
-        sq_diff_mat : mat;
-        inducing : Inducing.t;
-        inputs : t;
-      }
-
-      let calc_cross inducing_prepared inputs =
-        let
-          {
-            Inducing.Prepared.
-            ssqr_inducing = ssqr_inducing;
-            inducing = inducing;
-          } = inducing_prepared
-        in
-        let m = Mat.dim2 inducing in
-        let n = Mat.dim2 inputs in
-        let ssqr_inputs = Mat.syrk_diag ~trans:`T inputs in
-        let sq_diff_mat = gemm ~transa:`T inducing inputs in
-        for c = 1 to n do
-          let ssqr_inputs_c = ssqr_inputs.{c} in
-          for r = 1 to m do
-            let sq_diff_el = sq_diff_mat.{r, c} in
-            sq_diff_mat.{r, c} <-
-              (ssqr_inducing.{r} -. sq_diff_el) +. (ssqr_inputs_c -. sq_diff_el)
-          done
-        done;
-        { sq_diff_mat = sq_diff_mat; inducing = inducing; inputs = inputs }
-    end
-
-    let calc_upper k inputs =
-      Inducing.calc_upper k (Inducing.Prepared.calc_upper inputs)
-
+    let calc_upper k inputs = Inducing.calc_upper k inputs
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
-    let calc_cross k cross =
-      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
-      let sq_diff_mat = cross.Prepared.sq_diff_mat in
-      let m = Mat.dim1 sq_diff_mat in
-      let n = Mat.dim2 sq_diff_mat in
+    let calc_sqr_diff_mat ~inducing ~inputs =
+      let d = Mat.dim1 inducing in
+      let m = Mat.dim2 inducing in
+      let n = Mat.dim2 inputs in
       let res = Mat.create m n in
+      let ssqr_diff_ref = ref 0. in
       for c = 1 to n do
         for r = 1 to m do
-          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sq_diff_mat.{r, c})
+          for i = 1 to d do
+            let diff = inputs.{i, c} -. inducing.{i, r} in
+            ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+          done;
+          res.{r, c} <- !ssqr_diff_ref;
+          ssqr_diff_ref := 0.
         done
       done;
       res
 
-    let weighted_eval k ~coeffs cross =
-      let sq_diff_mat = cross.Prepared.sq_diff_mat in
-      let m = Mat.dim1 sq_diff_mat in
-      let n = Mat.dim2 sq_diff_mat in
+    let calc_cross_with_sqr_diff_mat k sqr_diff_mat =
+      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
+      let m = Mat.dim1 sqr_diff_mat in
+      let n = Mat.dim2 sqr_diff_mat in
+      let res = Mat.create m n in
+      for c = 1 to n do
+        for r = 1 to m do
+          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
+        done
+      done;
+      res
+
+    let calc_cross k inducing inputs =
+      calc_cross_with_sqr_diff_mat k (calc_sqr_diff_mat ~inducing ~inputs)
+
+    let weighted_eval k inducing ~coeffs inputs =
+      let sqr_diff_mat = calc_sqr_diff_mat ~inducing ~inputs in
+      let m = Mat.dim1 sqr_diff_mat in
+      let n = Mat.dim2 sqr_diff_mat in
       if Vec.dim coeffs <> m then
         failwith "Gpr.Cov_se_iso.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
@@ -202,7 +157,7 @@ module Eval = struct
         if r = 0 then acc
         else
           let el =
-            coeffs.{r} *. exp (log_sf2 +. inv_ell2_05 *. sq_diff_mat.{r, c})
+            coeffs.{r} *. exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
           in
           loop c (acc +. el) (r - 1)
       in
@@ -230,47 +185,37 @@ module Deriv = struct
 
   type deriv_common = {
     kernel : Eval.Kernel.t;
-    sq_diff_mat : mat;
+    sqr_diff_mat : mat;
     eval_mat : mat;
   }
 
   let calc_gen_deriv
-        ({ sq_diff_mat = sq_diff_mat; eval_mat = eval_mat } as sh) =
+        ({ sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } as sh) =
     function
     | `Log_sf2 -> `Factor 1.
     | `Log_ell ->
-        let m = Mat.dim1 sq_diff_mat in
-        let n = Mat.dim2 sq_diff_mat in
+        let m = Mat.dim1 sqr_diff_mat in
+        let n = Mat.dim2 sqr_diff_mat in
         let res = Mat.create m n in
         let { Eval.Kernel.inv_ell2 = inv_ell2 } = sh.kernel in
         for c = 1 to n do
           for r = 1 to m do
-            res.{r, c} <- eval_mat.{r, c} *. sq_diff_mat.{r, c} *. inv_ell2
+            res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
           done
         done;
         `Dense res
 
   module Inducing = struct
-    module Prepared = struct
-      type upper = Eval.Inducing.Prepared.upper
-
-      let calc_upper upper = upper
-    end
-
     type upper = Eval.Inducing.t * deriv_common
 
-    let calc_shared_upper kernel prepared_upper =
+    let calc_shared_upper kernel eval_inducing =
       let module EI = Eval.Inducing in
-      let module EIP = EI.Prepared in
-      let upper = EI.calc_upper kernel prepared_upper in
+      let sqr_diff_mat = EI.calc_sqr_diff_mat eval_inducing in
+      let upper = EI.calc_upper_with_sqr_diff_mat kernel sqr_diff_mat in
       let shared =
         (
-          prepared_upper.EIP.inducing,
-          {
-            kernel = kernel;
-            sq_diff_mat = prepared_upper.EIP.sq_diff_mat;
-            eval_mat = upper;
-          }
+          eval_inducing,
+          { kernel = kernel; sqr_diff_mat = sqr_diff_mat; eval_mat = upper }
         )
       in
       upper, shared
@@ -299,12 +244,6 @@ module Deriv = struct
   end
 
   module Inputs = struct
-    module Prepared = struct
-      type cross = Eval.Inputs.Prepared.cross
-
-      let calc_cross _upper cross = cross
-    end
-
     type diag = Eval.Kernel.t
 
     type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
@@ -312,19 +251,15 @@ module Deriv = struct
     let calc_shared_diag k diag_eval_inputs =
       Eval.Inputs.calc_diag k diag_eval_inputs, k
 
-    let calc_shared_cross kernel prepared_cross =
+    let calc_shared_cross kernel inducing inputs =
       let module EI = Eval.Inputs in
-      let module EIP = EI.Prepared in
-      let cross = EI.calc_cross kernel prepared_cross in
+      let sqr_diff_mat = EI.calc_sqr_diff_mat ~inducing ~inputs in
+      let cross = EI.calc_cross_with_sqr_diff_mat kernel sqr_diff_mat in
       let shared =
         (
-          prepared_cross.EIP.inducing,
-          prepared_cross.EIP.inputs,
-          {
-            kernel = kernel;
-            sq_diff_mat = prepared_cross.EIP.sq_diff_mat;
-            eval_mat = cross;
-          }
+          inducing,
+          inputs,
+          { kernel = kernel; sqr_diff_mat = sqr_diff_mat; eval_mat = cross }
         )
       in
       cross, shared

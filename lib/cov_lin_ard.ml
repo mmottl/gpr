@@ -25,26 +25,11 @@ module Eval = struct
     type t = mat
 
     let get_n_points = Mat.dim2
-
-    module Prepared = struct
-      type upper = { upper : mat; inducing : t }
-
-      let calc_upper points =
-        { upper = syrk ~trans:`T points; inducing = points }
-    end
-
-    let calc_upper _k upper = upper.Prepared.upper
+    let calc_upper _k inducing = syrk ~trans:`T inducing
   end
 
   module Input = struct
     type t = vec
-
-    module Prepared = struct
-      type cross = Inducing.t * t
-
-      let calc_cross inducing_prepared input =
-        inducing_prepared.Inducing.Prepared.inducing, input
-    end
 
     let calc_ard_input { Kernel.consts = consts } input =
       let d = Vec.dim input in
@@ -52,14 +37,11 @@ module Eval = struct
       for i = 1 to d do ard_input.{i} <- consts.{i} *. input.{i} done;
       ard_input
 
-    let eval k (inducing, input) =
+    let eval k inducing input =
       gemv ~trans:`T inducing (calc_ard_input k input)
 
-    let weighted_eval k ~coeffs (inducing, _ as cross) =
-      if Vec.dim coeffs <> Mat.dim2 inducing then
-        failwith
-          "Gpr.Cov_lin_ard.Eval.Input.weighted_eval: dim(coeffs) <> m";
-      dot ~x:coeffs (eval k cross)
+    let weighted_eval k inducing ~coeffs input =
+      dot ~x:coeffs (eval k inducing input)
 
     let eval_one { Kernel.consts = consts } input =
       let rec loop res i =
@@ -91,16 +73,6 @@ module Eval = struct
     let create_default_kernel_params ~n_inducing:_ inputs =
       { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
 
-    module Prepared = struct
-      type cross = { inducing : Inducing.t; inputs : t }
-
-      let calc_cross inducing_prepared inputs =
-        {
-          inducing = inducing_prepared.Inducing.Prepared.inducing;
-          inputs = inputs;
-        }
-    end
-
     let calc_ard_inputs { Kernel.consts = consts } inputs =
       let d = Mat.dim1 inputs in
       let n = Mat.dim2 inputs in
@@ -113,13 +85,11 @@ module Eval = struct
     let calc_upper k inputs = syrk ~trans:`T (calc_ard_inputs k inputs)
     let calc_diag k inputs = Mat.syrk_diag ~trans:`T (calc_ard_inputs k inputs)
 
-    let calc_cross k { Prepared.inducing = inducing; inputs = inputs } =
+    let calc_cross k inducing inputs =
       gemm ~transa:`T inducing (calc_ard_inputs k inputs)
 
-    let weighted_eval k ~coeffs ({ Prepared.inducing = inducing } as cross) =
-      if Vec.dim coeffs <> Mat.dim1 inducing then
-        failwith "Gpr.Cov_lin_ard.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
-      gemv ~trans:`T (calc_cross k cross) coeffs
+    let weighted_eval k inducing ~coeffs inputs =
+      gemv ~trans:`T (calc_cross k inducing inputs) coeffs
   end
 end
 
@@ -139,18 +109,11 @@ module Deriv = struct
   end
 
   module Inducing = struct
-    module Eval_prep = Eval.Inducing.Prepared
-
-    module Prepared = struct
-      type upper = Eval_prep.upper
-
-      let calc_upper upper = upper
-    end
-
     type upper = Eval.Inducing.t
 
-    let calc_shared_upper _k { Eval_prep.upper = upper; inducing = inducing } =
-      upper, inducing
+    let calc_shared_upper k eval_inducing =
+      let upper = Eval.Inducing.calc_upper k eval_inducing in
+      upper, eval_inducing
 
     let calc_deriv_upper inducing (`Log_ell d) =
       let m = Mat.dim2 inducing in
@@ -165,23 +128,17 @@ module Deriv = struct
   end
 
   module Inputs = struct
-    module Prepared = struct
-      type cross = Eval.Inputs.Prepared.cross
-
-      let calc_cross _upper cross = cross
-    end
-
     type diag = Eval.Kernel.t * Eval.Inputs.t
     type cross = Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
 
-    let calc_shared_diag k inputs =
-      Eval.Inputs.calc_diag k inputs, (k, inputs)
+    let calc_shared_diag k eval_inputs =
+      Eval.Inputs.calc_diag k eval_inputs, (k, eval_inputs)
 
-    let calc_shared_cross k prepared_cross =
-      let { Eval.Inputs.Prepared.inducing = inducing; inputs = inputs } =
-        prepared_cross
-      in
-      Eval.Inputs.calc_cross k prepared_cross, (k, inducing, inputs)
+    let calc_shared_cross k eval_inducing eval_inputs =
+      (
+        Eval.Inputs.calc_cross k eval_inputs eval_inputs,
+        (k, eval_inducing, eval_inputs)
+      )
 
     let calc_const k d = let kd = k.Eval.Kernel.consts.{d} in -2. *. kd *. kd
 

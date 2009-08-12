@@ -31,17 +31,16 @@ let main () =
     in
     S.SPGP.Gsl.train
       ~report_trained_model ~report_gradient_norm
-      ~kernel ~n_rand_inducing:n_inducing ~epsabs:5.
+      ~kernel ~n_rand_inducing:n_inducing
+      ~tol:0.1 ~step:0.1 ~epsabs:5.
       ~inputs:training_inputs ~targets:training_targets ()
 (*
     let inputs =
-      let inducing_prep =
-        FITC.Inducing.Prepared.choose_n_random_inputs
-          kernel ~n_inducing training_inputs
+      let inducing_points =
+        FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
       in
-      let inducing = FITC.Inducing.calc kernel inducing_prep in
-      let inputs_prep = FITC.Inputs.Prepared.calc inducing_prep training_inputs in
-      FITC.Inputs.calc inducing inputs_prep
+      let inducing = FITC.Inducing.calc kernel inducing_points in
+      FITC.Inputs.calc inducing training_inputs
     in
     let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
     FITC.Trained.calc model ~targets:training_targets
@@ -60,7 +59,6 @@ let main () =
   let params = FITC.Spec.Kernel.get_params (FITC.Model.get_kernel model) in
   let inducing = FITC.Model.get_inducing model in
   let inducing_inputs = FITC.Inducing.get_points inducing in
-  let inducing_prep = FITC.Inducing.get_prepared inducing in
 
   write_mat "inducing_inputs" inducing_inputs;
   write_float "log_ell" params.Cov_se_iso.Params.log_ell;
@@ -79,8 +77,7 @@ let main () =
   let mean, variance =
     let input = Mat.col inducing_inputs n_inducing in
     write_vec "one_inducing" input;
-    let prepared = FITC.Input.Prepared.calc inducing_prep input in
-    let induced = FITC.Input.calc inducing prepared in
+    let induced = FITC.Input.calc inducing input in
     let mean = FITC.Mean.get (FITC.Mean.calc_induced mean_predictor induced) in
     let variance =
       FITC.Variance.get ~predictive:false

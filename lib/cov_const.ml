@@ -19,13 +19,6 @@ module Eval = struct
   module Inducing = struct
     type t = int
 
-    module Prepared = struct
-      type upper = t
-
-      let calc_upper points = points
-    end
-
-    (* TODO: build upper triangle only *)
     let calc_upper k m = Mat.make m m k.Kernel.const
     let get_n_points m = m
   end
@@ -33,19 +26,8 @@ module Eval = struct
   module Input = struct
     type t = unit
 
-    module Prepared = struct
-      type cross = int
-
-      let calc_cross m _input = m
-    end
-
-    let eval k m = Vec.make m k.Kernel.const
-
-    let weighted_eval k ~coeffs m =
-      if Vec.dim coeffs <> m then
-        failwith "Gpr.Cov_const.Eval.Input.weighted_eval: dim(coeffs) <> m";
-      k.Kernel.const *. Vec.sum coeffs
-
+    let eval k m () = Vec.make m k.Kernel.const
+    let weighted_eval k _ ~coeffs () = k.Kernel.const *. Vec.sum coeffs
     let eval_one k () = k.Kernel.const
   end
 
@@ -59,20 +41,11 @@ module Eval = struct
     let create_default_kernel_params ~n_inducing:_ _inputs =
       { Params.log_theta = 0. }
 
-    module Prepared = struct
-      type cross = { m : int; n : int }
-
-      let calc_cross m n = { m = m; n = n }
-    end
-
     let calc_upper = Inducing.calc_upper
-
     let calc_diag k n = Vec.make n k.Kernel.const
-    let calc_cross k { Prepared.m = m; n = n } = Mat.make m n k.Kernel.const
+    let calc_cross k m n = Mat.make m n k.Kernel.const
 
-    let weighted_eval k ~coeffs { Prepared.m = m } =
-      if Vec.dim coeffs <> m then
-        failwith "Gpr.Cov_const.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
+    let weighted_eval k _ ~coeffs _ =
       let res = copy coeffs in
       scal k.Kernel.const res;
       res
@@ -97,13 +70,7 @@ module Deriv = struct
   let calc_const_deriv k = -2. *. k.Eval.Kernel.const
 
   module Inducing = struct
-    module Prepared = struct
-      type upper = Eval.Inducing.Prepared.upper
-
-      let calc_upper upper = upper
-    end
-
-    type upper = { m : Prepared.upper; deriv_const : float }
+    type upper = { m : int; deriv_const : float }
 
     let calc_shared_upper k m =
       Eval.Inducing.calc_upper k m, { m = m; deriv_const = calc_const_deriv k }
@@ -112,17 +79,6 @@ module Deriv = struct
   end
 
   module Inputs = struct
-    module Prepared = struct
-      type cross = Eval.Inputs.Prepared.cross
-
-      let calc_cross m cross =
-        if m <> cross.Eval.Inputs.Prepared.m then
-          failwith
-            "Gpr.Cov_const.Deriv.Inputs.Prepared.calc_cross: \
-            dimension mismatch";
-        { cross with Eval.Inputs.Prepared.m = m }
-    end
-
     type diag = { diag_eval_inputs : Eval.Inputs.t; diag_const_deriv : float }
     type cross = { cross_const_deriv : float }
 
@@ -135,9 +91,9 @@ module Deriv = struct
         }
       )
 
-    let calc_shared_cross k prepared_cross =
+    let calc_shared_cross k eval_inducing eval_inputs =
       (
-        Eval.Inputs.calc_cross k prepared_cross,
+        Eval.Inputs.calc_cross k eval_inducing eval_inputs,
         { cross_const_deriv = calc_const_deriv k }
       )
 

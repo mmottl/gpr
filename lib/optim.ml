@@ -1,10 +1,8 @@
 open Lacaml.Impl.D
-
 open Interfaces
 
 (* Hyper parameter optimization with the GNU Scientific Library *)
 module Gsl = struct
-
   exception Optim_exception of exn
 
   let check_exception seen_exception_ref res =
@@ -46,7 +44,7 @@ module Gsl = struct
         | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
         | Some sigma2 -> max sigma2 min_float
       in
-      let kernel, eval_inducing_prepared =
+      let kernel, inducing =
         match inducing with
         | None ->
             let n_inducing =
@@ -60,27 +58,14 @@ module Gsl = struct
             in
             (
               kernel,
-              Eval.Inducing.Prepared.choose_n_random_inputs
-                kernel ~n_inducing inputs
+              Eval.Inducing.choose_n_random_inputs kernel ~n_inducing inputs
             )
         | Some inducing ->
-            let kernel =
-              match kernel with
-              | None ->
-                  let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
-                  Eval.Inputs.create_default_kernel ~n_inducing inputs
-              | Some kernel -> kernel
-            in
-            kernel, Eval.Inducing.Prepared.calc inducing
-      in
-      let eval_inputs_prepared =
-        Eval.Inputs.Prepared.calc eval_inducing_prepared inputs
-      in
-      let deriv_inducing_prepared =
-        Deriv.Inducing.Prepared.calc eval_inducing_prepared
-      in
-      let deriv_inputs_prepared =
-        Deriv.Inputs.Prepared.calc deriv_inducing_prepared eval_inputs_prepared
+            match kernel with
+            | None ->
+                let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
+                Eval.Inputs.create_default_kernel ~n_inducing inputs, inducing
+            | Some kernel -> kernel, inducing
       in
       let hyper_vars, hyper_vals = Deriv.Spec.Hyper.extract kernel in
       let n_hypers = Array.length hyper_vars in
@@ -116,12 +101,8 @@ module Gsl = struct
       in
       let multim_f ~x:gsl_hypers =
         let sigma2, kernel = update_hypers ~gsl_hypers in
-        let eval_inducing =
-          Eval.Inducing.calc kernel eval_inducing_prepared
-        in
-        let eval_inputs =
-          Eval.Inputs.calc eval_inducing eval_inputs_prepared
-        in
+        let eval_inducing = Eval.Inducing.calc kernel inducing in
+        let eval_inputs = Eval.Inputs.calc eval_inducing inputs in
         let model = Eval.Model.calc eval_inputs ~sigma2 in
         let trained = Eval.Trained.calc model ~targets in
         let log_evidence = Eval.Trained.calc_log_evidence trained in
@@ -131,12 +112,8 @@ module Gsl = struct
       let multim_f ~x = wrap_seen_exception (fun () -> multim_f ~x) in
       let multim_dcommon ~x:gsl_hypers ~g:gradient =
         let sigma2, kernel = update_hypers ~gsl_hypers in
-        let deriv_inducing =
-          Deriv.Inducing.calc kernel deriv_inducing_prepared
-        in
-        let deriv_inputs =
-          Deriv.Inputs.calc deriv_inducing deriv_inputs_prepared
-        in
+        let deriv_inducing = Deriv.Inducing.calc kernel inducing in
+        let deriv_inputs = Deriv.Inputs.calc deriv_inducing inputs in
         let dmodel = Deriv.Model.calc ~sigma2 deriv_inputs in
         let trained = Deriv.Trained.calc dmodel ~targets in
         let dlog_evidence_dsigma2 =
@@ -220,7 +197,7 @@ module Gsl = struct
             | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
             | Some sigma2 -> max sigma2 min_float
           in
-          let kernel, eval_inducing_prepared =
+          let kernel, inducing =
             match inducing with
             | None ->
                 let n_inducing =
@@ -234,26 +211,22 @@ module Gsl = struct
                 in
                 (
                   kernel,
-                  Eval.Inducing.Prepared.choose_n_random_inputs
-                    kernel ~n_inducing inputs
+                  Eval.Inducing.choose_n_random_inputs kernel ~n_inducing inputs
                 )
             | Some inducing ->
-                let kernel =
-                  match kernel with
-                  | None ->
-                      let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
-                      Eval.Inputs.create_default_kernel ~n_inducing inputs
-                  | Some kernel -> kernel
-                in
-                kernel, Eval.Inducing.Prepared.calc inducing
+                match kernel with
+                | None ->
+                    let n_inducing = Eval.Spec.Inducing.get_n_points inducing in
+                    (
+                      Eval.Inputs.create_default_kernel ~n_inducing inputs,
+                      inducing
+                    )
+                | Some kernel -> kernel, inducing
           in
           let hyper_vars, hyper_vals = Deriv.Spec.Hyper.extract kernel in
           let n_hypers = Array.length hyper_vars in
-          let inducing_points =
-            Eval.Inducing.Prepared.get_points eval_inducing_prepared
-          in
-          let inducing_hypers, inducing_vals = 
-            Spec.Inducing_hypers.extract inducing_points
+          let inducing_hypers, inducing_vals =
+            Spec.Inducing_hypers.extract inducing
           in
           let n_inducing_hypers = Array.length inducing_hypers in
           let n_gsl_hypers = 1 + n_hypers + n_inducing_hypers in
@@ -273,14 +246,8 @@ module Gsl = struct
               inducing_vals.{i} <- gsl_hypers.{n_hypers + i}
             done;
             let kernel = Deriv.Spec.Hyper.update kernel hyper_vals in
-            let inducing =
-              Spec.Inducing_hypers.update inducing_points inducing_vals
-            in
-            let eval_inducing_prepared = Eval.Inducing.Prepared.calc inducing in
-            let eval_inputs_prepared =
-              Eval.Inputs.Prepared.calc eval_inducing_prepared inputs
-            in
-            sigma2, kernel, eval_inducing_prepared, eval_inputs_prepared
+            let inducing = Spec.Inducing_hypers.update inducing inducing_vals in
+            sigma2, kernel, inducing
           in
           let seen_exception_ref = ref None in
           let wrap_seen_exception f =
@@ -302,15 +269,9 @@ module Gsl = struct
                 best_model_ref := Some (trained, log_evidence)
           in
           let calc_f_trained gsl_hypers =
-            let sigma2, kernel, eval_inducing_prepared, eval_inputs_prepared =
-              update_hypers ~gsl_hypers
-            in
-            let eval_inducing =
-              Eval.Inducing.calc kernel eval_inducing_prepared
-            in
-            let eval_inputs =
-              Eval.Inputs.calc eval_inducing eval_inputs_prepared
-            in
+            let sigma2, kernel, inducing = update_hypers ~gsl_hypers in
+            let eval_inducing = Eval.Inducing.calc kernel inducing in
+            let eval_inputs = Eval.Inputs.calc eval_inducing inputs in
             let model = Eval.Model.calc eval_inputs ~sigma2 in
             Eval.Trained.calc model ~targets
           in
@@ -322,22 +283,11 @@ module Gsl = struct
           in
           let multim_f ~x = wrap_seen_exception (fun () -> multim_f ~x) in
           let multim_dcommon ~x:gsl_hypers ~g:gradient =
-            let sigma2, kernel, eval_inducing_prepared, eval_inputs_prepared =
+            let sigma2, kernel, inducing =
               update_hypers ~gsl_hypers
             in
-            let deriv_inducing_prepared =
-              Deriv.Inducing.Prepared.calc eval_inducing_prepared
-            in
-            let deriv_inputs_prepared =
-              Deriv.Inputs.Prepared.calc deriv_inducing_prepared
-              eval_inputs_prepared
-            in
-            let deriv_inducing =
-              Deriv.Inducing.calc kernel deriv_inducing_prepared
-            in
-            let deriv_inputs =
-              Deriv.Inputs.calc deriv_inducing deriv_inputs_prepared
-            in
+            let deriv_inducing = Deriv.Inducing.calc kernel inducing in
+            let deriv_inputs = Deriv.Inputs.calc deriv_inducing inputs in
             let dmodel = Deriv.Model.calc ~sigma2 deriv_inputs in
             let trained = Deriv.Trained.calc dmodel ~targets in
             let dlog_evidence_dsigma2 =

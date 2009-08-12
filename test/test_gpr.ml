@@ -16,19 +16,11 @@ let test_log_ell () =
 
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
-  let eval_inducing_prep =
-    Eval.Inducing.Prepared.choose_n_random_inputs
-      kernel ~n_inducing training_inputs
+  let inducing_points =
+    Eval.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
   in
-  let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
-  let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
-  let eval_inputs_prep =
-    Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
-  in
-  let deriv_inputs_prep =
-    Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
-  in
-  let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
+  let inducing = Deriv.Inducing.calc kernel inducing_points in
+  let inputs = Deriv.Inputs.calc inducing training_inputs in
   let model = Deriv.Model.calc ~sigma2 inputs in
 
   let new_kernel =
@@ -40,8 +32,8 @@ let test_log_ell () =
     Eval.Spec.Kernel.create new_params
   in
 
-  let inducing2 = Deriv.Inducing.calc new_kernel deriv_inducing_prep in
-  let inputs2 = Deriv.Inputs.calc inducing2 deriv_inputs_prep in
+  let inducing2 = Deriv.Inducing.calc new_kernel inducing_points in
+  let inputs2 = Deriv.Inputs.calc inducing2 training_inputs in
   let model2 = Deriv.Model.calc ~sigma2 inputs2 in
 
   let hyper_model = Deriv.Model.prepare_hyper model in
@@ -77,22 +69,14 @@ let test_inducing () =
   let module Eval = FITC.Eval in
   let module Deriv = FITC.Deriv in
 
-  let inducing_inputs =
+  let inducing_points =
     let training_inputs = lacpy ~n:3 training_inputs in
     Eval.Spec.Inputs.create_inducing kernel training_inputs
   in
 
   let run () =
-    let eval_inducing_prep = Eval.Inducing.Prepared.calc inducing_inputs in
-    let deriv_inducing_prep = Deriv.Inducing.Prepared.calc eval_inducing_prep in
-    let inducing = Deriv.Inducing.calc kernel deriv_inducing_prep in
-    let eval_inputs_prep =
-      Eval.Inputs.Prepared.calc eval_inducing_prep training_inputs
-    in
-    let deriv_inputs_prep =
-      Deriv.Inputs.Prepared.calc deriv_inducing_prep eval_inputs_prep
-    in
-    let inputs = Deriv.Inputs.calc inducing deriv_inputs_prep in
+    let inducing = Deriv.Inducing.calc kernel inducing_points in
+    let inputs = Deriv.Inputs.calc inducing training_inputs in
     let model = Deriv.Model.calc ~sigma2 inputs in
 
     let hyper_model = Deriv.Model.prepare_hyper model in
@@ -106,7 +90,7 @@ let test_inducing () =
   in
 
   let mev, mf1 = run () in
-  inducing_inputs.{1, 3} <- inducing_inputs.{1, 3} +. epsilon;
+  inducing_points.{1, 3} <- inducing_points.{1, 3} +. epsilon;
   let _, mf2 = run () in
 
   print_float "inducing mdlog_evidence" mev;
