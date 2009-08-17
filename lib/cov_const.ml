@@ -58,13 +58,25 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_theta ]
 
-    let extract { Eval.Kernel.params = params } =
-      let values = Vec.create 1 in
-      values.{1} <- params.Params.log_theta;
-      [| `Log_theta |], values
+    let get_all _kernel _inducing = [| `Log_theta |]
 
-    let update _kernel (values : vec) =
-      Eval.Kernel.create { Params.log_theta = values.{1} }
+    let get_value { Eval.Kernel.params = params } _inducing = function
+      | `Log_theta -> params.Params.log_theta
+
+    let set_values kernel inducing hypers values =
+      let { Eval.Kernel.params = params } = kernel in
+      let log_theta_ref = ref params.Params.log_theta in
+      let kernel_changed_ref = ref false in
+      for i = 1 to Array.length hypers do
+        match hypers.(i - 1) with
+        | `Log_theta -> log_theta_ref := values.{i}; kernel_changed_ref := true
+      done;
+      let new_kernel =
+        if !kernel_changed_ref then
+          Eval.Kernel.create { Params.log_theta = !log_theta_ref }
+        else kernel
+      in
+      new_kernel, inducing
   end
 
   let calc_const_deriv k = -2. *. k.Eval.Kernel.const

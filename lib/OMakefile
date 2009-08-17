@@ -7,7 +7,6 @@ SOURCES[] =
   cov_lin_ard
   cov_se_iso
   fitc_gp
-  optim
 
 section
   OCAMLCFLAGS += -for-pack Gpr

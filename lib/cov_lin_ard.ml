@@ -99,13 +99,26 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_ell of int ]
 
-    let extract { Eval.Kernel.params = params } =
-      let values = copy params.Params.log_ells in
-      let hypers = Array.init (Vec.dim values) (fun i -> `Log_ell (i + 1)) in
-      hypers, values
+    let get_all { Eval.Kernel.params = params } _inducing =
+      Array.init (Vec.dim params.Params.log_ells) (fun d ->
+        `Log_ell (d + 1))
 
-    let update _kernel (log_ells : vec) =
-      Eval.Kernel.create { Params.log_ells = log_ells }
+    let get_value { Eval.Kernel.params = params } _inducing = function
+      | `Log_ell i -> params.Params.log_ells.{i}
+
+    let set_values kernel inducing hypers values =
+      let { Eval.Kernel.params = params } = kernel in
+      let log_ells_lazy = lazy (copy params.Params.log_ells) in
+      for i = 1 to Array.length hypers do
+        match hypers.(i - 1) with
+        | `Log_ell d -> (Lazy.force log_ells_lazy).{d} <- values.{i}
+      done;
+      let new_kernel =
+        if Lazy.lazy_is_val log_ells_lazy then
+          Eval.Kernel.create { Params.log_ells = Lazy.force log_ells_lazy }
+        else kernel
+      in
+      new_kernel, inducing
   end
 
   module Inducing = struct

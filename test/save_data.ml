@@ -19,7 +19,6 @@ let main () =
   write_vec "targets" training_targets;
 
   let trained =
-    let module S = Optim.Gsl.Make_SPGP (FITC_all) (Cov_se_iso.SPGP) in
     let report_trained_model ~iter trained =
       let log_evidence = FITC.Trained.calc_log_evidence trained in
       let rmse = FITC.Trained.calc_rmse trained in
@@ -29,20 +28,26 @@ let main () =
     let report_gradient_norm ~iter norm =
       Printf.printf "iter %4d:  |gradient| = %.5f\n%!" iter norm
     in
+(*
     let inducing_points =
       FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
     in
-    FITC_all.Deriv.Test.check_deriv_hyper
-      kernel
-      inducing_points
-      training_inputs
-      `Log_ell
-      ~eps:1e-9
-      ~tol:1e-2;
-    S.SPGP.Gsl.train
+    let all_hypers =
+      FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
+    in
+    Array.iteri (fun i hyper ->
+      FITC_all.Deriv.Test.check_deriv_hyper
+        kernel
+        inducing_points
+        training_inputs
+        hyper
+        ~eps:1e-9
+        ~tol:1e-2) all_hypers;
+*)
+    FITC_all.Deriv.Optim.Gsl.train
       ~report_trained_model ~report_gradient_norm
       ~kernel ~n_rand_inducing:n_inducing
-      ~tol:0.1 ~step:0.1 ~epsabs:5.
+      ~tol:0.1 ~step:0.1 ~epsabs:3.
       ~inputs:training_inputs ~targets:training_targets ()
 (*
     let inputs =

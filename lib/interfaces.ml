@@ -79,8 +79,12 @@ module Specs = struct
     module Hyper : sig
       type t
 
-      val extract : Eval.Kernel.t -> t array * vec
-      val update : Eval.Kernel.t -> vec -> Eval.Kernel.t
+      val get_all : Eval.Kernel.t -> Eval.Inducing.t -> t array
+      val get_value : Eval.Kernel.t -> Eval.Inducing.t -> t -> float
+
+      val set_values :
+        Eval.Kernel.t -> Eval.Inducing.t -> t array -> vec ->
+        Eval.Kernel.t * Eval.Inducing.t
     end
 
     module Inducing : sig
@@ -101,16 +105,6 @@ module Specs = struct
 
       val calc_deriv_diag : diag -> Hyper.t -> diag_deriv
       val calc_deriv_cross : cross -> Hyper.t -> mat_deriv
-    end
-  end
-
-  module type SPGP = sig
-    module Eval : Eval
-    module Deriv : Deriv with module Eval = Eval
-
-    module Inducing_hypers : sig
-      val extract : Deriv.Eval.Inducing.t -> Deriv.Hyper.t array * vec
-      val update : Deriv.Eval.Inducing.t -> vec -> Deriv.Eval.Inducing.t
     end
   end
 end
@@ -342,33 +336,28 @@ module Sigs = struct
           tol : float ->
           unit
       end
-    end
-  end
 
-  module type SPGP = sig
-    module Eval : Eval
-    module Deriv : Deriv with module Eval = Eval
+      module Optim : sig
+        module Gsl : sig
+          exception Optim_exception of exn
 
-    module SPGP : sig
-      module Spec : Specs.SPGP
-        with module Eval = Deriv.Eval.Spec
-        with module Deriv = Deriv.Deriv.Spec
-
-      module Gsl : sig
-        val train :
-          ?step : float ->
-          ?tol : float ->
-          ?epsabs : float ->
-          ?report_trained_model : (iter : int -> Eval.Trained.t -> unit) ->
-          ?report_gradient_norm : (iter : int -> float -> unit) ->
-          ?kernel : Eval.Spec.Kernel.t ->
-          ?sigma2 : float ->
-          ?inducing : Eval.Spec.Inducing.t ->
-          ?n_rand_inducing : int ->
-          inputs : Eval.Spec.Inputs.t ->
-          targets : vec ->
-          unit ->
-          Eval.Trained.t
+          val train :
+            ?step : float ->
+            ?tol : float ->
+            ?epsabs : float ->
+            ?report_trained_model : (iter : int -> Eval.Trained.t -> unit) ->
+            ?report_gradient_norm : (iter : int -> float -> unit) ->
+            ?kernel : Eval.Spec.Kernel.t ->
+            ?sigma2 : float ->
+            ?inducing : Eval.Spec.Inducing.t ->
+            ?n_rand_inducing : int ->
+            ?learn_sigma2 : bool ->
+            ?hypers : Spec.Hyper.t array ->
+            inputs : Eval.Spec.Inputs.t ->
+            targets : vec ->
+            unit ->
+            Eval.Trained.t
+        end
       end
     end
   end

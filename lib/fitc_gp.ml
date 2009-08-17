@@ -616,7 +616,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_induced co_variance_predictor ~sigma2 inputs =
       check_inducing ~loc:"FIC" co_variance_predictor inputs;
-      let prior_covariances = 
+      let prior_covariances =
         let v_mat, kn_diag = Inputs.nystrom_marginals inputs in
         let res = syrk ~trans:`T v_mat in
         for i = 1 to Vec.dim kn_diag do res.{i, i} <- kn_diag.{i} done;
@@ -1242,29 +1242,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     end
 
     module Test = struct
-      let check_deriv_hyper kernel1 inducing_points points hyper ~eps ~tol =
-        let kernel2 =
-          let hypers, values = Spec.Hyper.extract kernel1 in
-          let rec loop i =
-            if i < 0 then
-              failwith
-                "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
-                hyper variable is unknown"
-            else
-              if hypers.(i) = hyper then
-                let i1 = i + 1 in
-                let value = values.{i1} in
-                let value_eps = value +. eps in
-                let values_eps = copy values in
-                values_eps.{i1} <- value_eps;
-                Spec.Hyper.update kernel1 values_eps
-              else loop (i - 1)
-          in
-          loop (Array.length hypers - 1)
+      let check_deriv_hyper kernel1 inducing_points1 points hyper ~eps ~tol =
+        let kernel2, inducing_points2 =
+          let value = Spec.Hyper.get_value kernel1 inducing_points1 hyper in
+          let value_eps = value +. eps in
+          Spec.Hyper.set_values kernel1 inducing_points1
+            [| hyper |] (Vec.make 1 value_eps)
         in
-        let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points in
+        let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points1 in
         let eval_cross1 = Eval_inputs.calc eval_inducing1 points in
-        let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points in
+        let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
         let eval_cross2 = Eval_inputs.calc eval_inducing2 points in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
@@ -1276,7 +1263,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let finite_dkm =
           make_finite ~mat1:km1 ~mat2:eval_inducing2.Eval_inducing.km
         in
-        let inducing = Inducing.calc kernel1 inducing_points in
+        let inducing1 = Inducing.calc kernel1 inducing_points1 in
         let check ~name ~deriv ~finite ~r ~c =
           let finite_el = finite.{r, c} in
           if abs_float (finite_el -. deriv) > tol then
@@ -1290,7 +1277,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         begin
           let check = check ~name:"dkm" ~finite:finite_dkm in
           match
-            Spec.Inducing.calc_deriv_upper inducing.Inducing.shared_upper hyper
+            Spec.Inducing.calc_deriv_upper inducing1.Inducing.shared_upper hyper
           with
           | `Dense dkm ->
               let m = Mat.dim1 dkm in
@@ -1299,13 +1286,25 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               done
           | `Sparse_rows (sdkm, rows) ->
               let m = Int_vec.dim rows in
-              let n = Mat.dim1 sdkm in
+              let n = Mat.dim2 sdkm in
               let rows_ix_ref = ref 1 in
               for sparse_r = 1 to m do
                 let c = rows.{sparse_r} in
                 for r = 1 to n do
-                  let deriv = if r > c then sdkm.{c, r} else sdkm.{r, c} in
-                  check ~deriv ~r ~c
+                  let mat_r, mat_c = if r > c then c, r else r, c in
+                  let rows_ix = !rows_ix_ref in
+                  let deriv =
+                    if
+                      rows_ix > m ||
+                      let rows_el = rows.{rows_ix} in
+                      r < rows_el || c < rows_el
+                    then sdkm.{sparse_r, r}
+                    else begin
+                      incr rows_ix_ref;
+                      sdkm.{rows_ix, c}
+                    end
+                  in
+                  check ~deriv ~r:mat_r ~c:mat_c
                 done;
                 rows_ix_ref := 1
               done
@@ -1327,7 +1326,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               for c = 1 to m do check ~deriv:const ~r:c ~c done
         end;
         (* Check dkmn *)
-        let inputs = Inputs.calc inducing points in
+        let inputs = Inputs.calc inducing1 points in
         begin
           let kmn1 = eval_cross1.Eval_inputs.kmn in
           let finite_dkmn =
@@ -1407,6 +1406,212 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 check ~deriv:(const *. kn_diag1.{r}) ~r
               done
         end
+    end
+
+    (* Hyper parameter optimization by evidence maximization
+       (type II maximum likelihood) *)
+    module Optim = struct
+      module Gsl = struct
+        exception Optim_exception of exn
+
+        let check_exception seen_exception_ref res =
+          if classify_float res = FP_nan then
+            match !seen_exception_ref with
+            | None ->
+                failwith "Gpr.Optim.Gsl: optimization function returned nan"
+            | Some exc -> raise (Optim_exception exc)
+
+        let ignore_report ~iter:_ _ = ()
+
+        let train
+              ?(step = 1e-1) ?(tol = 1e-1) ?(epsabs = 0.1)
+              ?(report_trained_model = ignore_report)
+              ?(report_gradient_norm = ignore_report)
+              ?kernel ?sigma2 ?inducing ?n_rand_inducing
+              ?(learn_sigma2 = true) ?hypers ~inputs ~targets () =
+          let sigma2 =
+            match sigma2 with
+            | None -> Vec.sqr_nrm2 targets /. float (Vec.dim targets)
+            | Some sigma2 -> max sigma2 min_float
+          in
+          let kernel, inducing =
+            match inducing with
+            | None ->
+                let n_inducing =
+                  let n_inputs = Spec.Eval.Inputs.get_n_points inputs in
+                  match n_rand_inducing with
+                  | None -> min (n_inputs / 10) 1000
+                  | Some n_rand_inducing ->
+                      if n_rand_inducing < 1 then
+                        failwith (
+                          sprintf
+                            "Gpr.Fitc_gp.Optim.Gsl.train: \
+                            n_rand_inducing (%d) < 1" n_rand_inducing)
+                      else if n_rand_inducing > n_inputs then
+                        failwith (
+                          sprintf
+                            "Gpr.Fitc_gp.Optim.Gsl.train: \
+                            n_rand_inducing (%d) > n_inputs (%d)"
+                            n_rand_inducing n_inputs)
+                      else n_rand_inducing
+
+                in
+                let kernel =
+                  match kernel with
+                  | None -> Eval_inputs.create_default_kernel ~n_inducing inputs
+                  | Some kernel -> kernel
+                in
+                (
+                  kernel,
+                  Eval_inducing.choose_n_random_inputs kernel ~n_inducing inputs
+                )
+            | Some inducing ->
+                match kernel with
+                | None ->
+                    let n_inducing = Spec.Eval.Inducing.get_n_points inducing in
+                    Eval_inputs.create_default_kernel
+                      ~n_inducing inputs, inducing
+                | Some kernel -> kernel, inducing
+          in
+          let hypers =
+            match hypers with
+            | None -> Spec.Hyper.get_all kernel inducing
+            | Some hypers -> hypers
+          in
+          let n_hypers = Array.length hypers in
+          let hyper_vals =
+            Vec.init n_hypers (fun i1 ->
+              Spec.Hyper.get_value kernel inducing hypers.(i1 - 1))
+          in
+          let n_gsl_hypers, gsl_hypers =
+            if learn_sigma2 then
+              let n_gsl_hypers = 1 + n_hypers in
+              let gsl_hypers = Gsl_vector.create n_gsl_hypers in
+              gsl_hypers.{0} <- log sigma2;
+              for i = 1 to n_hypers do gsl_hypers.{i} <- hyper_vals.{i} done;
+              n_gsl_hypers, gsl_hypers
+            else
+              let gsl_hypers = Gsl_vector.create n_hypers in
+              for i = 1 to n_hypers do
+                gsl_hypers.{i - 1} <- hyper_vals.{i}
+              done;
+              n_hypers, gsl_hypers
+           in
+          let module Gd = Gsl_multimin.Deriv in
+          let sigma2_ref = ref sigma2 in
+          let update_hypers =
+            if learn_sigma2 then
+              (fun ~gsl_hypers ->
+                sigma2_ref := exp gsl_hypers.{0};
+                let hyper_vals = Vec.create n_hypers in
+                for i = 1 to n_hypers do hyper_vals.{i} <- gsl_hypers.{i} done;
+                Spec.Hyper.set_values kernel inducing hypers hyper_vals)
+            else
+              (fun ~gsl_hypers ->
+                let hyper_vals = Vec.create n_hypers in
+                for i = 1 to n_hypers do
+                  hyper_vals.{i} <- gsl_hypers.{i - 1}
+                done;
+                Spec.Hyper.set_values kernel inducing hypers hyper_vals)
+          in
+          let seen_exception_ref = ref None in
+          let wrap_seen_exception f =
+            try f () with exc -> seen_exception_ref := Some exc; raise exc
+          in
+          let best_model_ref = ref None in
+          let get_best_model () =
+            match !best_model_ref with
+            | None -> assert false  (* impossible *)
+            | Some (trained, _) -> trained
+          in
+          let iter_count = ref 1 in
+          let update_best_model trained log_evidence =
+            match !best_model_ref with
+            | Some (_, old_log_evidence)
+              when old_log_evidence >= log_evidence -> ()
+            | _ ->
+                report_trained_model ~iter:!iter_count trained;
+                best_model_ref := Some (trained, log_evidence)
+          in
+          let multim_f ~x:gsl_hypers =
+            let kernel, inducing = update_hypers ~gsl_hypers in
+            let eval_inducing = Eval_inducing.calc kernel inducing in
+            let eval_inputs = Eval_inputs.calc eval_inducing inputs in
+            let model = Eval_model.calc eval_inputs ~sigma2:!sigma2_ref in
+            let trained = Eval_trained.calc model ~targets in
+            let log_evidence = Eval_trained.calc_log_evidence trained in
+            update_best_model trained log_evidence;
+            -. log_evidence
+          in
+          let multim_f ~x = wrap_seen_exception (fun () -> multim_f ~x) in
+          let update_gradient =
+            if learn_sigma2 then fun gradient trained hyper_t ->
+              let dlog_evidence_dsigma2 =
+                Trained.calc_log_evidence_sigma2 trained
+              in
+              gradient.{0} <- -. dlog_evidence_dsigma2 *. !sigma2_ref;
+              for i1 = 1 to n_hypers do
+                gradient.{i1} <-
+                  -. Trained.calc_log_evidence hyper_t hypers.(i1 - 1)
+              done;
+            else fun gradient _trained hyper_t ->
+              for i = 0 to n_hypers - 1 do
+                gradient.{i} <- -. Trained.calc_log_evidence hyper_t hypers.(i)
+              done;
+          in
+          let multim_dcommon ~x:gsl_hypers ~g:gradient =
+            let kernel, inducing = update_hypers ~gsl_hypers in
+            let deriv_inducing = Inducing.calc kernel inducing in
+            let deriv_inputs = Inputs.calc deriv_inducing inputs in
+            let dmodel = Cm.calc ~sigma2:!sigma2_ref deriv_inputs in
+            let trained = Trained.calc dmodel ~targets in
+            let hyper_t = Trained.prepare_hyper trained in
+            update_gradient gradient trained hyper_t;
+            trained
+          in
+          let multim_df ~x ~g = ignore (multim_dcommon ~x ~g) in
+          let multim_df ~x ~g =
+            wrap_seen_exception (fun () -> multim_df ~x ~g)
+          in
+          let multim_fdf ~x ~g =
+            let deriv_trained = multim_dcommon ~x ~g in
+            let trained = Trained.calc_eval deriv_trained in
+            let log_evidence = Eval_trained.calc_log_evidence trained in
+            update_best_model trained log_evidence;
+            -. log_evidence
+          in
+          let multim_fdf ~x ~g =
+            wrap_seen_exception (fun () -> multim_fdf ~x ~g)
+          in
+          let multim_fun_fdf =
+            {
+              Gsl_fun.
+              multim_f = multim_f;
+              multim_df = multim_df;
+              multim_fdf = multim_fdf;
+            }
+          in
+          let mumin =
+            Gd.make Gd.VECTOR_BFGS2 n_gsl_hypers
+              multim_fun_fdf ~x:gsl_hypers ~step ~tol
+          in
+          let gsl_dhypers = Gsl_vector.create n_gsl_hypers in
+          let rec loop () =
+            let neg_log_likelihood =
+              Gd.minimum ~x:gsl_hypers ~g:gsl_dhypers mumin
+            in
+            check_exception seen_exception_ref neg_log_likelihood;
+            let gnorm = Gsl_blas.nrm2 gsl_dhypers in
+            report_gradient_norm ~iter:!iter_count gnorm;
+            if gnorm < epsabs then get_best_model ()
+            else begin
+              incr iter_count;
+              Gd.iterate mumin;
+              loop ()
+            end
+          in
+          loop ()
+      end
     end
   end
 end

@@ -47,7 +47,7 @@ module Eval = struct
       let m = Mat.dim2 inducing in
       let res = Mat.create m m in
       let ssqr_diff_ref = ref 0. in
-      for c = 2 to m do
+      for c = 1 to m do
         for r = 1 to c - 1 do
           for i = 1 to d do
             let diff = inducing.{i, c} -. inducing.{i, r} in
@@ -55,7 +55,8 @@ module Eval = struct
           done;
           res.{r, c} <- !ssqr_diff_ref;
           ssqr_diff_ref := 0.
-        done
+        done;
+        res.{c, c} <- 0.
       done;
       res
 
@@ -63,12 +64,12 @@ module Eval = struct
       let m = Mat.dim2 sqr_diff_mat in
       let res = Mat.create m m in
       let { inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2; sf2 = sf2 } = k in
-      for c = 2 to m do
+      for c = 1 to m do
         for r = 1 to c - 1 do
           res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c});
         done;
+        res.{c, c} <- sf2;
       done;
-      for i = 1 to m do res.{i, i} <- sf2 done;
       res
 
     let calc_upper k inducing =
@@ -173,14 +174,51 @@ module Deriv = struct
   module Hyper = struct
     type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
 
-    let extract { Eval.Kernel.params = params } =
-      let values = Vec.create 2 in
-      values.{1} <- params.Params.log_ell;
-      values.{2} <- params.Params.log_sf2;
-      [| `Log_ell; `Log_sf2 |], values
+    let get_all _kernel inducing =
+      let d = Mat.dim1 inducing in
+      let m = Mat.dim2 inducing in
+      let n_inducing_hypers = d * m in
+      let n_all_hypers = 2 + n_inducing_hypers in
+      let hypers = Array.make n_all_hypers `Log_ell in
+      hypers.(1) <- `Log_sf2 ;
+      for ind = 1 to m do
+        let indd = (ind - 1) * d in
+        for dim = 1 to d do
+          let inducing_hyper = { ind = ind; dim = dim } in
+          hypers.(1 + indd + dim) <- `Inducing_hyper inducing_hyper
+        done
+      done;
+      hypers
 
-    let update _kernel (values : vec) =
-      Eval.Kernel.create { Params.log_ell = values.{1}; log_sf2 = values.{2} }
+    let get_value { Eval.Kernel.params = params } inducing = function
+      | `Log_ell -> params.Params.log_ell
+      | `Log_sf2 -> params.Params.log_sf2
+      | `Inducing_hyper { ind = ind; dim = dim } -> inducing.{dim, ind}
+
+    let set_values kernel inducing hypers values =
+      let { Eval.Kernel.params = params } = kernel in
+      let log_ell_ref = ref params.Params.log_ell in
+      let log_sf2_ref = ref params.Params.log_sf2 in
+      let kernel_changed_ref = ref false in
+      let inducing_lazy = lazy (lacpy inducing) in
+      for i = 1 to Array.length hypers do
+        match hypers.(i - 1) with
+        | `Log_ell -> log_ell_ref := values.{i}; kernel_changed_ref := true
+        | `Log_sf2 -> log_sf2_ref := values.{i}; kernel_changed_ref := true
+        | `Inducing_hyper { ind = ind; dim = dim } ->
+            (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
+      done;
+      let new_kernel =
+        if !kernel_changed_ref then
+          Eval.Kernel.create
+            { Params.log_ell = !log_ell_ref; log_sf2 = !log_sf2_ref }
+        else kernel
+      in
+      let new_inducing =
+        if Lazy.lazy_is_val inducing_lazy then Lazy.force inducing_lazy
+        else inducing
+      in
+      new_kernel, new_inducing
   end
 
   type deriv_common = {
@@ -188,22 +226,6 @@ module Deriv = struct
     sqr_diff_mat : mat;
     eval_mat : mat;
   }
-
-  let calc_gen_deriv
-        ({ sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } as sh) =
-    function
-    | `Log_sf2 -> `Factor 1.
-    | `Log_ell ->
-        let m = Mat.dim1 sqr_diff_mat in
-        let n = Mat.dim2 sqr_diff_mat in
-        let res = Mat.create m n in
-        let { Eval.Kernel.inv_ell2 = inv_ell2 } = sh.kernel in
-        for c = 1 to n do
-          for r = 1 to m do
-            res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
-          done
-        done;
-        `Dense res
 
   module Inducing = struct
     type upper = Eval.Inducing.t * deriv_common
@@ -221,7 +243,19 @@ module Deriv = struct
       upper, shared
 
     let calc_deriv_upper (inducing, common) = function
-      | #gen_deriv as hyper -> calc_gen_deriv common hyper
+    | `Log_sf2 -> `Factor 1.
+    | `Log_ell ->
+        let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in
+        let m = Mat.dim1 sqr_diff_mat in
+        let res = Mat.create m m in
+        let { Eval.Kernel.inv_ell2 = inv_ell2 } = common.kernel in
+        for c = 1 to m do
+          for r = 1 to c - 1 do
+            res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
+          done;
+          res.{c, c} <- 0.;
+        done;
+        `Dense res
       | `Inducing_hyper inducing_hyper ->
           let { ind = ind; dim = dim } = inducing_hyper in
           let eval_mat = common.eval_mat in
@@ -269,7 +303,19 @@ module Deriv = struct
       | `Log_ell | `Inducing_hyper _ -> `Const 0.
 
     let calc_deriv_cross (inducing, inputs, common) = function
-      | #gen_deriv as hyper -> calc_gen_deriv common hyper
+      | `Log_sf2 -> `Factor 1.
+      | `Log_ell ->
+          let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in
+          let m = Mat.dim1 sqr_diff_mat in
+          let n = Mat.dim2 sqr_diff_mat in
+          let res = Mat.create m n in
+          let { Eval.Kernel.inv_ell2 = inv_ell2 } = common.kernel in
+          for c = 1 to n do
+            for r = 1 to m do
+              res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
+            done
+          done;
+          `Dense res
       | `Inducing_hyper inducing_hyper ->
           let { ind = ind; dim = dim } = inducing_hyper in
           let eval_mat = common.eval_mat in
@@ -284,30 +330,5 @@ module Deriv = struct
           let rows = Sparse_indices.create 1 in
           rows.{1} <- ind;
           `Sparse_rows (res, rows)
-  end
-end
-
-module SPGP = struct
-  module Eval = Eval
-  module Deriv = Deriv
-
-  module Inducing_hypers = struct
-    let extract inducing =
-      let d = Mat.dim1 inducing in
-      let n = Mat.dim2 inducing in
-      let all = d * n in
-      let hypers = Array.create all (`Inducing_hyper { ind = 1; dim = 1 }) in
-      for ind = 1 to n do
-        let indd = (ind - 1) * d in
-        for dim = 1 to d do
-          let inducing_hyper = { ind = ind; dim = dim } in
-          hypers.(indd + dim - 1) <- (`Inducing_hyper inducing_hyper)
-        done
-      done;
-      hypers, Mat.as_vec inducing
-
-    let update inducing values =
-      let gen = genarray_of_array1 values in
-      reshape_2 gen (Mat.dim1 inducing) (Mat.dim2 inducing)
   end
 end
