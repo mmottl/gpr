@@ -35,7 +35,7 @@ let main () =
     let all_hypers =
       FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
     in
-    Array.iteri (fun i hyper ->
+    Array.iter (fun hyper ->
       FITC_all.Deriv.Test.check_deriv_hyper
         kernel
         inducing_points
