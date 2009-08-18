@@ -199,25 +199,23 @@ module Deriv = struct
       let { Eval.Kernel.params = params } = kernel in
       let log_ell_ref = ref params.Params.log_ell in
       let log_sf2_ref = ref params.Params.log_sf2 in
-      let kernel_changed_ref = ref false in
       let inducing_lazy = lazy (lacpy inducing) in
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with
-        | `Log_ell -> log_ell_ref := values.{i}; kernel_changed_ref := true
-        | `Log_sf2 -> log_sf2_ref := values.{i}; kernel_changed_ref := true
+        | `Log_ell -> log_ell_ref := values.{i}
+        | `Log_sf2 -> log_sf2_ref := values.{i}
         | `Inducing_hyper { ind = ind; dim = dim } ->
             (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
       done;
       let new_kernel =
-        if !kernel_changed_ref then
-          Eval.Kernel.create
-            { Params.log_ell = !log_ell_ref; log_sf2 = !log_sf2_ref }
-        else kernel
+        Eval.Kernel.create
+          { Params.log_ell = !log_ell_ref; log_sf2 = !log_sf2_ref }
       in
-      let new_inducing =
-        if Lazy.lazy_is_val inducing_lazy then Lazy.force inducing_lazy
-        else inducing
+      let lift lazy_value value =
+        if Lazy.lazy_is_val lazy_value then Lazy.force lazy_value
+        else value
       in
+      let new_inducing = lift inducing_lazy inducing in
       new_kernel, new_inducing
   end
 

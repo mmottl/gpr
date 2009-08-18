@@ -1469,8 +1469,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 match kernel with
                 | None ->
                     let n_inducing = Spec.Eval.Inducing.get_n_points inducing in
-                    Eval_inputs.create_default_kernel
-                      ~n_inducing inputs, inducing
+                    (
+                      Eval_inputs.create_default_kernel ~n_inducing inputs,
+                      inducing
+                    )
                 | Some kernel -> kernel, inducing
           in
           let hypers =
