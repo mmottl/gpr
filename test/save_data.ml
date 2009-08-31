@@ -6,11 +6,12 @@ open Lacaml.Io
 open Gpr
 open Utils
 
-open Test_kernels.SE_iso
 open Gen_data
 
-module FITC_all = FITC
-module FITC = FITC.Eval
+module K = Fitc_gp.Make_deriv (Cov_se_fat.Deriv)
+module FITC_all = K.FITC
+module FITC = K.FITC.Eval
+module FIC = K.FIC.Eval
 
 let main () =
   Random.self_init ();
@@ -18,6 +19,11 @@ let main () =
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
 
+  let params =
+    Cov_se_fat.Eval.Inputs.create_default_kernel_params
+      ~n_inducing training_inputs
+  in
+  let kernel = Cov_se_fat.Eval.Kernel.create params in
   let trained =
     let report_trained_model ~iter trained =
       let log_evidence = FITC.Trained.calc_log_evidence trained in
@@ -28,7 +34,6 @@ let main () =
     let report_gradient_norm ~iter norm =
       Printf.printf "iter %4d:  |gradient| = %.5f\n%!" iter norm
     in
-(*
     let inducing_points =
       FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
     in
@@ -36,6 +41,15 @@ let main () =
       FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
     in
     Array.iter (fun hyper ->
+      let hyper_str =
+        match hyper with
+        | `Log_sf2 -> "Log_sf2"
+        | `Proj _ -> "Proj"
+        | `Log_hetero_skedasticity _ -> "Log_hetero_skedasticity"
+        | `Inducing_hyper _ -> "Inducing_hyper"
+        | `Log_multiscales _ -> "Log_multiscales"
+      in
+      printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
       FITC_all.Deriv.Test.check_deriv_hyper
         kernel
         inducing_points
@@ -43,7 +57,6 @@ let main () =
         hyper
         ~eps:1e-9
         ~tol:1e-2) all_hypers;
-*)
     FITC_all.Deriv.Optim.Gsl.train
       ~report_trained_model ~report_gradient_norm
       ~kernel ~n_rand_inducing:n_inducing
@@ -71,13 +84,12 @@ let main () =
   let sigma2 = FITC.Model.get_sigma2 (FITC.Trained.get_model trained) in
   write_float "sigma2" sigma2;
 
-  let params = FITC.Spec.Kernel.get_params (FITC.Model.get_kernel model) in
   let inducing = FITC.Model.get_inducing model in
   let inducing_inputs = FITC.Inducing.get_points inducing in
 
   write_mat "inducing_inputs" inducing_inputs;
-  write_float "log_ell" params.Cov_se_iso.Params.log_ell;
-  write_float "log_sf2" params.Cov_se_iso.Params.log_sf2;
+  write_float "log_sf2"
+    (params :> Cov_se_fat.Params.params).Cov_se_fat.Params.log_sf2;
 
   let mean_predictor = FITC.Mean_predictor.calc_trained trained in
   let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in
@@ -124,7 +136,6 @@ let main () =
   write_vec "sample2" (Mat.col fitc_samples 2);
   write_vec "sample3" (Mat.col fitc_samples 3);
 
-  let module FIC = FIC.Eval in
   let fic_covariances = FIC.Covariances.calc_model_inputs model in
   let fic_sampler =
     FIC.Cov_sampler.calc ~predictive:false means fic_covariances
