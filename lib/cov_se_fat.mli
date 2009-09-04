@@ -8,7 +8,7 @@ module Params : sig
     log_sf2 : float;
     tproj : mat option;
     log_hetero_skedasticity : vec option;
-    log_multiscales : mat option;
+    log_multiscales_m05 : mat option;
   }
 
   type t = private params
@@ -28,8 +28,8 @@ module Eval :
 
 (* module Proj_hyper : sig type t = private { big_dim : int; small_dim : int } end *)
 module Proj_hyper : sig type t = { big_dim : int; small_dim : int } end
-module Dim_hyper : sig type t = private int end
-module Inducing_hyper : sig type t = private { ind : int; dim : int } end
+module Dim_hyper : sig type t = int end
+module Inducing_hyper : sig type t = { ind : int; dim : int } end
 
 module Hyper_repr : sig
   type t =
@@ -38,7 +38,7 @@ module Hyper_repr : sig
     | `Proj of Proj_hyper.t
     | `Log_hetero_skedasticity of Dim_hyper.t
     | `Inducing_hyper of Inducing_hyper.t
-    | `Log_multiscales of Inducing_hyper.t
+    | `Log_multiscale_m05 of Inducing_hyper.t
     ]
 end
 

@@ -78,7 +78,7 @@ let sum_symm_mat mat =
   let rest = !rest_ref in
   rest +. !diag_ref +. rest
 
-(* Computes logarithm of determinat; Assumes Cholesky factorized matrix *)
+(* Computes logarithm of determinant; assumes Cholesky factorized matrix *)
 let log_det mat =
   let n = Mat.dim1 mat in
   if Mat.dim2 mat <> n then failwith "log_det: not a square matrix";

@@ -47,7 +47,7 @@ let main () =
         | `Proj _ -> "Proj"
         | `Log_hetero_skedasticity _ -> "Log_hetero_skedasticity"
         | `Inducing_hyper _ -> "Inducing_hyper"
-        | `Log_multiscales _ -> "Log_multiscales"
+        | `Log_multiscale_m05 _ -> "Log_multiscale_m05"
       in
       printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
       FITC_all.Deriv.Test.check_deriv_hyper

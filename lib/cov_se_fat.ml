@@ -13,7 +13,7 @@ module Params = struct
     log_sf2 : float;
     tproj : mat option;
     log_hetero_skedasticity : vec option;
-    log_multiscales : mat option;
+    log_multiscales_m05 : mat option;
   }
 
   type t = params
@@ -47,7 +47,8 @@ module Eval = struct
         option_map params.Params.log_hetero_skedasticity ~f:(Vec.map exp)
       in
       let multiscales =
-        option_map params.Params.log_multiscales ~f:(Mat.map exp)
+        let f v = exp v +. 0.5 in
+        option_map params.Params.log_multiscales_m05 ~f:(Mat.map f)
       in
       {
         params = params;
@@ -62,22 +63,34 @@ module Eval = struct
 
   open Kernel
 
-  let calc_upper_vanilla k inputs =
-    let m = Mat.dim2 inputs in
-    let res = Mat.create m m in
-    let { Kernel.params = { Params.d = d; log_sf2 = log_sf2 } } = k in
-    let res_ref = ref 0. in
-    for c = 2 to m do
+  type fast_float_ref = { mutable x : float }
+
+  let calc_res_el ~log_sf2 tmp =
+    let x = tmp.x in
+    tmp.x <- 0.;
+    exp (log_sf2 -. 0.5 *. x)
+
+  let calc_upper_vanilla k mat =
+    let
+      { Kernel.sf2 = sf2; params = { Params.d = d; log_sf2 = log_sf2 } } = k
+    in
+    let n = Mat.dim2 mat in
+    let res = Mat.create n n in
+    let tmp = { x = 0. } in
+    for c = 1 to n do
       for r = 1 to c - 1 do
         for i = 1 to d do
-          let diff = inputs.{i, r} -. inputs.{i, c} in
-          res_ref := !res_ref +. diff *. diff
+          let diff = mat.{i, r} -. mat.{i, c} in
+          tmp.x <- tmp.x +. diff *. diff
         done;
-        res.{r, c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-        res_ref := 0.;
+        res.{r, c} <- calc_res_el ~log_sf2 tmp;
       done;
+      res.{c, c} <- sf2;
     done;
     res
+
+  let update_tmp_sum ~tmp ~diff ~scale =
+    tmp.x <- tmp.x +. diff *. (diff /. scale) +. log scale
 
   module Inducing = struct
     type t = mat
@@ -86,41 +99,37 @@ module Eval = struct
 
     let calc_upper k inducing =
       let m = Mat.dim2 inducing in
-      let
-        {
-          Kernel.
-          sf2 = sf2;
-          hetero_skedasticity = hetero_skedasticity;
-          multiscales = multiscales;
-          params = { Params.d = d; log_sf2 = log_sf2 }
-        } = k
-      in
-      let res_ref = ref 0. in
       let res =
-        match multiscales with
+        match k.Kernel.multiscales with
         | None -> calc_upper_vanilla k inducing
         | Some multiscales ->
-            (* TODO: save squared differences for later *)
+            let { Kernel.params = { Params.d = d; log_sf2 = log_sf2 } } = k in
             let res = Mat.create m m in
-            for c = 2 to m do
+            let tmp = { x = 0. } in
+            for c = 1 to m do
               for r = 1 to c - 1 do
                 for i = 1 to d do
                   let diff = inducing.{i, r} -. inducing.{i, c} in
                   let scale = multiscales.{i, r} +. multiscales.{i, c} -. 1. in
-                  res_ref := !res_ref +. diff *. (diff /. scale)
+                  update_tmp_sum ~tmp ~diff ~scale
                 done;
-                res.{r, c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-                res_ref := 0.;
+                res.{r, c} <- calc_res_el ~log_sf2 tmp
               done;
+              for i = 1 to d do
+                let multiscale = multiscales.{i, c} in
+                tmp.x <- tmp.x +. log (multiscale +. multiscale -. 1.)
+              done;
+              res.{c, c} <- calc_res_el ~log_sf2 tmp;
             done;
             res
       in
-      begin match hetero_skedasticity with
-      | None -> for i = 1 to m do res.{i, i} <- sf2 done
+      match k.Kernel.hetero_skedasticity with
+      | None -> res
       | Some hetero_skedasticity ->
-          for i = 1 to m do res.{i, i} <- sf2 +. hetero_skedasticity.{i} done
-      end;
-      res
+          for i = 1 to m do
+            res.{i, i} <- res.{i, i} +. hetero_skedasticity.{i}
+          done;
+          res
   end
 
   module Input = struct
@@ -141,26 +150,24 @@ module Eval = struct
       in
       let m = Mat.dim2 inducing in
       let res = Vec.create m in
-      let res_ref = ref 0. in
+      let tmp = { x = 0. } in
       begin match multiscales with
       | None ->
           for c = 1 to m do
             for i = 1 to d do
               let diff = projection.{i} -. inducing.{i, c} in
-              res_ref := !res_ref +. diff *. diff
+              tmp.x <- tmp.x +. diff *. diff
             done;
-            res.{c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-            res_ref := 0.;
+            res.{c} <- calc_res_el ~log_sf2 tmp;
           done;
       | Some multiscales ->
           for c = 1 to m do
             for i = 1 to d do
               let diff = projection.{i} -. inducing.{i, c} in
               let scale = multiscales.{i, c} in
-              res_ref := !res_ref +. diff *. (diff /. scale)
+              update_tmp_sum ~tmp ~diff ~scale
             done;
-            res.{c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-            res_ref := 0.;
+            res.{c} <- calc_res_el ~log_sf2 tmp;
           done;
       end;
       res
@@ -188,10 +195,10 @@ module Eval = struct
         log_sf2 = Random.float 1.;
         tproj = None;
 (*         tproj = Some (Mat.make big_dim small_dim (1. /. float n)); *)
-(*         log_hetero_skedasticity = None; *)
-        log_hetero_skedasticity = Some (Vec.random n_inducing);
-(*         log_multiscales = None; *)
-        log_multiscales = Some (Mat.random small_dim n_inducing);
+        log_hetero_skedasticity = None;
+(*         log_hetero_skedasticity = Some (Vec.random n_inducing); *)
+(*         log_multiscales_m05 = None; *)
+        log_multiscales_m05 = Some (Mat.random small_dim n_inducing);
       }
 
     let project { Kernel.params = { Params.tproj = tproj } } inputs =
@@ -200,13 +207,7 @@ module Eval = struct
       | Some tproj -> gemm ~transa:`T tproj inputs
 
     let create_inducing = project
-
-    let calc_upper k inputs =
-      let res = calc_upper_vanilla k (project k inputs) in
-      let sf2 = k.Kernel.sf2 in
-      for i = 1 to Mat.dim2 res do res.{i, i} <- sf2 done;
-      res
-
+    let calc_upper = calc_upper_vanilla
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
     let calc_cross_with_projections k ~inducing ~projections =
@@ -220,17 +221,16 @@ module Eval = struct
       let n = Mat.dim2 projections in
       let m = Mat.dim2 inducing in
       let res = Mat.create m n in
-      let res_ref = ref 0. in
+      let tmp = { x = 0. } in
       begin match multiscales with
       | None ->
           for c = 1 to n do
             for r = 1 to m do
               for i = 1 to d do
                 let diff = projections.{i, c} -. inducing.{i, r} in
-                res_ref := !res_ref +. diff *. diff
+                tmp.x<- tmp.x +. diff *. diff
               done;
-              res.{r, c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-              res_ref := 0.;
+              res.{r, c} <- calc_res_el ~log_sf2 tmp;
             done;
           done;
       | Some multiscales ->
@@ -239,10 +239,9 @@ module Eval = struct
               for i = 1 to d do
                 let diff = projections.{i, c} -. inducing.{i, r} in
                 let scale = multiscales.{i, r} in
-                res_ref := !res_ref +. diff *. (diff /. scale)
+                update_tmp_sum ~tmp ~diff ~scale;
               done;
-              res.{r, c} <- exp (log_sf2 -. 0.5 *. !res_ref);
-              res_ref := 0.;
+              res.{r, c} <- calc_res_el ~log_sf2 tmp;
             done;
           done;
       end;
@@ -266,7 +265,7 @@ module Hyper_repr = struct
     | `Log_sf2
     | `Proj of Proj_hyper.t
     | `Log_hetero_skedasticity of Dim_hyper.t
-    | `Log_multiscales of Inducing_hyper.t
+    | `Log_multiscale_m05 of Inducing_hyper.t
     | `Inducing_hyper of Inducing_hyper.t
   ]
 end
@@ -284,7 +283,7 @@ module Deriv = struct
           d = d;
           tproj = tproj;
           log_hetero_skedasticity = log_hetero_skedasticity;
-          log_multiscales = log_multiscales;
+          log_multiscales_m05 = log_multiscales_m05;
         } = params
       in
       let m = Mat.dim2 inducing in
@@ -300,7 +299,7 @@ module Deriv = struct
       in
       update_count_mat tproj;
       update_count_vec log_hetero_skedasticity;
-      update_count_mat log_multiscales;
+      update_count_mat log_multiscales_m05;
       let n_hypers = !n_hypers_ref in
       let hypers = Array.create n_hypers `Log_sf2 in
       for ind = 1 to m do
@@ -328,13 +327,13 @@ module Deriv = struct
           pos_ref := pos + 1;
           hypers.(pos) <- `Log_hetero_skedasticity i;
         done);
-      option_iter log_multiscales ~f:(fun log_multiscales ->
-        for ind = 1 to Mat.dim2 log_multiscales do
+      option_iter log_multiscales_m05 ~f:(fun log_multiscales_m05 ->
+        for ind = 1 to Mat.dim2 log_multiscales_m05 do
           for dim = 1 to d do
             let pos = !pos_ref in
             pos_ref := pos + 1;
             hypers.(pos) <-
-              `Log_multiscales { Inducing_hyper.ind = ind; dim = dim };
+              `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim };
           done;
         done);
       hypers
@@ -352,9 +351,9 @@ module Deriv = struct
       | `Log_hetero_skedasticity dim ->
           (option_get_value "log_hetero_skedasticity"
             params.Params.log_hetero_skedasticity).{dim}
-      | `Log_multiscales { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
           (option_get_value
-            "log_multiscales" params.Params.log_multiscales).{dim, ind}
+            "log_multiscales_m05" params.Params.log_multiscales_m05).{dim, ind}
       | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
           inducing.{dim, ind}
 
@@ -367,8 +366,8 @@ module Deriv = struct
         lazy_opt "log_hetero_skedasticity"
           copy params.Params.log_hetero_skedasticity
       in
-      let log_multiscales_lazy =
-        lazy_opt "log_multiscales" lacpy params.Params.log_multiscales
+      let log_multiscales_m05_lazy =
+        lazy_opt "log_multiscales_m05" lacpy params.Params.log_multiscales_m05
       in
       let inducing_lazy = lazy (lacpy inducing) in
       for i = 1 to Array.length hypers do
@@ -378,8 +377,8 @@ module Deriv = struct
             (Lazy.force tproj_lazy).{big_dim, small_dim} <- values.{i}
         | `Log_hetero_skedasticity dim ->
             (Lazy.force log_hetero_skedasticity_lazy).{dim} <- values.{i}
-        | `Log_multiscales { Inducing_hyper.ind = ind; dim = dim } ->
-            (Lazy.force log_multiscales_lazy).{dim, ind} <- values.{i}
+        | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
+            (Lazy.force log_multiscales_m05_lazy).{dim, ind} <- values.{i}
         | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
             (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
       done;
@@ -401,8 +400,9 @@ module Deriv = struct
             log_hetero_skedasticity =
               lift_opt log_hetero_skedasticity_lazy
                 params.Params.log_hetero_skedasticity;
-            log_multiscales =
-              lift_opt log_multiscales_lazy params.Params.log_multiscales;
+            log_multiscales_m05 =
+              lift_opt
+                log_multiscales_m05_lazy params.Params.log_multiscales_m05;
           }
       in
       let new_inducing = lift inducing_lazy inducing in
@@ -446,7 +446,7 @@ module Deriv = struct
                 (* TODO: sparse diagonal derivatives? *)
                 `Diag_vec deriv
           end
-      | `Log_multiscales { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
           begin match common.kernel.Eval.Kernel.multiscales with
           | None ->
               failwith (
@@ -458,24 +458,28 @@ module Deriv = struct
               let res = Mat.create 1 m in
               let inducing_dim = inducing.{dim, ind} in
               let multiscale = multiscales.{dim, ind} in
-              let multiscale_2 = 0.5 *. multiscale in
               let multiscale_const = multiscale -. 1. in
+              let h = 0.5 in
+              let multiscale_h = h -. multiscale in
+              let multiscale_factor = h *. multiscale_h in
               for i = 1 to ind - 1 do
                 let diff = inducing.{dim, i} -. inducing_dim in
-                let scale = multiscales.{dim, i} +. multiscale_const in
-                let scaled_diff = diff /. scale in
-                let scaled_diff_multi = scaled_diff *. multiscale_2 in
-                let scaled_diff_eval = scaled_diff *. eval_mat.{i, ind} in
-                res.{1, i} <- scaled_diff_multi *. scaled_diff_eval
+                let iscale = 1. /. (multiscales.{dim, i} +. multiscale_const) in
+                let sdiff = diff *. iscale in
+                let sdiff2 = sdiff *. sdiff in
+                let inner = (iscale -. sdiff2) *. multiscale_factor in
+                res.{1, i} <- inner *. eval_mat.{i, ind}
               done;
-              res.{1, ind} <- 0.;
+              res.{1, ind} <-
+                multiscale_h /. (multiscale +. multiscale_const)
+                  *. eval_mat.{ind, ind};
               for i = ind + 1 to m do
                 let diff = inducing.{dim, i} -. inducing_dim in
-                let scale = multiscales.{dim, i} +. multiscale_const in
-                let scaled_diff = diff /. scale in
-                let scaled_diff_multi = scaled_diff *. multiscale_2 in
-                let scaled_diff_eval = scaled_diff *. eval_mat.{ind, i} in
-                res.{1, i} <- scaled_diff_multi *. scaled_diff_eval
+                let iscale = 1. /. (multiscales.{dim, i} +. multiscale_const) in
+                let sdiff = diff *. iscale in
+                let sdiff2 = sdiff *. sdiff in
+                let inner = (iscale -. sdiff2) *. multiscale_factor in
+                res.{1, i} <- inner *. eval_mat.{ind, i}
               done;
               let rows = Sparse_indices.create 1 in
               rows.{1} <- ind;
@@ -526,7 +530,7 @@ module Deriv = struct
 
     let calc_deriv_diag _diag = function
       | `Log_sf2 -> `Factor 1.
-      | `Proj _ | `Log_hetero_skedasticity _ | `Log_multiscales _
+      | `Proj _ | `Log_hetero_skedasticity _ | `Log_multiscale_m05 _
       | `Inducing_hyper _ -> `Const 0.
 
     (* Cross *)
@@ -592,26 +596,31 @@ module Deriv = struct
           done;
           `Dense res
       | `Log_hetero_skedasticity _ -> `Const 0.
-      | `Log_multiscales { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
           begin match kernel.Eval.Kernel.multiscales with
           | None ->
               failwith (
                   "Cov_se_fat.Deriv.Inputs.calc_deriv_cross: \
                   multiscale modeling disabled, cannot calculate derivative")
           | Some multiscales ->
-              let n = Mat.dim2 eval_mat in
-              let res = Mat.create 1 n in
-              let inducing_dim = inducing.{dim, ind} in
-              let multiscale_factor = 0.5 /. multiscales.{dim, ind} in
-              for c = 1 to n do
-                let diff = projections.{dim, c} -. inducing_dim in
-                let diff_multi = diff *. multiscale_factor in
-                let diff_eval = diff *. eval_mat.{ind, c} in
-                res.{1, c} <- diff_multi *. diff_eval
-              done;
-              let rows = Sparse_indices.create 1 in
-              rows.{1} <- ind;
-              `Sparse_rows (res, rows)
+            let n = Mat.dim2 eval_mat in
+            let res = Mat.create 1 n in
+            let inducing_dim = inducing.{dim, ind} in
+            let multiscale = multiscales.{dim, ind} in
+            let h = 0.5 in
+            let multiscale_h = h -. multiscale in
+            let multiscale_factor = h *. multiscale_h in
+            for c = 1 to n do
+              let diff = projections.{dim, c} -. inducing_dim in
+              let iscale = 1. /. multiscales.{dim, ind} in
+              let sdiff = diff *. iscale in
+              let sdiff2 = sdiff *. sdiff in
+              let inner = (iscale -. sdiff2) *. multiscale_factor in
+              res.{1, c} <- inner *. eval_mat.{ind, c}
+            done;
+            let rows = Sparse_indices.create 1 in
+            rows.{1} <- ind;
+            `Sparse_rows (res, rows)
           end
       | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
           let n = Mat.dim2 eval_mat in
