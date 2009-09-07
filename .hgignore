@@ -8,3 +8,5 @@ dist.mex
 test/data
 test/\.R(Data|history)
 doc/gpr.(dvi|log|pdf|fls)
+\.DS_Store
+doc/\.DS_Store
