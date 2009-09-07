@@ -463,7 +463,7 @@ module Make_common (Spec : Specs.Eval) = struct
         let posterior_variances =
           let tmp = lacpy kmt in
           trmm coeffs ~b:tmp;
-          Mat.syrk_diag tmp ~alpha:(-1.) ~y:prior_variances
+          Mat.syrk_diag ~trans:`T tmp ~alpha:(-1.) ~beta:1. ~y:prior_variances
         in
         make ~points ~variances:posterior_variances ~sigma2
 
