@@ -190,22 +190,17 @@ module Sigs = struct
     module Mean : sig
       type t
 
-      val calc_induced : Mean_predictor.t -> Input.t -> t
+      val calc : Mean_predictor.t -> Input.t -> t
+
       val get : t -> float
     end
 
     module Means : sig
       type t
 
-      val calc_induced : Mean_predictor.t -> Inputs.t -> t
+      val calc : Mean_predictor.t -> Inputs.t -> t
+
       val get : t -> vec
-
-      module Inducing : sig
-        type t
-
-        val calc : Trained.t -> t
-        val get : t -> vec
-      end
     end
 
     module Co_variance_predictor : sig
@@ -218,8 +213,7 @@ module Sigs = struct
     module Variance : sig
       type t
 
-      val calc_induced :
-        Co_variance_predictor.t -> sigma2 : float -> Input.t -> t
+      val calc : Co_variance_predictor.t -> sigma2 : float -> Input.t -> t
 
       val get : ?predictive : bool -> t -> float
     end
@@ -228,44 +222,26 @@ module Sigs = struct
       type t
 
       val calc_model_inputs : Model.t -> t
-
-      val calc_induced :
-        Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
+      val calc : Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
 
       val get : ?predictive : bool -> t -> vec
-
-      module Inducing : sig
-        type t
-
-        val calc : Model.t -> t
-        val get : ?predictive : bool -> t -> vec
-      end
     end
 
     module Covariances : sig
       type t
 
       val calc_model_inputs : Model.t -> t
-
-      val calc_induced :
-        Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
+      val calc : Co_variance_predictor.t -> sigma2 : float -> Inputs.t -> t
 
       val get : ?predictive : bool -> t -> mat
       val get_variances : t -> Variances.t
-
-      module Inducing : sig
-        type t
-
-        val calc : Model.t -> t
-        val get : ?predictive : bool -> t -> mat
-        val get_variances : t -> Variances.Inducing.t
-      end
     end
 
     module Sampler : sig
       type t
 
       val calc : ?predictive : bool -> Mean.t -> Variance.t -> t
+
       val sample : ?rng : Gsl_rng.t -> t -> float
       val samples : ?rng : Gsl_rng.t -> t -> n : int -> vec
     end
@@ -274,6 +250,7 @@ module Sigs = struct
       type t
 
       val calc : ?predictive : bool -> Means.t -> Covariances.t -> t
+
       val sample : ?rng : Gsl_rng.t -> t -> vec
       val samples : ?rng : Gsl_rng.t -> t -> n : int -> mat
     end

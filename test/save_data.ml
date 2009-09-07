@@ -85,30 +85,33 @@ let main () =
   write_float "sigma2" sigma2;
 
   let inducing = FITC.Model.get_inducing model in
-  let inducing_inputs = FITC.Inducing.get_points inducing in
+  let inducing_points = FITC.Inducing.get_points inducing in
+  let inducing_inputs = FITC.Inputs.calc inducing inducing_points in
 
-  write_mat "inducing_inputs" inducing_inputs;
+  write_mat "inducing_points" inducing_points;
+
   write_float "log_sf2"
     (params :> Cov_se_fat.Params.params).Cov_se_fat.Params.log_sf2;
 
   let mean_predictor = FITC.Mean_predictor.calc_trained trained in
   let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in
-  let means = FITC.Means.calc_induced mean_predictor inputs in
+
+  let means = FITC.Means.calc mean_predictor inputs in
+  write_vec "means" (FITC.Means.get means);
+
   let inducing_means =
-    FITC.Means.Inducing.get (FITC.Means.Inducing.calc trained)
+    FITC.Means.get (FITC.Means.calc mean_predictor inducing_inputs)
   in
   write_vec "inducing_means" inducing_means;
-  let means_vec = FITC.Means.get means in
-  write_vec "means" means_vec;
 
   let mean, variance =
-    let input = Mat.col inducing_inputs n_inducing in
+    let input = Mat.col inducing_points n_inducing in
     write_vec "one_inducing" input;
     let induced = FITC.Input.calc inducing input in
-    let mean = FITC.Mean.get (FITC.Mean.calc_induced mean_predictor induced) in
+    let mean = FITC.Mean.get (FITC.Mean.calc mean_predictor induced) in
     let variance =
       FITC.Variance.get ~predictive:false
-        (FITC.Variance.calc_induced co_variance_predictor ~sigma2 induced)
+        (FITC.Variance.calc co_variance_predictor ~sigma2 induced)
     in
     mean, variance
   in
@@ -116,16 +119,16 @@ let main () =
   write_float "one_variance" variance;
 
   let variances =
-    FITC.Variances.Inducing.get ~predictive:false
-      (FITC.Variances.Inducing.calc model)
-  in
-  write_vec "inducing_variances" variances;
-
-  let variances =
     FITC.Variances.get ~predictive:false
       (FITC.Variances.calc_model_inputs model)
   in
   write_vec "variances" variances;
+
+  let inducing_variances =
+    FITC.Variances.get ~predictive:false
+      (FITC.Variances.calc co_variance_predictor ~sigma2 inducing_inputs)
+  in
+  write_vec "inducing_variances" inducing_variances;
 
   let fitc_covariances = FITC.Covariances.calc_model_inputs model in
   let fitc_sampler =
