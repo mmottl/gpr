@@ -195,8 +195,8 @@ module Eval = struct
         log_sf2 = Random.float 1.;
         tproj = None;
 (*         tproj = Some (Mat.make big_dim small_dim (1. /. float n)); *)
-        log_hetero_skedasticity = None;
-(*         log_hetero_skedasticity = Some (Vec.random n_inducing); *)
+(*         log_hetero_skedasticity = None; *)
+        log_hetero_skedasticity = Some (Vec.random n_inducing);
 (*         log_multiscales_m05 = None; *)
         log_multiscales_m05 = Some (Mat.random small_dim n_inducing);
       }
@@ -419,13 +419,15 @@ module Deriv = struct
       let shared = inducing, { kernel = kernel; eval_mat = upper } in
       upper, shared
 
-    let calc_deriv_upper (inducing, common) = function
+    let calc_deriv_upper (inducing, common) hyper =
+      let { kernel = kernel; eval_mat = eval_mat } = common in
+      match hyper with
       | `Log_sf2 ->
           begin
-            match common.kernel.Eval.Kernel.hetero_skedasticity with
+            match kernel.Eval.Kernel.hetero_skedasticity with
             | None -> `Factor 1.
             | Some hetero_skedasticity ->
-                let res = lacpy common.eval_mat in
+                let res = lacpy eval_mat in
                 for i = 1 to Mat.dim1 res do
                   res.{i, i} <- res.{i, i} -. hetero_skedasticity.{i}
                 done;
@@ -434,7 +436,7 @@ module Deriv = struct
       | `Proj _ -> `Const 0.
       | `Log_hetero_skedasticity dim ->
           begin
-            match common.kernel.Eval.Kernel.hetero_skedasticity with
+            match kernel.Eval.Kernel.hetero_skedasticity with
             | None ->
                 failwith (
                     "Cov_se_fat.Deriv.Inducing.calc_deriv_upper: \
@@ -447,13 +449,12 @@ module Deriv = struct
                 `Diag_vec deriv
           end
       | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
-          begin match common.kernel.Eval.Kernel.multiscales with
+          begin match kernel.Eval.Kernel.multiscales with
           | None ->
               failwith (
                   "Cov_se_fat.Deriv.Inducing.calc_deriv_upper: \
                   multiscale modeling disabled, cannot calculate derivative")
           | Some multiscales ->
-              let eval_mat = common.eval_mat in
               let m = Mat.dim2 eval_mat in
               let res = Mat.create 1 m in
               let inducing_dim = inducing.{dim, ind} in
@@ -470,9 +471,16 @@ module Deriv = struct
                 let inner = (iscale -. sdiff2) *. multiscale_factor in
                 res.{1, i} <- inner *. eval_mat.{i, ind}
               done;
-              res.{1, ind} <-
-                multiscale_h /. (multiscale +. multiscale_const)
-                  *. eval_mat.{ind, ind};
+              begin match kernel.Eval.Kernel.hetero_skedasticity with
+              | None ->
+                  res.{1, ind} <-
+                    multiscale_h /. (multiscale +. multiscale_const)
+                      *. eval_mat.{ind, ind};
+              | Some hetero_skedasticity ->
+                  res.{1, ind} <-
+                    multiscale_h /. (multiscale +. multiscale_const)
+                      *. (eval_mat.{ind, ind} -. hetero_skedasticity.{ind});
+              end;
               for i = ind + 1 to m do
                 let diff = inducing.{dim, i} -. inducing_dim in
                 let iscale = 1. /. (multiscales.{dim, i} +. multiscale_const) in
@@ -486,11 +494,10 @@ module Deriv = struct
               `Sparse_rows (res, rows)
           end
       | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
-          let eval_mat = common.eval_mat in
           let m = Mat.dim2 eval_mat in
           let res = Mat.create 1 m in
           let inducing_dim = inducing.{dim, ind} in
-          begin match common.kernel.Eval.Kernel.multiscales with
+          begin match kernel.Eval.Kernel.multiscales with
           | None ->
               for i = 1 to ind - 1 do
                 let diff = inducing.{dim, i} -. inducing_dim in
