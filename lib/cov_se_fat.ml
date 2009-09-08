@@ -3,6 +3,7 @@ open Bigarray
 open Lacaml.Impl.D
 
 open Interfaces
+open Utils
 
 let option_map ~f = function None -> None | Some v -> Some (f v)
 let option_iter ~f = function None -> () | Some v -> f v
@@ -62,8 +63,6 @@ module Eval = struct
   end
 
   open Kernel
-
-  type fast_float_ref = { mutable x : float }
 
   let calc_res_el ~log_sf2 tmp =
     let x = tmp.x in
@@ -188,17 +187,13 @@ module Eval = struct
     let create_default_kernel_params ~n_inducing inputs =
       let big_dim = Mat.dim1 inputs in
       let small_dim = min big_dim 10 in
-      let _n = Mat.dim2 inputs in
       {
         Params.
         d = small_dim;
         log_sf2 = Random.float 1.;
-        tproj = None;
-(*         tproj = Some (Mat.make big_dim small_dim (1. /. float n)); *)
-(*         log_hetero_skedasticity = None; *)
-        log_hetero_skedasticity = Some (Vec.random n_inducing);
-(*         log_multiscales_m05 = None; *)
-        log_multiscales_m05 = Some (Mat.random small_dim n_inducing);
+        tproj = Some (Mat.make big_dim small_dim (1. /. float big_dim));
+        log_hetero_skedasticity = Some (Vec.make0 n_inducing);
+        log_multiscales_m05 = Some (Mat.make0 small_dim n_inducing);
       }
 
     let project { Kernel.params = { Params.tproj = tproj } } inputs =
@@ -207,7 +202,7 @@ module Eval = struct
       | Some tproj -> gemm ~transa:`T tproj inputs
 
     let create_inducing = project
-    let calc_upper = calc_upper_vanilla
+    let calc_upper k inputs = calc_upper_vanilla k (project k inputs)
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
     let calc_cross_with_projections k ~inducing ~projections =
@@ -218,8 +213,8 @@ module Eval = struct
           params = { Params.d = d; log_sf2 = log_sf2 }
         } = k
       in
-      let n = Mat.dim2 projections in
       let m = Mat.dim2 inducing in
+      let n = Mat.dim2 projections in
       let res = Mat.create m n in
       let tmp = { x = 0. } in
       begin match multiscales with
@@ -593,14 +588,28 @@ module Deriv = struct
           let m = Mat.dim2 inducing in
           let n = Mat.dim2 inputs in
           let res = Mat.create m n in
-          for c = 1 to n do
-            let proj = projections.{small_dim, big_dim} in
-            for r = 1 to m do
-              let alpha = inputs.{big_dim, c} in
-              let ind_el = inducing.{small_dim, r} in
-              res.{r, c} <- (alpha *. (ind_el -. proj)) *. eval_mat.{r, c}
-            done
-          done;
+          begin match kernel.Eval.Kernel.multiscales with
+          | None ->
+              for c = 1 to n do
+                let alpha = inputs.{big_dim, c} in
+                let proj = projections.{small_dim, c} in
+                for r = 1 to m do
+                  let ind_el = inducing.{small_dim, r} in
+                  res.{r, c} <- alpha *. (ind_el -. proj) *. eval_mat.{r, c}
+                done
+              done;
+          | Some multiscales ->
+              for c = 1 to n do
+                let alpha = inputs.{big_dim, c} in
+                let proj = projections.{small_dim, c} in
+                for r = 1 to m do
+                  let ind_el = inducing.{small_dim, r} in
+                  let multiscale = multiscales.{small_dim, r} in
+                  res.{r, c} <-
+                    alpha *. ((ind_el -. proj) /. multiscale) *. eval_mat.{r, c}
+                done
+              done;
+          end;
           `Dense res
       | `Log_hetero_skedasticity _ -> `Const 0.
       | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
