@@ -869,15 +869,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let v_mat = Eval_model.get_v_mat eval_model in
         solve_tri (Eval_model.get_chol_km eval_model) v_mat
 
+      let update_tmp tmp v = tmp.x <- tmp.x +. v
+
       let calc_dkn_diag_term ~v_vec ~kn_diag = function
         | `Vec dkn_diag -> dot ~x:v_vec dkn_diag
         | `Sparse_vec (svec, rows) ->
             check_sparse_vec_sane ~real_n:(Vec.dim v_vec) ~svec ~rows;
-            let res_ref = ref 0. in
+            let tmp = { x = 0. } in
             for i = 1 to Vec.dim svec do
-              res_ref := !res_ref +. v_vec.{rows.{i}} *. svec.{i}
+              update_tmp tmp (v_vec.{rows.{i}} *. svec.{i})
             done;
-            !res_ref
+            tmp.x
         | `Const 0. | `Factor 0. -> 0.
         | `Const c -> c *. Vec.sum v_vec
         | `Factor c -> c *. dot ~x:kn_diag v_vec
@@ -889,17 +891,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         | `Const c -> c *. sum_symm_mat w_mat
         | `Factor c -> c *. Mat.symm2_trace w_mat km
         | `Diag_vec ddkm ->
-            let res_ref = ref 0. in
+            let tmp = { x = 0. } in
             for i = 1 to Mat.dim1 w_mat do
-              res_ref := !res_ref +. ddkm.{i} *. w_mat.{i, i}
+              update_tmp tmp (ddkm.{i} *. w_mat.{i, i})
             done;
-            !res_ref
+            tmp.x
         | `Diag_const c ->
-            let res_ref = ref 0. in
+            let tmp = { x = 0. } in
             for i = 1 to Mat.dim1 w_mat do
-              res_ref := !res_ref +. c *. w_mat.{i, i}
+              update_tmp tmp (c *. w_mat.{i, i})
             done;
-            !res_ref
+            tmp.x
 
       let calc_dkmn_term ~x_mat ~kmn = function
         | `Dense dkmn -> Mat.gemm_trace ~transa:`T x_mat dkmn
@@ -908,14 +910,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             check_sparse_row_mat_sane ~real_m ~smat:sdkmn ~rows;
             let m = Int_vec.dim rows in
             let n = Mat.dim2 sdkmn in
-            let res_ref = ref 0. in
+            let tmp = { x = 0. } in
             for r = 1 to m do
               let real_r = rows.{r} in
               for c = 1 to n do
-                res_ref := !res_ref +. x_mat.{real_r, c} *. sdkmn.{r, c}
+                update_tmp tmp (x_mat.{real_r, c} *. sdkmn.{r, c})
               done
             done;
-            !res_ref
+            tmp.x
         | `Const 0. | `Factor 0. -> 0.
         | `Const c -> c *. sum_mat x_mat
         | `Factor c -> c *. Mat.gemm_trace ~transa:`T x_mat kmn
@@ -924,14 +926,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             check_sparse_col_mat_sane ~real_n ~smat:sdkmn ~cols;
             let m = Mat.dim1 sdkmn in
             let n = Int_vec.dim cols in
-            let res_ref = ref 0. in
+            let tmp = { x = 0. } in
             for c = 1 to n do
               let real_c = cols.{c} in
               for r = 1 to m do
-                res_ref := !res_ref +. x_mat.{r, real_c} *. sdkmn.{r, c}
+                update_tmp tmp (x_mat.{r, real_c} *. sdkmn.{r, c})
               done
             done;
-            !res_ref
+            tmp.x
 
       let calc_log_evidence { shared = shared; dfacts = dfacts } hyper =
         let { v_vec = v_vec; w_mat = w_mat; x_mat = x_mat } = dfacts in

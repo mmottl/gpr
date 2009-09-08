@@ -12,8 +12,10 @@ module Int_vec = struct
   let sub (t : t) n = Array1.sub t n
 end
 
-let debug = ref true
+let debug = ref false
 let cholesky_jitter = ref 1e-6
+
+type fast_float_ref = { mutable x : float }
 
 let pi = 4. *. atan 1.
 let log_2pi = log (pi +. pi)
