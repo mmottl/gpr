@@ -4,7 +4,7 @@ global log_sf2;
 
 load data/inputs
 load data/targets
-load data/inducing_inputs
+load data/inducing_points
 load data/sigma2
 load data/log_ell
 load data/log_sf2
@@ -17,7 +17,7 @@ global inv_ell2 = exp(-2 * log_ell);
 global inv_ell2_e = exp(-2*(log_ell + epsilon));
 log_inv_ell2 = log(inv_ell2);
 [dim, N] = size(inputs);
-[dim, M] = size(inducing_inputs);
+[dim, M] = size(inducing_points);
 
 function res = eval_rbf2(r2, a, b)
   res = exp(a + -0.5 * b * r2);
@@ -43,19 +43,19 @@ end
 
 function res = k_e(x, y)
   global log_sf2 log_sf2_e inv_ell2 inv_ell2_e epsilon;
-  res = kf(x, y, log_sf2_e, inv_ell2);
+  res = kf(x, y, log_sf2, inv_ell2_e);
 end
 
 
 %%%%%%%%%%%%%%%%%%%% Covariance matrices %%%%%%%%%%%%%%%%%%%%
 
-Km = k(inducing_inputs, inducing_inputs);
+Km = k(inducing_points, inducing_points);
 
-Km_e = k_e(inducing_inputs, inducing_inputs);
+Km_e = k_e(inducing_points, inducing_points);
 dKm = (Km_e - Km) / epsilon;
 
-Kmn = k(inducing_inputs, inputs);
-Kmn_e = k_e(inducing_inputs, inputs);
+Kmn = k(inducing_points, inputs);
+Kmn_e = k_e(inducing_points, inputs);
 dKmn = (Kmn_e - Kmn) / epsilon;
 
 Kn = k(inputs, inputs);
@@ -158,7 +158,7 @@ vdls = vdls1 + dls2
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Ed's stuff %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 hyp = [log_inv_ell2; log_sf2; log(sigma2)];
-ew = [reshape(inducing_inputs', M*dim, 1); hyp];
+ew = [reshape(inducing_points', M*dim, 1); hyp];
 [eds_neg_log_likelihood, dfw] = spgp_lik(ew, y, inputs', M);
 eds_evidence = -eds_neg_log_likelihood
 eds_dlog_ell = -(-dfw(end - 2) * 2)
