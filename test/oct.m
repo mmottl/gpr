@@ -34,6 +34,7 @@ function res = kf(x, y, a, b)
     jitter = 1e-6;
     res = res + jitter*eye(N);
   endif
+  res = res';
 end
 
 function res = k(x, y)
@@ -54,9 +55,9 @@ Km = k(inducing_points, inducing_points);
 Km_e = k_e(inducing_points, inducing_points);
 dKm = (Km_e - Km) / epsilon;
 
-Kmn = k(inducing_points, inputs);
-Kmn_e = k_e(inducing_points, inputs);
-dKmn = (Kmn_e - Kmn) / epsilon;
+Knm = k(inducing_points, inputs);
+Knm_e = k_e(inducing_points, inputs);
+dKnm = (Knm_e - Knm) / epsilon;
 
 Kn = k(inputs, inputs);
 Kn_e = k_e(inputs, inputs);
@@ -68,17 +69,22 @@ dKn = (Kn_e - Kn) / epsilon;
 y = targets;
 
 cholKm = chol(Km);
-V = cholKm' \ Kmn;
-Qn = V' * V;
+V = Knm / cholKm;
+Qn = V * V';
 
 lam = diag(diag(Kn - Qn));
 lam_sigma2 = lam + sigma2 * eye(N);
 inv_lam_sigma2 = inv(lam_sigma2);
+inv_lam_sigma = sqrt(inv_lam_sigma2);
 
-Kmn_ = Kmn * sqrt(inv_lam_sigma2);
+Knm_ = inv_lam_sigma * Knm;
 
-B = Km + Kmn_ * Kmn_';
-cholB = chol(B);
+[Q, R] = qr([Knm_; chol(Km)], 1);
+SF = diag(sign(diag(R)));
+Q = Q(1:N,1:end)*SF;
+R = SF*R;
+
+B = Km + Knm_' * Knm_;
 
 r = diag(lam);
 s = diag(lam_sigma2);
@@ -89,12 +95,15 @@ is = diag(inv_lam_sigma2);
 
 %%%%%% Log evidence
 
-l1 = -0.5*(log(det(B)) - log(det(Km)) + sum(log(s)) + N * log(2*pi))
+l1 = ...
+  -0.5*(...
+    2*sum(log(diag(R))) - 2*sum(log(diag(cholKm))) + sum(log(s)) ...
+    + N * log(2*pi))
 
-R = cholB' \ Kmn;
-S = cholB \ R * inv_lam_sigma2;
-t = S*y;
-u = is .* (y - Kmn' * t);
+S = inv_lam_sigma * Q / R';
+t = S'*y;
+e = y - Knm*t;
+u = is .* e;
 l2 = -0.5*(u'*y)
 
 l = l1 + l2
@@ -104,21 +113,21 @@ l = l1 + l2
 
 T = inv(Km) - inv(B);
 
-U = cholKm \ V;
+U = V / cholKm';
 
-v1 = is .* (is .* (s - diag(R' * R)));
-U1 = U*diag(sqrt(v1));
-W1 = T - U1*U1';
-X1 = S - U*diag(v1);
+v1 = is .* (ones(size(Q, 1), 1) - diag(Q * Q'));
+U1 = diag(sqrt(v1)) * U;
+W1 = T - U1'*U1;
+X1 = S - diag(v1)*U;
 
-dl1 = -0.5*(v1' * diag(dKn) - trace(W1'*dKm)) - trace(X1'*dKmn)
+dl1 = -0.5*(v1' * diag(dKn) - trace(W1'*dKm)) - trace(X1'*dKnm)
 
 v2 = u .* u;
-U2 = U*diag(u);
-W2 = t*t' - U2*U2';
-X2 = t*u' - U*diag(v2);
+U2 = diag(u)*U;
+W2 = t*t' - U2'*U2;
+X2 = u*t' - diag(v2)*U;
 
-dl2 = 0.5*(v2' * diag(dKn) - trace(W2'*dKm)) + trace(X2'*dKmn)
+dl2 = 0.5*(v2' * diag(dKn) - trace(W2'*dKm)) + trace(X2'*dKnm)
 
 dl = dl1 + dl2
 
@@ -140,12 +149,12 @@ vl = vl1 + l2
 
 %%%%%% Log evidence derivative
 
-vv1 = is .* (is .* (s + s - r - diag(R' * R)));
-vU1 = U*diag(sqrt(vv1));
-vW1 = T - vU1*vU1';
-vX1 = S - U*diag(vv1);
+vv1 = is .* (2*ones(size(Q, 1), 1) - is .* r - diag(Q * Q'));
+vU1 = diag(sqrt(vv1)) * U;
+vW1 = T - vU1'*vU1;
+vX1 = S - diag(vv1) * U;
 
-vdl1 = -0.5*(vv1' * diag(dKn) - trace(vW1'*dKm)) - trace(vX1'*dKmn)
+vdl1 = -0.5*(vv1' * diag(dKn) - trace(vW1'*dKm)) - trace(vX1'*dKnm)
 vdl = vdl1 + dl2
 
 
