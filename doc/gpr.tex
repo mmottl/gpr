@@ -1,4 +1,4 @@
-\documentclass[12pt]{article}
+\documentclass[10pt]{article}
 
 \usepackage[usenames]{color}
 
@@ -29,6 +29,9 @@
 \newcommand{\transm}[1]{\mat{#1}^\top}
 
 \newcommand{\imat}[1]{\mat{#1^{-1}}}
+\newcommand{\itransm}[1]{\mat{#1^{-\top}}}
+\newcommand{\chol}[1]{\mat{#1^{\onehalf}}}
+\newcommand{\cholt}[1]{\mat{#1^{\tfrac{\top}{2}}}}
 \newcommand{\ichol}[1]{\mat{#1^{-\onehalf}}}
 \newcommand{\icholt}[1]{\mat{#1^{-\tfrac{\top}{2}}}}
 
@@ -36,27 +39,25 @@
 \newcommand{\iKm}{\imat{K_M}}
 \newcommand{\dKm}{\mat{\dot{K}_M}}
 \newcommand{\dKn}{\mat{\dot{K}_N}}
-\newcommand{\Kmn}{\mat{K_{MN}}}
-\newcommand{\Knm}{\transm{K_{MN}}}
-\newcommand{\uKnm}{\myu{\mat{K}}_{\mathsfsl{MN}}^\top}
-\newcommand{\uuKnm}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}^\top}
-\newcommand{\dKmn}{\mat{\dot{K}_{MN}}}
-\newcommand{\uKmn}{\myu{\mat{K}}_{\mathsfsl{MN}}}
-\newcommand{\uuKmn}{\myu{\myu{\mat{K}}}_{\mathsfsl{MN}}}
+\newcommand{\Knm}{\mat{K_{NM}}}
+\newcommand{\Kmn}{\transm{K_{NM}}}
+\newcommand{\uKnm}{\myu{\mat{K}}_{\mathsfsl{NM}}}
+\newcommand{\uuKnm}{\myu{\myu{\mat{K}}}_{\mathsfsl{NM}}}
+\newcommand{\dKnm}{\mat{\dot{K}_{NM}}}
+\newcommand{\uKmn}{\myu{\mat{K}}_{\mathsfsl{NM}}^\top}
 
 \newcommand{\dl}{\dot{l}}
 
-\newcommand{\vece}{\myvec{e}}
+\newcommand{\vecu}{\myvec{u}}
 \newcommand{\vecr}{\myvec{r}}
 \newcommand{\vecs}{\myvec{s}}
 \newcommand{\vect}{\myvec{t}}
-\newcommand{\vecu}{\myvec{u}}
+\newcommand{\vecw}{\myvec{w}}
 \newcommand{\vecv}{\myvec{v}}
-\newcommand{\vecvc}{\myvec{v}_c}
 \newcommand{\vecvx}{\myvec{v}_1}
 \newcommand{\vecvy}{\myvec{v}_2}
 \newcommand{\vecy}{\myvec{y}}
-\newcommand{\uuvecy}{\myu{\myu{\vecy}}}
+\newcommand{\uvecy}{\myu{\vecy}}
 
 \newcommand{\vecsdh}{\onehalf\myvec{\dot{s}}}
 \newcommand{\vecis}{\myvec{s}^{-1}}
@@ -64,6 +65,9 @@
 
 \newcommand{\matB}{\mat{B}}
 \newcommand{\matI}{\mat{I}}
+\newcommand{\matQ}{\mat{Q}}
+\newcommand{\matQn}{\mat{\widetilde{Q}}}
+\newcommand{\tmatQn}{\transm{\widetilde{Q}}}
 \newcommand{\matR}{\mat{R}}
 \newcommand{\matS}{\mat{S}}
 \newcommand{\matT}{\mat{T}}
@@ -90,10 +94,11 @@ These are the equations used for computing the FIC predictive
 distribution and FIC marginal likelihood and its derivatives in the
 OCaml-implementation.  The implementation factorizes the computations
 in that way to minimize computation time (primarily) and memory
-usage.  It also takes into account numerical stability (e.g.\
-avoiding inverses) whenever possible without great loss of efficiency
-and otherwise aims for ease of implementation, e.g.\ combining
-derivative terms to simplify dealing with sparse matrices.\\
+usage.  It also takes into account numerical stability (e.g.\ using
+QR factorization to avoid normal equations; avoiding inverses)
+whenever possible without great loss of efficiency and otherwise
+aims for ease of implementation, e.g.\ combining derivative terms
+to simplify dealing with sparse matrices.\\
 
 Here are a few symbology conventions:
 
@@ -107,51 +112,52 @@ parameters are already available.
 \end{itemize}
 
 \begin{eqnarray*}
-\matV & = & \ichol{K_M}\Kmn \\
-\mat{Q_N} & = & \transm{V} \matV \\
-\Lam & = & \diagm{\mat{K_N} - \mat{Q_N}} \\
+\matV & = & \Knm\icholt{K_M} \\
+\mat{\widetilde{K}_N} & = & \matV \transm{V} \\
+\Lam & = & \diagm{\mat{K_N} - \mat{\widetilde{K}_N}} \\
 \Lamss & = & \Lam + \sigma^2 \matI \\
-\\
-\uKmn & = & \Kmn \ichol{\Lamss} \\
-\matB & = & \Km + \uKmn\uKnm \\
 \\
 \vecr & = & \diagv{\Lam} \\
 \vecs & = & \diagv{\Lamss} \\
-\vecis & = & \diagv{\Lamssi} \\
 \\
-l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) + \red{-\onehalf\vecis \cdot \vecr} \\
+\uKnm & = & \ichol{\Lamss} \Knm \\
+\matQ \matR & = & {\uKnm\choose\cholt{K_M}} \hspace{1cm} \textrm{(QR-factorization)} \\
 \\
-\matR & = & \ichol{B}\Kmn \\
-\matS & = & \icholt{B}\matR \Lamssi \\
-\vect & = & \matS \vecy \\
-\vece & = & \vecy - \Knm \vect \\
-\vecu & = & \vecis \otimes \vece \\
-\uuvecy & = & \Lamssi \vecy \\
+\matB & = & \Km + \uKmn\uKnm = \transm{R}\transm{Q} \mat{Q} \matR = \transm{R}\matR \\
+\matQn & = & {\lfloor \matQ \rfloor}_{N}\footnotemark \longrightarrow \uKnm = \matQn \matR \\
+\matS & = & \matQn\itransm{R} \\
 \\
-l_2 & = & \blue{-\onehalf \vecu\cdot\vecy} = -\onehalf(\uuvecy\cdot\vecy - \|\ichol{B}\Kmn\uuvecy\|^2) \\
+l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) \red{+ -\onehalf\vecis \cdot \vecr} \\
+\\
+\uvecy & = & \veciss \otimes \vecy \\
+\vect & = & \imat{R} \tmatQn \uvecy = \matS^\top\uvecy \\
+\vecu & = & \uvecy - \matQn \tmatQn \uvecy \\
+\\
+l_2 & = & \blue{-\onehalf \vecu\cdot\uvecy} = -\onehalf(\|\uvecy\|^2 - \|\tmatQn \uvecy\|^2) \\
 l & = & l_1 + l_2 \\
 \\
 \matT & = & \imat{K_M} - \imat{B} \\
 \\
 \mu_* & = & \mat{K_{*M}} \vect \\
-\sigma^2_* & = & K_* - \mat{K_{*M}}\matT\mat{K_{M*}} + \sigma^2 \matI \\
+\sigma^2_* & = & K_* - \mat{K_{*M}}\matT\transm{K_{*M}} + \sigma^2 \matI \\
 \end{eqnarray*}
+\footnotetext{Take first $N$ rows.}
 
 \begin{eqnarray*}
-\matU & = & \icholt{K_M}\mat{V} \\
+\matU & = & \mat{V} \ichol{K_M} \\
 \\
-\vecvc & = & \vecs \red{\, + \, \vecs - \vecr} - \diagv{\transm{R}\matR} \\
-\vecvx & = & \vecis \otimes (\vecis \otimes \vecvc) \\
-\matUx & = & \matU \, \diagm{\vecvx^{\onehalf}} \\
-\matWx & = & \matT - \matUx{\matU}_1^\top \\
-\matXx & = & \matS - \matU\,\diagm{\vecvx} \\
-\dl_1 & = & -\onehalf(\vecvx \cdot \diagv{\dKn} - \trace{\transm{W}_1\dKm}) - \trace{\transm{X}_1\dKmn} \\
+\vecvx & = & \vecis \otimes (\vec{1} \red{\, + \, \vec{1} - \vecis \otimes \vecr} - \diagv{\matQn\tmatQn}) \\
+\matUx & = & \diagm{\vecvx^{\onehalf}} \matU \\
+\matWx & = & \matT - \matUx^\top\matUx \\
+\matXx & = & \ichol{\Lamss}\matS - \diagm{\vecvx}\matU \\
+\dl_1 & = & -\onehalf(\vecvx \cdot \diagv{\dKn} - \trace{\transm{W}_1\dKm}) - \trace{\transm{X}_1\dKnm} \\
 \\
-\vecvy & = & \vecu \otimes \vecu \\
-\matUy & = & \matU \, \diagm{\vecu} \\
-\matWy & = & \vect \vect^\top - \matUy\matUy^\top \\
-\matXy & = & \vect\vecu^\top - \matU\,\diagm{\vecvy} \\
-\dl_2 & = & \onehalf(\vecvy \cdot \diagv{\dKn} - \trace{\transm{W}_2\dKm}) + \trace{\transm{X}_2\dKmn} \\
+\vecw & = & \veciss \otimes \vecu \\
+\vecvy & = & \vecw \otimes \vecw \\
+\matUy & = & \diagm{\vecw} \matU \\
+\matWy & = & \vect \vect^\top - \matUy^\top\matUy \\
+\matXy & = & \vecw\vect^\top - \diagm{\vecvy}\matU \\
+\dl_2 & = & \onehalf(\vecvy \cdot \diagv{\dKn} - \trace{\transm{W}_2\dKm}) + \trace{\transm{X}_2\dKnm} \\
 \\
 \dl & = & \dl_1 + \dl_2 \\
 \\
@@ -161,14 +167,16 @@ l & = & l_1 + l_2 \\
 \end{eqnarray*}
 \blue{
 \begin{eqnarray*}
-\vecv & = & \vecvx - \vecvy = \vecis \otimes (\vecis \otimes (\vecvc - \vece \otimes \vece)) \\
-\matW & = & \matWx - \matWy = \matT - \vect \transv{t} - \matUx{\matU}_1^\top + \matUy{\matU}_2^\top \\
-\matX & = & \matXx - \matXy = \matS - \vect \transv{u} - \matU\,\diagm{\vecv} \\
-\dl & = & -\onehalf(\vecv \cdot \diagv{\dKn} - \trace{\transm{W}\dKm}) - \trace{\transm{X}\dKmn} \\
+\vecv & = & \vecvx - \vecvy  \\
+\matW & = & \matWx - \matWy = \matT - \vect \transv{t} - \matUx^\top\matUx + \matUy^\top\matUy \\
+\matX & = & \matXx - \matXy = \matS - \vecw \transv{t} - \diagm{\vecv}\matU \\
+\dl & = & -\onehalf(\vecv \cdot \diagv{\dKn} - \trace{\transm{W}\dKm}) - \trace{\transm{X}\dKnm} \\
 \\
 \tfrac{\partial l}{\partial\sigma^2} & = & -\onehalf(\mathrm{sum}(\vecv) \red{\, - \, \mathrm{sum}(\vecis)}) \\
 \end{eqnarray*}
 }
+
+\newpage
 
 \section{Notes/reminders for future work}
 
