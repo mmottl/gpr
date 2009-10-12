@@ -97,6 +97,7 @@ Knm_ = inv_lam_sigma .* Knm;
 SF = diag(sign(diag(R)));
 Q = Q(1:N,1:end)*SF;
 R = SF*R;
+S = Q / R';
 
 B = Km + Knm_' * Knm_;
 
@@ -109,10 +110,10 @@ l1 = ...
     2*sum(log(diag(R))) - 2*sum(log(diag(cholKm))) + sum(log(s)) ...
     + N * log(2*pi))
 
-S = inv_lam_sigma .* Q / R';
-t = S'*y;
-u = is .* (y - Knm*t);
-l2 = -0.5*(u'*y)
+y_ = is_2 .* y;
+t = S'*y_;
+u = y_ - Q*(Q'*y_);
+l2 = -0.5*(u'*y_)
 
 l = l1 + l2
 
@@ -126,14 +127,15 @@ U = V / cholKm';
 v1 = is .* (ones(size(Q, 1), 1) - sum(Q .^ 2, 2));
 U1 = repmat(sqrt(v1), 1, size(U, 2)) .* U;
 W1 = T - U1'*U1;
-X1 = S - repmat(v1, 1, size(U, 2)) .* U;
+X1 = inv_lam_sigma .* S - repmat(v1, 1, size(U, 2)) .* U;
 
 dl1 = -0.5*(v1' * dKn_diag - trace(W1'*dKm)) - trace(X1'*dKnm)
 
-v2 = u .* u;
-U2 = repmat(u, 1, size(U, 2)) .* U;
+w = is_2 .* u;
+v2 = w .* w;
+U2 = repmat(w, 1, size(U, 2)) .* U;
 W2 = t*t' - U2'*U2;
-X2 = u*t' - repmat(v2, 1, size(U, 2)) .* U;
+X2 = w*t' - repmat(v2, 1, size(U, 2)) .* U;
 
 dl2 = 0.5*(v2' * dKn_diag - trace(W2'*dKm)) + trace(X2'*dKnm)
 
@@ -160,7 +162,7 @@ vl = vl1 + l2
 vv1 = is .* (2*ones(size(Q, 1), 1) - is .* r - sum(Q .* 2, 2));
 vU1 = repmat(sqrt(vv1), 1, size(U, 2)) .* U;
 vW1 = T - vU1'*vU1;
-vX1 = S - repmat(vv1, 1, size(U, 2)) .* U;
+vX1 = inv_lam_sigma .* S - repmat(vv1, 1, size(U, 2)) .* U;
 
 vdl1 = -0.5*(vv1' * dKn_diag - trace(vW1'*dKm)) - trace(vX1'*dKnm)
 vdl = vdl1 + dl2
