@@ -215,25 +215,25 @@ module Eval = struct
       in
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 projections in
-      let res = Mat.create m n in
+      let res = Mat.create n m in
       let tmp = { x = 0. } in
       begin match multiscales with
       | None ->
-          for c = 1 to n do
-            for r = 1 to m do
+          for c = 1 to m do
+            for r = 1 to n do
               for i = 1 to d do
-                let diff = projections.{i, c} -. inducing.{i, r} in
-                tmp.x<- tmp.x +. diff *. diff
+                let diff = projections.{i, r} -. inducing.{i, c} in
+                tmp.x <- tmp.x +. diff *. diff
               done;
               res.{r, c} <- calc_res_el ~log_sf2 tmp;
             done;
           done;
       | Some multiscales ->
-          for c = 1 to n do
-            for r = 1 to m do
+          for c = 1 to m do
+            for r = 1 to n do
               for i = 1 to d do
-                let diff = projections.{i, c} -. inducing.{i, r} in
-                let scale = multiscales.{i, r} in
+                let diff = projections.{i, r} -. inducing.{i, c} in
+                let scale = multiscales.{i, c} in
                 update_tmp_sum ~tmp ~diff ~scale;
               done;
               res.{r, c} <- calc_res_el ~log_sf2 tmp;
@@ -587,24 +587,24 @@ module Deriv = struct
           check_tproj_available kernel.Eval.Kernel.params.Params.tproj;
           let m = Mat.dim2 inducing in
           let n = Mat.dim2 inputs in
-          let res = Mat.create m n in
+          let res = Mat.create n m in
           begin match kernel.Eval.Kernel.multiscales with
           | None ->
-              for c = 1 to n do
-                let alpha = inputs.{big_dim, c} in
-                let proj = projections.{small_dim, c} in
-                for r = 1 to m do
-                  let ind_el = inducing.{small_dim, r} in
+              for c = 1 to m do
+                let ind_el = inducing.{small_dim, c} in
+                for r = 1 to n do
+                  let alpha = inputs.{big_dim, r} in
+                  let proj = projections.{small_dim, r} in
                   res.{r, c} <- alpha *. (ind_el -. proj) *. eval_mat.{r, c}
                 done
               done;
           | Some multiscales ->
-              for c = 1 to n do
-                let alpha = inputs.{big_dim, c} in
-                let proj = projections.{small_dim, c} in
-                for r = 1 to m do
-                  let ind_el = inducing.{small_dim, r} in
-                  let multiscale = multiscales.{small_dim, r} in
+              for c = 1 to m do
+                let ind_el = inducing.{small_dim, c} in
+                let multiscale = multiscales.{small_dim, c} in
+                for r = 1 to n do
+                  let alpha = inputs.{big_dim, r} in
+                  let proj = projections.{small_dim, r} in
                   res.{r, c} <-
                     alpha *. ((ind_el -. proj) /. multiscale) *. eval_mat.{r, c}
                 done
@@ -620,43 +620,43 @@ module Deriv = struct
                   multiscale modeling disabled, cannot calculate derivative")
           | Some multiscales ->
             let n = Mat.dim2 eval_mat in
-            let res = Mat.create 1 n in
+            let res = Mat.create n 1 in
             let inducing_dim = inducing.{dim, ind} in
             let multiscale = multiscales.{dim, ind} in
             let h = 0.5 in
             let multiscale_h = h -. multiscale in
             let multiscale_factor = h *. multiscale_h in
-            for c = 1 to n do
-              let diff = projections.{dim, c} -. inducing_dim in
+            for r = 1 to n do
+              let diff = projections.{dim, r} -. inducing_dim in
               let iscale = 1. /. multiscales.{dim, ind} in
               let sdiff = diff *. iscale in
               let sdiff2 = sdiff *. sdiff in
               let inner = (iscale -. sdiff2) *. multiscale_factor in
-              res.{1, c} <- inner *. eval_mat.{ind, c}
+              res.{r, 1} <- inner *. eval_mat.{r, ind}
             done;
-            let rows = Sparse_indices.create 1 in
-            rows.{1} <- ind;
-            `Sparse_rows (res, rows)
+            let cols = Sparse_indices.create 1 in
+            cols.{1} <- ind;
+            `Sparse_cols (res, cols)
           end
       | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
           let n = Mat.dim2 eval_mat in
-          let res = Mat.create 1 n in
+          let res = Mat.create n 1 in
           let inducing_dim = inducing.{dim, ind} in
           begin match kernel.Eval.Kernel.multiscales with
           | None ->
-              for c = 1 to n do
-                let diff = projections.{dim, c} -. inducing_dim in
-                res.{1, c} <- diff *. eval_mat.{ind, c}
+              for r = 1 to n do
+                let diff = projections.{dim, r} -. inducing_dim in
+                res.{r, 1} <- diff *. eval_mat.{r, ind}
               done;
           | Some multiscales ->
               let multiscale_factor = 1. /. multiscales.{dim, ind} in
-              for c = 1 to n do
-                let diff = projections.{dim, c} -. inducing_dim in
-                res.{1, c} <- multiscale_factor *. diff *. eval_mat.{ind, c}
+              for r = 1 to n do
+                let diff = projections.{dim, r} -. inducing_dim in
+                res.{r, 1} <- multiscale_factor *. diff *. eval_mat.{r, ind}
               done;
           end;
-          let rows = Sparse_indices.create 1 in
-          rows.{1} <- ind;
-          `Sparse_rows (res, rows)
+          let cols = Sparse_indices.create 1 in
+          cols.{1} <- ind;
+          `Sparse_cols (res, cols)
   end
 end

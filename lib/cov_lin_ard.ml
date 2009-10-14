@@ -59,37 +59,24 @@ module Eval = struct
     let get_n_points = Mat.dim2
     let choose_subset inputs indexes = choose_cols inputs indexes
 
-    let create_inducing { Kernel.consts = consts } inputs =
-      let m = Mat.dim1 inputs in
-      let n = Mat.dim2 inputs in
-      let res = Mat.create m n in
-      (* TODO: implement Mat.scal_rows in Lacaml *)
-      for r = 1 to m do
-        let const = consts.{r} in
-        for c = 1 to n do res.{r, c} <- const *. inputs.{r, c} done;
-      done;
+    let calc_ard_inputs { Kernel.consts = consts } inputs =
+      let res = lacpy inputs in
+      Mat.scal_rows consts inputs;
       res
+
+    let create_inducing = calc_ard_inputs
 
     let create_default_kernel_params ~n_inducing:_ inputs =
       { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
-
-    let calc_ard_inputs { Kernel.consts = consts } inputs =
-      let d = Mat.dim1 inputs in
-      let n = Mat.dim2 inputs in
-      let ard_inputs = Mat.create d n in
-      for c = 1 to n do
-        for r = 1 to d do ard_inputs.{r, c} <- consts.{r} *. inputs.{r, c} done
-      done;
-      ard_inputs
 
     let calc_upper k inputs = syrk ~trans:`T (calc_ard_inputs k inputs)
     let calc_diag k inputs = Mat.syrk_diag ~trans:`T (calc_ard_inputs k inputs)
 
     let calc_cross k inducing inputs =
-      gemm ~transa:`T inducing (calc_ard_inputs k inputs)
+      gemm ~transa:`T (calc_ard_inputs k inputs) inducing
 
     let weighted_eval k inducing ~coeffs inputs =
-      gemv ~trans:`T (calc_cross k inducing inputs) coeffs
+      gemv (calc_cross k inducing inputs) coeffs
   end
 end
 
@@ -106,8 +93,8 @@ module Deriv = struct
     let get_value { Eval.Kernel.params = params } _inducing = function
       | `Log_ell i -> params.Params.log_ells.{i}
 
-    let set_values kernel inducing hypers values =
-      let { Eval.Kernel.params = params } = kernel in
+    let set_values k inducing hypers values =
+      let { Eval.Kernel.params = params } = k in
       let log_ells_lazy = lazy (copy params.Params.log_ells) in
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with
@@ -116,7 +103,7 @@ module Deriv = struct
       let new_kernel =
         if Lazy.lazy_is_val log_ells_lazy then
           Eval.Kernel.create { Params.log_ells = Lazy.force log_ells_lazy }
-        else kernel
+        else k
       in
       new_kernel, inducing
   end
@@ -168,11 +155,11 @@ module Deriv = struct
     let calc_deriv_cross (k, inducing, inputs) (`Log_ell d) =
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
-      let res = Mat.create m n in
+      let res = Mat.create n m in
       let const = calc_const k d in
-      for c = 1 to n do
-        for r = 1 to m do
-          res.{r, c} <- const *. inducing.{d, r} *. inputs.{d, c}
+      for c = 1 to m do
+        for r = 1 to n do
+          res.{r, c} <- const *. inducing.{d, c} *. inputs.{d, r}
         done
       done;
       `Dense res

@@ -59,10 +59,10 @@ module Eval = struct
     let calc_cross { Kernel.const = alpha } inducing inputs =
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
-      gemm ~alpha ~transa:`T inducing inputs ~beta:1. ~c:(Mat.make m n alpha)
+      gemm ~alpha ~transa:`T inputs inducing ~beta:1. ~c:(Mat.make n m alpha)
 
     let weighted_eval k inducing ~coeffs inputs =
-      gemv ~trans:`T (calc_cross k inducing inputs) coeffs
+      gemv (calc_cross k inducing inputs) coeffs
   end
 end
 
@@ -93,7 +93,7 @@ module Deriv = struct
       new_kernel, inducing
   end
 
-  let calc_deriv_common () `Log_theta = `Factor (-2.)
+  let calc_deriv_common () `Log_theta = `Factor ~-.2.
 
   module Inducing = struct
     type upper = unit

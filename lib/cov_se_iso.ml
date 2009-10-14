@@ -118,12 +118,12 @@ module Eval = struct
       let d = Mat.dim1 inducing in
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
-      let res = Mat.create m n in
+      let res = Mat.create n m in
       let ssqr_diff_ref = ref 0. in
-      for c = 1 to n do
-        for r = 1 to m do
+      for c = 1 to m do
+        for r = 1 to n do
           for i = 1 to d do
-            let diff = inputs.{i, c} -. inducing.{i, r} in
+            let diff = inputs.{i, r} -. inducing.{i, c} in
             ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
           done;
           res.{r, c} <- !ssqr_diff_ref;
@@ -134,11 +134,11 @@ module Eval = struct
 
     let calc_cross_with_sqr_diff_mat k sqr_diff_mat =
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
-      let m = Mat.dim1 sqr_diff_mat in
-      let n = Mat.dim2 sqr_diff_mat in
-      let res = Mat.create m n in
-      for c = 1 to n do
-        for r = 1 to m do
+      let n = Mat.dim1 sqr_diff_mat in
+      let m = Mat.dim2 sqr_diff_mat in
+      let res = Mat.create n m in
+      for c = 1 to m do
+        for r = 1 to n do
           res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
         done
       done;
@@ -149,20 +149,20 @@ module Eval = struct
 
     let weighted_eval k inducing ~coeffs inputs =
       let sqr_diff_mat = calc_sqr_diff_mat ~inducing ~inputs in
-      let m = Mat.dim1 sqr_diff_mat in
-      let n = Mat.dim2 sqr_diff_mat in
+      let n = Mat.dim1 sqr_diff_mat in
+      let m = Mat.dim2 sqr_diff_mat in
       if Vec.dim coeffs <> m then
         failwith "Gpr.Cov_se_iso.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
       let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
-      let rec loop c acc r =
-        if r = 0 then acc
+      let rec loop r acc c =
+        if c = 0 then acc
         else
           let el =
-            coeffs.{r} *. exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
+            coeffs.{c} *. exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
           in
-          loop c (acc +. el) (r - 1)
+          loop r (acc +. el) (c - 1)
       in
-      Vec.init n (fun c -> loop c 0. m)
+      Vec.init n (fun r -> loop r 0. m)
   end
 end
 
@@ -304,12 +304,12 @@ module Deriv = struct
       | `Log_sf2 -> `Factor 1.
       | `Log_ell ->
           let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in
-          let m = Mat.dim1 sqr_diff_mat in
-          let n = Mat.dim2 sqr_diff_mat in
-          let res = Mat.create m n in
+          let n = Mat.dim1 sqr_diff_mat in
+          let m = Mat.dim2 sqr_diff_mat in
+          let res = Mat.create n m in
           let { Eval.Kernel.inv_ell2 = inv_ell2 } = common.kernel in
-          for c = 1 to n do
-            for r = 1 to m do
+          for c = 1 to m do
+            for r = 1 to n do
               res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
             done
           done;
@@ -317,16 +317,16 @@ module Deriv = struct
       | `Inducing_hyper inducing_hyper ->
           let { ind = ind; dim = dim } = inducing_hyper in
           let eval_mat = common.eval_mat in
-          let n = Mat.dim2 eval_mat in
-          let res = Mat.create 1 n in
+          let n = Mat.dim1 eval_mat in
+          let res = Mat.create n 1 in
           let indx_d = inducing.{dim, ind} in
           let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
-          for c = 1 to n do
-            let inp_d = inputs.{dim, c} in
-            res.{1, c} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{ind, c}
+          for r = 1 to n do
+            let inp_d = inputs.{dim, r} in
+            res.{r, 1} <- inv_ell2 *. (inp_d -. indx_d) *. eval_mat.{r, ind}
           done;
-          let rows = Sparse_indices.create 1 in
-          rows.{1} <- ind;
-          `Sparse_rows (res, rows)
+          let cols = Sparse_indices.create 1 in
+          cols.{1} <- ind;
+          `Sparse_cols (res, cols)
   end
 end

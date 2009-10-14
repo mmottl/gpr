@@ -149,11 +149,12 @@ module Sigs = struct
 
     module Model : sig
       type t
+      type co_variance_coeffs
 
       val calc : Inputs.t -> sigma2 : float -> t
       val update_sigma2 : t -> float -> t
       val calc_log_evidence : t -> float
-      val calc_co_variance_coeffs : t -> mat
+      val calc_co_variance_coeffs : t -> co_variance_coeffs
 
       val get_kernel : t -> Spec.Kernel.t
       val get_sigma2 : t -> float
@@ -206,7 +207,9 @@ module Sigs = struct
     module Co_variance_predictor : sig
       type t
 
-      val calc : Spec.Kernel.t -> Spec.Inducing.t -> coeffs : mat -> t
+      val calc :
+        Spec.Kernel.t -> Spec.Inducing.t -> Model.co_variance_coeffs -> t
+
       val calc_model : Model.t -> t
     end
 
