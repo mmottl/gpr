@@ -8,7 +8,7 @@ open Utils
 
 open Gen_data
 
-module K = Fitc_gp.Make_deriv (Cov_se_fat.Deriv)
+module K = Fitc_gp.Make_deriv (Cov_se_iso.Deriv)
 module FITC_all = K.FITC
 module FITC = K.FITC.Eval
 module FIC = K.FIC.Eval
@@ -20,10 +20,10 @@ let main () =
   write_vec "targets" training_targets;
 
   let params =
-    Cov_se_fat.Eval.Inputs.create_default_kernel_params
+    Cov_se_iso.Eval.Inputs.create_default_kernel_params
       ~n_inducing training_inputs
   in
-  let kernel = Cov_se_fat.Eval.Kernel.create params in
+  let kernel = Cov_se_iso.Eval.Kernel.create params in
   let trained =
     let report_trained_model ~iter trained =
       let log_evidence = FITC.Trained.calc_log_evidence trained in
@@ -41,6 +41,7 @@ let main () =
       FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
     in
     Array.iter (fun hyper ->
+(*
       let hyper_str =
         match hyper with
         | `Log_sf2 -> "Log_sf2"
@@ -50,6 +51,7 @@ let main () =
         | `Log_multiscale_m05 _ -> "Log_multiscale_m05"
       in
       printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
+*)
       FITC_all.Deriv.Test.check_deriv_hyper
         kernel
         inducing_points
@@ -90,8 +92,13 @@ let main () =
 
   write_mat "inducing_points" inducing_points;
 
+(*
   write_float "log_sf2"
     (params :> Cov_se_fat.Params.params).Cov_se_fat.Params.log_sf2;
+*)
+
+  write_float "log_sf2" params.Cov_se_iso.Params.log_sf2;
+  write_float "log_ell" params.Cov_se_iso.Params.log_ell;
 
   let mean_predictor = FITC.Mean_predictor.calc_trained trained in
   let co_variance_predictor = FITC.Co_variance_predictor.calc_model model in
