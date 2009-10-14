@@ -29,7 +29,7 @@ pred_one_sstd <- sqrt(pred_one_var)
 
 t = qnorm(1 - 0.05/2, 0, 1)
 
-f = function (x) sin(3 * x) / x + (x - 3) / (x * x + 1)
+f = function (x) (sin(3 * x)) / x + abs(x - 3) / (x * x + 1)
 
 mk_frame <- function(v) { data.frame(inputs, v)[order(inputs),] }
 

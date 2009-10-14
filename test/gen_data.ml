@@ -5,11 +5,11 @@ open Utils
 
 let n_inputs = 1000
 let n_inducing = 10
-let noise_sigma = 1.5
+let noise_sigma = 0.5
 let noise_sigma2 = noise_sigma *. noise_sigma
 
 let f ?(with_noise = false) x =
-  let v = sin (3. *. x) /. x +. (x -. 3.) /. (x *. x +. 1.) in
+  let v = (sin (3. *. x)) /. x +. abs_float (x -. 3.) /. (x *. x +. 1.) in
   if with_noise then v +. Gsl_randist.gaussian default_rng ~sigma:noise_sigma
   else v
 
