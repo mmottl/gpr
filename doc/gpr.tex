@@ -125,12 +125,12 @@ parameters are already available.
 \\
 \matB & = & \Km + \uKmn\uKnm = \transm{R}\transm{Q} \mat{Q} \matR = \transm{R}\matR \\
 \matQn & = & {\lfloor \matQ \rfloor}_{N}\footnotemark \longrightarrow \uKnm = \matQn \matR \\
-\matS & = & \matQn\itransm{R} \\
+\matS & = & \ichol{\Lamss}\matQn\itransm{R} \\
 \\
 l_1 & = & -\onehalf (\log|\matB| - \log|\Km| + \log|\Lamss| + N \log 2\pi) \red{+ -\onehalf\vecis \cdot \vecr} \\
 \\
 \uvecy & = & \veciss \otimes \vecy \\
-\vect & = & \imat{R} \tmatQn \uvecy = \matS^\top\uvecy \\
+\vect & = & \imat{R} \tmatQn \uvecy \\
 \vecu & = & \uvecy - \matQn \tmatQn \uvecy \\
 \\
 l_2 & = & \blue{-\onehalf \vecu\cdot\uvecy} = -\onehalf(\|\uvecy\|^2 - \|\tmatQn \uvecy\|^2) \\
@@ -149,7 +149,7 @@ l & = & l_1 + l_2 \\
 \vecvx & = & \vecis \otimes (\vec{1} \red{\, + \, \vec{1} - \vecis \otimes \vecr} - \diagv{\matQn\tmatQn}) \\
 \matUx & = & \diagm{\vecvx^{\onehalf}} \matU \\
 \matWx & = & \matT - \matUx^\top\matUx \\
-\matXx & = & \ichol{\Lamss}\matS - \diagm{\vecvx}\matU \\
+\matXx & = & \matS - \diagm{\vecvx}\matU \\
 \dl_1 & = & -\onehalf(\vecvx \cdot \diagv{\dKn} - \trace{\transm{W}_1\dKm}) - \trace{\transm{X}_1\dKnm} \\
 \\
 \vecw & = & \veciss \otimes \vecu \\
