@@ -70,7 +70,7 @@ points(one_inducing, one_mean + t*pred_one_sstd, lwd=5, col='brown')
 points(one_inducing, one_mean - t*pred_one_sstd, lwd=5, col='brown')
 
 legend(
-  -5, 5,
+  -5, 7.5,
   c(
     "targets",
     "true mean", "true 95% confidence interval",
