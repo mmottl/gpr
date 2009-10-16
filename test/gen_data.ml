@@ -5,7 +5,7 @@ open Utils
 
 let n_inputs = 1000
 let n_inducing = 10
-let noise_sigma = 0.5
+let noise_sigma = 0.7
 let noise_sigma2 = noise_sigma *. noise_sigma
 
 let f ?(with_noise = false) x =
