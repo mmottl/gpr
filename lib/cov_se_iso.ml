@@ -254,21 +254,22 @@ module Deriv = struct
           res.{c, c} <- 0.;
         done;
         `Dense res
-      | `Inducing_hyper inducing_hyper ->
-          let { ind = ind; dim = dim } = inducing_hyper in
+      | `Inducing_hyper { ind = ind; dim = dim } ->
           let eval_mat = common.eval_mat in
           let m = Mat.dim2 eval_mat in
           let res = Mat.create 1 m in
-          let indx_d = inducing.{dim, ind} in
+          let inducing_dim = inducing.{dim, ind} in
           let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
           for i = 1 to ind - 1 do
             let ind_d = inducing.{dim, i} in
-            res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{i, ind}
+            res.{1, i} <-
+              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{i, ind}
           done;
           res.{1, ind} <- 0.;
           for i = ind + 1 to m do
             let ind_d = inducing.{dim, i} in
-            res.{1, i} <- inv_ell2 *. (ind_d -. indx_d) *. eval_mat.{ind, i}
+            res.{1, i} <-
+              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{ind, i}
           done;
           let rows = Sparse_indices.create 1 in
           rows.{1} <- ind;
@@ -314,8 +315,7 @@ module Deriv = struct
             done
           done;
           `Dense res
-      | `Inducing_hyper inducing_hyper ->
-          let { ind = ind; dim = dim } = inducing_hyper in
+      | `Inducing_hyper { ind = ind; dim = dim } ->
           let eval_mat = common.eval_mat in
           let n = Mat.dim1 eval_mat in
           let res = Mat.create n 1 in
