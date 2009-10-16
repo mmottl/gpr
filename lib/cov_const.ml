@@ -43,7 +43,7 @@ module Eval = struct
 
     let calc_upper = Inducing.calc_upper
     let calc_diag k n = Vec.make n k.Kernel.const
-    let calc_cross k m n = Mat.make m n k.Kernel.const
+    let calc_cross k m n = Mat.make n m k.Kernel.const
 
     let weighted_eval k _ ~coeffs _ =
       let res = copy coeffs in

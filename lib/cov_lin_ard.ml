@@ -61,7 +61,7 @@ module Eval = struct
 
     let calc_ard_inputs { Kernel.consts = consts } inputs =
       let res = lacpy inputs in
-      Mat.scal_rows consts inputs;
+      Mat.scal_rows consts res;
       res
 
     let create_inducing = calc_ard_inputs
@@ -115,16 +115,8 @@ module Deriv = struct
       let upper = Eval.Inducing.calc_upper k eval_inducing in
       upper, eval_inducing
 
-    let calc_deriv_upper inducing (`Log_ell d) =
-      let m = Mat.dim2 inducing in
-      let res = Mat.create m m in
-      for c = 1 to m do
-        for r = 1 to c do
-          let prod = inducing.{d, r} *. inducing.{d, c} in
-          res.{r, c} <- -. prod -. prod
-        done
-      done;
-      `Dense res
+    let calc_deriv_upper _inducing = function
+      | `Log_ell _ -> `Const 0.
   end
 
   module Inputs = struct
@@ -136,16 +128,14 @@ module Deriv = struct
 
     let calc_shared_cross k eval_inducing eval_inputs =
       (
-        Eval.Inputs.calc_cross k eval_inputs eval_inputs,
+        Eval.Inputs.calc_cross k eval_inducing eval_inputs,
         (k, eval_inducing, eval_inputs)
       )
-
-    let calc_const k d = let kd = k.Eval.Kernel.consts.{d} in -2. *. kd *. kd
 
     let calc_deriv_diag (k, inputs) (`Log_ell d) =
       let n = Mat.dim2 inputs in
       let res = Vec.create n in
-      let const = calc_const k d in
+      let const = -2. *. k.Eval.Kernel.consts.{d} in
       for i = 1 to n do
         let el = inputs.{d, i} in
         res.{i} <- (const *. el) *. el
@@ -156,7 +146,7 @@ module Deriv = struct
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
       let res = Mat.create n m in
-      let const = calc_const k d in
+      let const = -. k.Eval.Kernel.consts.{d} in
       for c = 1 to m do
         for r = 1 to n do
           res.{r, c} <- const *. inducing.{d, c} *. inputs.{d, r}
