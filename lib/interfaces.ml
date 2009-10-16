@@ -308,12 +308,23 @@ module Sigs = struct
 
       module Test : sig
         val check_deriv_hyper :
+          ?eps : float ->
+          ?tol : float ->
           Eval.Spec.Kernel.t ->
           Eval.Spec.Inducing.t ->
           Eval.Spec.Inputs.t ->
           Spec.Hyper.t ->
-          eps : float ->
-          tol : float ->
+          unit
+
+        val self_test :
+          ?eps : float ->
+          ?tol : float ->
+          Eval.Spec.Kernel.t ->
+          Eval.Spec.Inducing.t ->
+          Eval.Spec.Inputs.t ->
+          sigma2 : float ->
+          targets : vec ->
+          [ `Sigma2 | `Hyper of Spec.Hyper.t ] ->
           unit
       end
 

@@ -40,25 +40,29 @@ let main () =
     let all_hypers =
       FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
     in
+    FITC_all.Deriv.Test.self_test
+      kernel inducing_points training_inputs
+      ~sigma2:noise_sigma2 ~targets:training_targets `Sigma2;
     Array.iter (fun hyper ->
+        let hyper_str =
+          match hyper with
+          | `Log_sf2 -> "Log_sf2"
+          | `Log_ell -> "Log_ell"
+          | `Inducing_hyper _ -> "Inducing_hyper"
 (*
-      let hyper_str =
-        match hyper with
-        | `Log_sf2 -> "Log_sf2"
-        | `Proj _ -> "Proj"
-        | `Log_hetero_skedasticity _ -> "Log_hetero_skedasticity"
-        | `Inducing_hyper _ -> "Inducing_hyper"
-        | `Log_multiscale_m05 _ -> "Log_multiscale_m05"
-      in
-      printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
+          | `Proj _ -> "Proj"
+          | `Log_hetero_skedasticity _ -> "Log_hetero_skedasticity"
+          | `Log_multiscale_m05 _ -> "Log_multiscale_m05"
 *)
-      FITC_all.Deriv.Test.check_deriv_hyper
-        kernel
-        inducing_points
-        training_inputs
-        hyper
-        ~eps:1e-9
-        ~tol:1e-2) all_hypers;
+        in
+        printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
+        FITC_all.Deriv.Test.check_deriv_hyper
+          kernel inducing_points training_inputs hyper;
+        FITC_all.Deriv.Test.self_test
+          kernel inducing_points training_inputs
+          ~sigma2:noise_sigma2 ~targets:training_targets (`Hyper hyper)
+      )
+      all_hypers;
     FITC_all.Deriv.Optim.Gsl.train
       ~report_trained_model ~report_gradient_norm
       ~kernel ~n_rand_inducing:n_inducing

@@ -1204,12 +1204,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     end
 
     module Test = struct
-      let check_deriv_hyper kernel1 inducing_points1 points hyper ~eps ~tol =
+      let update_hyper kernel inducing_points hyper ~eps =
+        let value = Spec.Hyper.get_value kernel inducing_points hyper in
+        let value_eps = value +. eps in
+        Spec.Hyper.set_values kernel inducing_points
+          [| hyper |] (Vec.make 1 value_eps)
+
+      let check_deriv_hyper ?(eps = 1e-8) ?(tol = 1e-2)
+            kernel1 inducing_points1 points hyper =
         let kernel2, inducing_points2 =
-          let value = Spec.Hyper.get_value kernel1 inducing_points1 hyper in
-          let value_eps = value +. eps in
-          Spec.Hyper.set_values kernel1 inducing_points1
-            [| hyper |] (Vec.make 1 value_eps)
+          update_hyper kernel1 inducing_points1 hyper ~eps
         in
         let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points1 in
         let eval_cross1 = Eval_inputs.calc eval_inducing1 points in
@@ -1226,7 +1230,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           make_finite ~mat1:km1 ~mat2:eval_inducing2.Eval_inducing.km
         in
         let inducing1 = Inducing.calc kernel1 inducing_points1 in
-        let check ~name ~deriv ~finite ~r ~c =
+        let check_mat ~name ~deriv ~finite ~r ~c =
           let finite_el = finite.{r, c} in
           if abs_float (finite_el -. deriv) > tol then
             failwith (
@@ -1237,7 +1241,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         in
         (* Check dkm *)
         begin
-          let check = check ~name:"dkm" ~finite:finite_dkm in
+          let check = check_mat ~name:"dkm" ~finite:finite_dkm in
           match
             Spec.Inducing.calc_deriv_upper inducing1.Inducing.shared_upper hyper
           with
@@ -1294,7 +1298,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let finite_dknm =
             make_finite ~mat1:knm1 ~mat2:eval_cross2.Eval_inputs.knm
           in
-          let check = check ~name:"dknm" ~finite:finite_dknm in
+          let check = check_mat ~name:"dknm" ~finite:finite_dknm in
           match
             Spec.Inputs.calc_deriv_cross inputs.Inputs.shared_cross hyper
           with
@@ -1328,13 +1332,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         end;
         (* Check dkn diag *)
         begin
-          let points = inputs.Inputs.eval.Eval_inputs.points in
           let kn_diag1, shared_diag =
             Spec.Inputs.calc_shared_diag kernel1 points
           in
-          let kn_diag2 =
-            Spec.Eval.Inputs.calc_diag kernel2 points
-          in
+          let kn_diag2 = Spec.Eval.Inputs.calc_diag kernel2 points in
           let finite_dkn_diag =
             let res = copy kn_diag2 in
             axpy ~alpha:(-1.) ~x:kn_diag1 res;
@@ -1363,6 +1364,73 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 check ~deriv:(const *. kn_diag1.{r}) ~r
               done
         end
+
+      let self_test ?(eps = 1e-8) ?(tol = 1e-2)
+            kernel1 inducing_points1 points ~sigma2 ~targets hyper =
+        let inducing1 = Inducing.calc kernel1 inducing_points1 in
+        let inputs1 = Inputs.calc inducing1 points in
+        let deriv_model = Cm.calc inputs1 ~sigma2 in
+        let eval_model1 = Cm.calc_eval deriv_model in
+        let model_log_evidence1 = Eval_model.calc_log_evidence eval_model1 in
+        let deriv_trained = Trained.calc deriv_model ~targets in
+        let eval_trained1 = Trained.calc_eval deriv_trained in
+        let trained_log_evidence1 =
+          Eval_trained.calc_log_evidence eval_trained1
+        in
+        let check ~name ~before ~after ~deriv =
+          let finite_el = (after -. before) /. eps in
+          if abs_float (finite_el -. deriv) > tol then
+            failwith (
+              sprintf
+                "Gpr.Fitc_gp.Make_deriv.Test.self_test: \
+                finite difference (%f) and derivative (%f) differ \
+                by more than %f on %s" finite_el deriv tol name)
+        in
+        match hyper with
+        | `Sigma2 ->
+            let eval_model2 =
+              let sigma2 = sigma2 +. eps in
+              Eval_model.calc inputs1.Inputs.eval ~sigma2
+            in
+            let model_log_evidence2 =
+              Eval_model.calc_log_evidence eval_model2
+            in
+            let model_deriv = Cm.calc_log_evidence_sigma2 deriv_model in
+            check ~name:"sigma2(model)"
+              ~before:model_log_evidence1 ~after:model_log_evidence2
+              ~deriv:model_deriv;
+            let eval_trained2 = Eval_trained.calc eval_model2 ~targets in
+            let trained_log_evidence2 =
+              Eval_trained.calc_log_evidence eval_trained2
+            in
+            let trained_deriv = Trained.calc_log_evidence_sigma2 deriv_trained in
+            check ~name:"sigma2(trained)"
+              ~before:trained_log_evidence1 ~after:trained_log_evidence2
+              ~deriv:trained_deriv
+        | `Hyper hyper ->
+            let kernel2, inducing_points2 =
+              update_hyper kernel1 inducing_points1 hyper ~eps
+            in
+            let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
+            let eval_inputs2 = Eval_inputs.calc eval_inducing2 points in
+            let eval_model2 = Eval_model.calc eval_inputs2 ~sigma2 in
+            let model_log_evidence2 =
+              Eval_model.calc_log_evidence eval_model2
+            in
+            let model_hyper_t = Cm.prepare_hyper deriv_model in
+            let model_deriv = Cm.calc_log_evidence model_hyper_t hyper in
+            check ~name:"hyper(model)"
+              ~before:model_log_evidence1 ~after:model_log_evidence2
+              ~deriv:model_deriv;
+            let eval_trained2 = Eval_trained.calc eval_model2 ~targets in
+            let trained_log_evidence2 =
+              Eval_trained.calc_log_evidence eval_trained2
+            in
+            let trained_hyper_t = Trained.prepare_hyper deriv_trained in
+            let trained_deriv = Trained.calc_log_evidence trained_hyper_t hyper in
+            check ~name:"hyper(trained)"
+              ~before:trained_log_evidence1 ~after:trained_log_evidence2
+              ~deriv:trained_deriv
     end
 
     (* Hyper parameter optimization by evidence maximization
