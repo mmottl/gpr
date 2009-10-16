@@ -11,6 +11,8 @@ inducing_stds <- sqrt(inducing_vars)
 one_mean <- read.table('data/one_mean')
 one_var <- t(read.table('data/one_variance'))
 one_std <- sqrt(one_var)
+noise_sigma2 <- (read.table('data/noise_sigma2'))[,1]
+noise_sigma <- sqrt(noise_sigma2)
 sigma2 <- (read.table('data/sigma2'))[,1]
 sigma <- sqrt(sigma2)
 sample1 <- read.table('data/sample1')
@@ -46,7 +48,7 @@ plot_means_stds <- function (means, mlty, stds, slty, col) {
 
 plot(inputs, targets, type='p', lwd=1, pch=20, col='blue')
 
-plot_means_stds(f(inputs), 1, sigma, 3, 'green')
+plot_means_stds(f(inputs), 1, noise_sigma, 3, 'green')
 plot_means_stds(means, 1, stds, 2, 'red')
 plot_means_stds(means, 1, pred_stds, 3, 'red')
 
