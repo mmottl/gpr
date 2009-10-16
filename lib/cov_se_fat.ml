@@ -619,7 +619,7 @@ module Deriv = struct
                   "Cov_se_fat.Deriv.Inputs.calc_deriv_cross: \
                   multiscale modeling disabled, cannot calculate derivative")
           | Some multiscales ->
-            let n = Mat.dim2 eval_mat in
+            let n = Mat.dim1 eval_mat in
             let res = Mat.create n 1 in
             let inducing_dim = inducing.{dim, ind} in
             let multiscale = multiscales.{dim, ind} in
@@ -639,7 +639,7 @@ module Deriv = struct
             `Sparse_cols (res, cols)
           end
       | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
-          let n = Mat.dim2 eval_mat in
+          let n = Mat.dim1 eval_mat in
           let res = Mat.create n 1 in
           let inducing_dim = inducing.{dim, ind} in
           begin match kernel.Eval.Kernel.multiscales with
