@@ -1,5 +1,3 @@
-add derivative tests for all likelihoods
-
 Initialize inducing inputs with partial Cholesky factorization
 (better with discrete values)
 
