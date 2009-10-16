@@ -89,6 +89,7 @@ let main () =
 
   let sigma2 = FITC.Model.get_sigma2 (FITC.Trained.get_model trained) in
   write_float "sigma2" sigma2;
+  write_float "noise_sigma2" noise_sigma2;
 
   let inducing = FITC.Model.get_inducing model in
   let inducing_points = FITC.Inducing.get_points inducing in
