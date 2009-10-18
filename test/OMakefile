@@ -1,11 +1,8 @@
 OCAML_LIBS = ../lib/gpr
 
 OCamlProgram(save_data, test_kernels gen_data save_data)
-OCamlProgram(test_sigma2, test_kernels gen_data test_sigma2)
-OCamlProgram(find_sigma2, test_kernels gen_data find_sigma2)
-OCamlProgram(test_gpr, test_kernels gen_data test_gpr)
 
-.DEFAULT: test_gpr.opt save_data.opt test_sigma2.opt find_sigma2.opt
+.DEFAULT: save_data.opt
 
 InstClean()
 
