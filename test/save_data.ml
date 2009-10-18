@@ -1,86 +1,45 @@
 open Format
 
 open Lacaml.Impl.D
-open Lacaml.Io
 
 open Gpr
 open Utils
 
 open Gen_data
 
-module K = Fitc_gp.Make_deriv (Cov_se_iso.Deriv)
-module FITC_all = K.FITC
-module FITC = K.FITC.Eval
-module FIC = K.FIC.Eval
+module GP = Fitc_gp.Make_deriv (Cov_se_iso.Deriv)
+module FITC = GP.FITC.Eval
+module FIC = GP.FIC.Eval
 
 let main () =
   Random.self_init ();
+
   begin try Unix.mkdir "data" 0o755 with _ -> () end;
+
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
 
-  let params =
-    Cov_se_iso.Eval.Inputs.create_default_kernel_params
-      ~n_inducing training_inputs
-  in
-  let kernel = Cov_se_iso.Eval.Kernel.create params in
   let trained =
-    let report_trained_model ~iter trained =
-      let log_evidence = FITC.Trained.calc_log_evidence trained in
-      let rmse = FITC.Trained.calc_rmse trained in
-      printf "iter %4d:  log evidence: %.5f  rmse: %.5f\n%!"
-        iter log_evidence rmse
+    let params =
+      Cov_se_iso.Eval.Inputs.create_default_kernel_params
+        ~n_inducing training_inputs
     in
-    let report_gradient_norm ~iter norm =
-      Printf.printf "iter %4d:  |gradient| = %.5f\n%!" iter norm
-    in
-(*
-    let inducing_points =
-      FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
-    in
-    let all_hypers =
-      FITC_all.Deriv.Spec.Hyper.get_all kernel inducing_points
-    in
-    FITC_all.Deriv.Test.self_test
-      kernel inducing_points training_inputs
-      ~sigma2:noise_sigma2 ~targets:training_targets `Sigma2;
-    Array.iter (fun hyper ->
-        let hyper_str =
-          match hyper with
-          | `Log_sf2 -> "Log_sf2"
-          | `Log_ell -> "Log_ell"
-          | `Inducing_hyper _ -> "Inducing_hyper"
-(*
-          | `Proj _ -> "Proj"
-          | `Log_hetero_skedasticity _ -> "Log_hetero_skedasticity"
-          | `Log_multiscale_m05 _ -> "Log_multiscale_m05"
-*)
-        in
-        printf "-------- testing finite difference for hyper: %s\n%!" hyper_str;
-        FITC_all.Deriv.Test.check_deriv_hyper
-          kernel inducing_points training_inputs hyper;
-        FITC_all.Deriv.Test.self_test
-          kernel inducing_points training_inputs
-          ~sigma2:noise_sigma2 ~targets:training_targets (`Hyper hyper)
-      )
-      all_hypers;
-*)
-    FITC_all.Deriv.Optim.Gsl.train
-      ~report_trained_model ~report_gradient_norm
+    let kernel = Cov_se_iso.Eval.Kernel.create params in
+    GP.FITC.Deriv.Optim.Gsl.train
+      ~report_trained_model:(fun ~iter trained ->
+        let le = FITC.Trained.calc_log_evidence trained in
+        let rmse = FITC.Trained.calc_rmse trained in
+        printf "iter %4d:  log evidence: %.5f  rmse: %.5f@." iter le rmse)
+      ~report_gradient_norm:(fun ~iter norm ->
+        printf "iter %4d:  |gradient| = %.5f@." iter norm)
       ~kernel ~n_rand_inducing:n_inducing
       ~tol:0.1 ~step:0.1 ~epsabs:3.
       ~inputs:training_inputs ~targets:training_targets ()
-(*
-    let inputs =
-      let inducing_points =
-        FITC.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
-      in
-      let inducing = FITC.Inducing.calc kernel inducing_points in
-      FITC.Inputs.calc inducing training_inputs
-    in
-    let model = FITC.Model.calc inputs ~sigma2:noise_sigma2 in
-    FITC.Trained.calc model ~targets:training_targets
-*)
+  in
+  let params =
+    let model = FITC.Trained.get_model trained in
+    let kernel = FITC.Model.get_kernel model in
+    Cov_se_iso.Eval.Kernel.get_params kernel
   in
 
   let model = FITC.Trained.get_model trained in
@@ -98,11 +57,6 @@ let main () =
   let inducing_inputs = FITC.Inputs.calc inducing inducing_points in
 
   write_mat "inducing_points" inducing_points;
-
-(*
-  write_float "log_sf2"
-    (params :> Cov_se_fat.Params.params).Cov_se_fat.Params.log_sf2;
-*)
 
   write_float "log_sf2" params.Cov_se_iso.Params.log_sf2;
   write_float "log_ell" params.Cov_se_iso.Params.log_ell;
