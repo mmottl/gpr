@@ -1,6 +1,0 @@
-+ and *: ('v1, 'p1) kernel -> ('v2, 'p2) kernel -> ('v1 * 'v2, [ `Left of 'p1 | `Right of 'p2 ]) kernel
-trans: ('v1, 'p1) kernel -> ('v2 -> 'v1) -> ('p2 -> 'p1) -> ('v2, 'p2) kernel
-chain rule
-update parameters selectively
-initialize params with inputs + inducing inputs
-('v1, 'p1) kernel -> ('v2, 'p2) kernel -> ('v1 * 'v2, 'p1 * 'p2) kernel
