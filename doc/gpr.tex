@@ -93,10 +93,10 @@
 These are the equations used for computing the FIC predictive
 distribution and FIC marginal likelihood and its derivatives in the
 OCaml-implementation.  The implementation factorizes the computations
-in that way to minimize computation time (primarily) and memory
-usage.  It also takes into account numerical stability (e.g.\ using
-QR factorization to avoid normal equations; avoiding inverses)
-whenever possible without great loss of efficiency and otherwise
+in this way for several reasons: to minimize computation time and
+memory usage, and to improve numerical stability by e.g.\ avoiding
+inverses and by using QR factorization to avoid normal equations
+whenever possible without great loss of efficiency.  It otherwise
 aims for ease of implementation, e.g.\ combining derivative terms
 to simplify dealing with sparse matrices.\\
 
@@ -106,9 +106,9 @@ Here are a few symbology conventions:
 \item $\mathrm{diag_m}$ is the matrix consisting of only the diagonal
 \item Parts in \red{red} represent terms used for Michalis Titsias'
 variational approximation of the posterior marginal likelihood.
-\item Parts in \blue{blue} give an alternative, more compact, direct
-and hence more efficient way of computing some result if the required
-parameters are already available.
+\item Parts in \blue{blue} provide for an alternative, more compact,
+direct and hence more efficient way of computing some result if the
+required parameters are already available.
 \end{itemize}
 
 \begin{eqnarray*}
