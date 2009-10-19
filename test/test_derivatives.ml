@@ -1,14 +1,16 @@
 open Format
+open Lacaml.Impl.D
 
 open Gpr
-
-open Gen_data
 
 module GP = Fitc_gp.Make_deriv (Cov_se_fat.Deriv)
 module FITC = GP.FITC
 
 let main () =
   Random.self_init ();
+  let n_inducing = 5 in
+  let training_inputs = Mat.random 3 10 in
+  let training_targets = Vec.random 10 in
   let params =
     Cov_se_fat.Eval.Inputs.create_default_kernel_params
       ~n_inducing training_inputs
@@ -18,9 +20,10 @@ let main () =
     FITC.Eval.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
   in
   let all_hypers = FITC.Deriv.Spec.Hyper.get_all kernel inducing_points in
+  let sigma2 = 1. in
   FITC.Deriv.Test.self_test
     kernel inducing_points training_inputs
-    ~sigma2:noise_sigma2 ~targets:training_targets `Sigma2;
+    ~sigma2 ~targets:training_targets `Sigma2;
   Array.iter (fun hyper ->
     let module Csf = Cov_se_fat in
       let hyper_str =
@@ -40,7 +43,7 @@ let main () =
         kernel inducing_points training_inputs hyper;
       FITC.Deriv.Test.self_test
         kernel inducing_points training_inputs
-        ~sigma2:noise_sigma2 ~targets:training_targets (`Hyper hyper)
+        ~sigma2 ~targets:training_targets (`Hyper hyper)
     )
     all_hypers
 

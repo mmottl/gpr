@@ -1,7 +1,7 @@
 OCAML_LIBS = ../lib/gpr
 
-OCamlProgram(test_derivatives, gen_data test_derivatives)
 OCamlProgram(save_data, gen_data save_data)
+OCamlProgram(test_derivatives, test_derivatives)
 
 .DEFAULT: save_data.opt test_derivatives.opt
 
