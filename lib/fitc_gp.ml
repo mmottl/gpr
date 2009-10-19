@@ -320,30 +320,22 @@ module Make_common (Spec : Specs.Eval) = struct
 
   module Mean_predictor = struct
     type t = {
-      kernel : Spec.Kernel.t;
-      sigma2 : float;
       inducing : Spec.Inducing.t;
       coeffs : vec;
     }
 
     let calc_trained trained =
       {
-        kernel = Trained.get_kernel trained;
-        sigma2 = Common_model.get_sigma2 (Trained.get_model trained);
         inducing = Inducing.get_points (Trained.get_inducing trained);
         coeffs = Trained.calc_mean_coeffs trained;
       }
 
-    let calc kernel ~sigma2 inducing ~coeffs =
+    let calc inducing ~coeffs =
       {
-        kernel = kernel;
-        sigma2 = sigma2;
         inducing = inducing;
         coeffs = coeffs;
       }
 
-    let get_kernel t = t.kernel
-    let get_sigma2 t = t.sigma2
     let get_inducing t = t.inducing
     let get_coeffs t = t.coeffs
   end

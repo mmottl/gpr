@@ -177,13 +177,9 @@ module Sigs = struct
     module Mean_predictor : sig
       type t
 
-      val calc :
-        Spec.Kernel.t -> sigma2 : float -> Spec.Inducing.t -> coeffs : vec -> t
-
+      val calc : Spec.Inducing.t -> coeffs : vec -> t
       val calc_trained : Trained.t -> t
 
-      val get_kernel : t -> Spec.Kernel.t
-      val get_sigma2 : t -> float
       val get_inducing : t -> Spec.Inducing.t
       val get_coeffs : t -> vec
     end

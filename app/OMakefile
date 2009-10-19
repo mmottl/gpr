@@ -1,0 +1,8 @@
+OCAML_LIBS = ../lib/gpr
+OCAMLPACKS += pcre
+
+OCamlProgram(ocaml_gpr, ocaml_gpr)
+
+.DEFAULT: ocaml_gpr.opt
+
+InstClean()
