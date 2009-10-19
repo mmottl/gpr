@@ -166,6 +166,7 @@ module FIC = GP.FIC.Eval
 
 module Model = struct
   type t = {
+    mean : float;
     kernel : Cov_se_fat.Eval.Kernel.t;
     inducing_points : FIC.Spec.Inducing.t;
     coeffs : vec;
@@ -186,7 +187,7 @@ let read_training_samples () =
   Array.iteri fill samples;
   inputs, targets
 
-let write_model model_file trained =
+let write_model model_file mean trained =
   let oc = open_out model_file in
   let model =
     let model = FIC.Trained.get_model trained in
@@ -198,6 +199,7 @@ let write_model model_file trained =
     let co_variance_coeffs = FIC.Model.calc_co_variance_coeffs model in
     {
       Model.
+      mean = mean;
       kernel = kernel;
       inducing_points = inducing_points;
       coeffs = coeffs;
@@ -225,6 +227,8 @@ let train args =
     } = args
   in
   let inputs, targets = read_training_samples () in
+  let mean = Vec.sum targets /. float (Vec.dim targets) in
+  let targets = Vec.map (fun n -> n -. mean) targets in
   let n_inducing = min n_inducing (Vec.dim targets) in
   Random.self_init ();
   let trained =
@@ -284,7 +288,7 @@ let train args =
       ~kernel ~sigma2 ~n_rand_inducing:n_inducing
       ~tol ~step ~epsabs ~inputs ~targets ()
   in
-  write_model model_file trained
+  write_model model_file mean trained
 
 let read_test_samples () =
   let samples = read_samples () in
@@ -308,6 +312,7 @@ let test args =
   let
     {
       Model.
+      mean = mean;
       kernel = kernel;
       inducing_points = inducing_points;
       coeffs = coeffs;
@@ -319,6 +324,7 @@ let test args =
   let inducing = FIC.Inducing.calc kernel inducing_points in
   let inputs = FIC.Inputs.calc inducing inputs in
   let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
+  let means = Vec.map (fun n -> n +. mean) means in
   if with_stddev then
     let co_variance_predictor =
       FIC.Co_variance_predictor.calc kernel inducing_points co_variance_coeffs
@@ -327,7 +333,7 @@ let test args =
       FIC.Variances.calc co_variance_predictor ~sigma2:0. inputs
     in
     let variances = FIC.Variances.get ~predictive:false variances in
-    Vec.iteri (fun i mean -> printf "%f%f\n" mean variances.{i}) means
+    Vec.iteri (fun i mean -> printf "%f,%f\n" mean variances.{i}) means
   else
     Vec.iter (fun n -> printf "%f\n" n) means
 
