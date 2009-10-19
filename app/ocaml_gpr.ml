@@ -227,45 +227,33 @@ let train args =
     } = args
   in
   let inputs, targets = read_training_samples () in
+  let big_dim = Mat.dim1 inputs in
   let mean = Vec.sum targets /. float (Vec.dim targets) in
   let targets = Vec.map (fun n -> n -. mean) targets in
   let n_inducing = min n_inducing (Vec.dim targets) in
   Random.self_init ();
   let trained =
     let params =
-      let params =
-        Cov_se_fat.Eval.Inputs.create_default_kernel_params
-          ~n_inducing inputs
-      in
       let log_sf2 = 2. *. log amplitude in
-      let params = (params :> Cov_se_fat.Params.params) in
-      let tproj =
+      let d, tproj =
         match dim_red with
-        | None -> None
+        | None -> big_dim, None
         | Some small_dim ->
-            let tproj = params.Cov_se_fat.Params.tproj in
-            let tproj_mat =
-              match tproj with
-              | Some tproj_mat -> tproj_mat
-              | None -> assert false  (* impossible *)
-            in
-            let big_dim = Mat.dim1 tproj_mat in
-            if big_dim <= small_dim then None
-            else if small_dim = Mat.dim2 tproj_mat then tproj
-            else Some (Mat.make big_dim small_dim (1. /. float big_dim))
+            let small_dim = min big_dim small_dim in
+            small_dim, Some (Mat.make big_dim small_dim (1. /. float big_dim))
       in
       let log_hetero_skedasticity =
-        if het_sked then params.Cov_se_fat.Params.log_hetero_skedasticity
+        if het_sked then Some (Vec.make0 n_inducing)
         else None
       in
       let log_multiscales_m05 =
-        if multiscale then params.Cov_se_fat.Params.log_multiscales_m05
+        if multiscale then Some (Mat.make0 d n_inducing)
         else None
       in
       Cov_se_fat.Params.create
         {
-          params with
           Cov_se_fat.Params.
+          d = d;
           log_sf2 = log_sf2;
           tproj = tproj;
           log_hetero_skedasticity = log_hetero_skedasticity;
