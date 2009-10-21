@@ -162,11 +162,14 @@ open Lacaml.Impl.D
 open Gpr
 
 module GP = Fitc_gp.Make_deriv (Cov_se_fat.Deriv)
-module FIC = GP.FIC.Eval
+module FIC = GP.Variational_FIC.Eval
 
 module Model = struct
   type t = {
-    mean : float;
+    target_mean : float;
+    target_stddev : float;
+    input_dim_means : vec;
+    input_dim_stddevs : vec;
     kernel : Cov_se_fat.Eval.Kernel.t;
     inducing_points : FIC.Spec.Inducing.t;
     coeffs : vec;
@@ -187,7 +190,9 @@ let read_training_samples () =
   Array.iteri fill samples;
   inputs, targets
 
-let write_model model_file mean trained =
+let write_model
+      model_file ~target_mean ~target_stddev
+      ~input_dim_means ~input_dim_stddevs trained =
   let oc = open_out model_file in
   let model =
     let model = FIC.Trained.get_model trained in
@@ -199,7 +204,10 @@ let write_model model_file mean trained =
     let co_variance_coeffs = FIC.Model.calc_co_variance_coeffs model in
     {
       Model.
-      mean = mean;
+      target_mean = target_mean;
+      target_stddev = target_stddev;
+      input_dim_means = input_dim_means;
+      input_dim_stddevs = input_dim_stddevs;
       kernel = kernel;
       inducing_points = inducing_points;
       coeffs = coeffs;
@@ -228,8 +236,27 @@ let train args =
   in
   let inputs, targets = read_training_samples () in
   let big_dim = Mat.dim1 inputs in
-  let mean = Vec.sum targets /. float (Vec.dim targets) in
-  let targets = Vec.map (fun n -> n -. mean) targets in
+  let n_inputs = Mat.dim2 inputs in
+  let calc_mean vec = Vec.sum vec /. float (Vec.dim vec) in
+  let target_mean = calc_mean targets in
+  let targets = Vec.map (fun n -> n -. target_mean) targets in
+  let target_stddev = nrm2 targets /. sqrt (float n_inputs) in
+  let target_variance = target_stddev *. target_stddev in
+  if verbose then
+    eprintf "target variance: %.5f\n%!" target_variance;
+  scal (1. /. target_stddev) targets;
+  let input_dim_means = Vec.create big_dim in
+  let input_dim_stddevs = Vec.create big_dim in
+  for i = 1 to big_dim do
+    let input_dim = Mat.copy_row inputs i in
+    let mean = calc_mean input_dim in
+    input_dim_means.{i} <- mean;
+    let stddev = sqrt (Vec.ssqr ~c:mean input_dim) in
+    input_dim_stddevs.{i} <- stddev;
+    for j = 1 to n_inputs do
+      inputs.{i, j} <- (inputs.{i, j} -. mean) /. stddev;
+    done;
+  done;
   let n_inducing = min n_inducing (Vec.dim targets) in
   Random.self_init ();
   let trained =
@@ -261,22 +288,49 @@ let train args =
         }
     in
     let kernel = Cov_se_fat.Eval.Kernel.create params in
+    let line_ref = ref "" in
     let report_trained_model, report_gradient_norm =
       if verbose then
+        let rec res_writer () =
+          Thread.delay 0.5;
+          let line = !line_ref in
+          if line <> "" then prerr_endline line;
+          line_ref := "";
+          res_writer ()
+        in
+        ignore (Thread.create res_writer ());
         Some (fun ~iter trained ->
           let le = FIC.Trained.calc_log_evidence trained in
-          let rmse = FIC.Trained.calc_rmse trained in
-          printf "iter %4d:  log evidence: %.5f  rmse: %.5f\n%!" iter le rmse),
+          let rmse = FIC.Trained.calc_rmse trained *. target_stddev in
+          let mean_predictor = FIC.Mean_predictor.calc_trained trained in
+          let model = FIC.Trained.get_model trained in
+          let inputs = FIC.Model.get_inputs model in
+          let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
+          let abs_devs = Vec.map abs_float (Vec.sub means targets) in
+          let mean_abs_dev =
+            Vec.sum abs_devs /. float n_inputs *. target_stddev
+          in
+          let max_abs_dev = Vec.max abs_devs *. target_stddev in
+          let accuracy = (target_variance -. rmse *. rmse) /. target_variance in
+          let line =
+            sprintf
+              "iter %4d:  log evidence: %.5f  rmse: %.5f  accuracy: %.5f  \
+              mean abs dev: %f  max abs dev: %f"
+              iter le rmse accuracy mean_abs_dev max_abs_dev
+          in
+          line_ref := line),
         Some (fun ~iter norm ->
-          printf "iter %4d:  |gradient| = %.5f\n%!" iter norm)
+          let line = sprintf "iter %4d:  |gradient| = %.5f" iter norm in
+          line_ref := line)
       else None, None
     in
-    GP.FIC.Deriv.Optim.Gsl.train
+    GP.Variational_FIC.Deriv.Optim.Gsl.train
       ?report_trained_model ?report_gradient_norm
       ~kernel ~sigma2 ~n_rand_inducing:n_inducing
       ~tol ~step ~epsabs ~inputs ~targets ()
   in
-  write_model model_file mean trained
+  write_model model_file
+    ~target_mean ~target_stddev ~input_dim_means ~input_dim_stddevs trained
 
 let read_test_samples () =
   let samples = read_samples () in
@@ -300,19 +354,36 @@ let test args =
   let
     {
       Model.
-      mean = mean;
+      target_mean = target_mean;
+      target_stddev = target_stddev;
+      input_dim_means = input_dim_means;
+      input_dim_stddevs = input_dim_stddevs;
       kernel = kernel;
       inducing_points = inducing_points;
       coeffs = coeffs;
       co_variance_coeffs = co_variance_coeffs;
     } = read_model model_file
   in
+  let big_dim = Vec.dim input_dim_stddevs in
   let inputs = read_test_samples () in
+  let input_dim = Mat.dim1 inputs in
+  let n_inputs = Mat.dim2 inputs in
+  if input_dim <> big_dim then
+    failwith (
+      sprintf "incompatible dimension of inputs (%d), expected %d"
+        input_dim big_dim);
+  for i = 1 to big_dim do
+    let mean = input_dim_means.{i} in
+    let stddev = input_dim_stddevs.{i} in
+    for j = 1 to n_inputs do
+      inputs.{i, j} <- (inputs.{i, j} -. mean) /. stddev;
+    done;
+  done;
   let mean_predictor = FIC.Mean_predictor.calc inducing_points ~coeffs in
   let inducing = FIC.Inducing.calc kernel inducing_points in
   let inputs = FIC.Inputs.calc inducing inputs in
   let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
-  let means = Vec.map (fun n -> n +. mean) means in
+  let means = Vec.map (fun n -> (n +. target_mean) *. target_stddev) means in
   if with_stddev then
     let co_variance_predictor =
       FIC.Co_variance_predictor.calc kernel inducing_points co_variance_coeffs
