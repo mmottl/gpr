@@ -1202,6 +1202,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         Spec.Hyper.set_values kernel inducing_points
           [| hyper |] (Vec.make 1 value_eps)
 
+      let is_bad_deriv ~finite_el ~deriv ~tol =
+        Utils.is_nan finite_el
+          || Utils.is_nan deriv
+          || abs_float (finite_el -. deriv) > tol
+
       let check_deriv_hyper ?(eps = 1e-8) ?(tol = 1e-2)
             kernel1 inducing_points1 points hyper =
         let kernel2, inducing_points2 =
@@ -1224,7 +1229,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let inducing1 = Inducing.calc kernel1 inducing_points1 in
         let check_mat ~name ~deriv ~finite ~r ~c =
           let finite_el = finite.{r, c} in
-          if abs_float (finite_el -. deriv) > tol then
+          if is_bad_deriv ~finite_el ~deriv ~tol then
             failwith (
               sprintf
                 "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
@@ -1336,7 +1341,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           let check ~deriv ~r =
             let finite_el = finite_dkn_diag.{r} in
-            if abs_float (finite_el -. deriv) > tol then
+            if is_bad_deriv ~finite_el ~deriv ~tol then
               failwith (
                 sprintf
                   "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
@@ -1371,7 +1376,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         in
         let check ~name ~before ~after ~deriv =
           let finite_el = (after -. before) /. eps in
-          if abs_float (finite_el -. deriv) > tol then
+          if is_bad_deriv ~finite_el ~deriv ~tol then
             failwith (
               sprintf
                 "Gpr.Fitc_gp.Make_deriv.Test.self_test: \

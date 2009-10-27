@@ -186,13 +186,24 @@ module Eval = struct
 
     let create_default_kernel_params ~n_inducing inputs =
       let big_dim = Mat.dim1 inputs in
+      let n_inputs = Mat.dim2 inputs in
       let small_dim = min big_dim 10 in
+      let tproj = Mat.create big_dim small_dim in
+      let factor = float n_inputs /. float big_dim in
+      for r = 1 to big_dim do
+        let sum_ref = ref 0. in
+        for c = 1 to n_inputs do sum_ref := !sum_ref +. inputs.{r, c} done;
+        let mean_factor = factor /. !sum_ref in
+        for c = 1 to small_dim do
+          tproj.{r, c} <-  mean_factor *. (Random.float 2. -. 1.)
+        done;
+      done;
       {
         Params.
         d = small_dim;
-        log_sf2 = Random.float 1.;
-        tproj = Some (Mat.make big_dim small_dim (1. /. float big_dim));
-        log_hetero_skedasticity = Some (Vec.make0 n_inducing);
+        log_sf2 = Random.float 2. -. 1.;
+        tproj = Some tproj;
+        log_hetero_skedasticity = Some (Vec.make n_inducing ~-.5.);
         log_multiscales_m05 = Some (Mat.make0 small_dim n_inducing);
       }
 

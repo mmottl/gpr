@@ -12,6 +12,8 @@ module Int_vec = struct
   let sub (t : t) n = Array1.sub t n
 end
 
+let is_nan n = classify_float n = FP_nan
+
 let debug = ref false
 let cholesky_jitter = ref 1e-6
 
