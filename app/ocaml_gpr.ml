@@ -12,7 +12,7 @@ module Args = struct
     sigma2 : float;
     amplitude : float;
     dim_red : int option;
-    het_sked : bool;
+    log_het_sked : float option;
     multiscale : bool;
     tol : float;
     step : float;
@@ -28,7 +28,7 @@ module Args = struct
   let sigma2 = ref 1.
   let amplitude = ref 1.
   let dim_red = ref None
-  let het_sked = ref false
+  let log_het_sked = ref None
   let multiscale = ref false
   let tol = ref 0.1
   let step = ref 0.1
@@ -79,9 +79,10 @@ module Args = struct
           Arg.Int (set_some dim_red),
           " sets dimensionality reduction (default: none)"
         );(
-          "-het-sked",
-          Arg.Set het_sked,
-          " turns on learning of heteroskedastic noise"
+          "-log-het-sked",
+          Arg.Float (set_some log_het_sked),
+          " turns on / sets log-heteroskedastic \
+          noise (single digit negative values recommended)"
         );(
           "-multiscale",
           Arg.Set multiscale,
@@ -128,7 +129,7 @@ module Args = struct
       sigma2 = !sigma2;
       amplitude = !amplitude;
       dim_red = !dim_red;
-      het_sked = !het_sked;
+      log_het_sked = !log_het_sked;
       multiscale = !multiscale;
       tol = !tol;
       step = !step;
@@ -226,7 +227,7 @@ let train args =
       sigma2 = sigma2;
       amplitude = amplitude;
       dim_red = dim_red;
-      het_sked = het_sked;
+      log_het_sked = log_het_sked;
       multiscale = multiscale;
       tol = tol;
       step = step;
@@ -267,11 +268,14 @@ let train args =
         | None -> big_dim, None
         | Some small_dim ->
             let small_dim = min big_dim small_dim in
-            small_dim, Some (Mat.make big_dim small_dim (1. /. float big_dim))
+            let tproj = Mat.random big_dim small_dim in
+            Mat.scal (1. /. float big_dim) tproj;
+            small_dim, Some tproj
       in
       let log_hetero_skedasticity =
-        if het_sked then Some (Vec.make0 n_inducing)
-        else None
+        match log_het_sked with
+        | Some log_het_sked -> Some (Vec.make n_inducing log_het_sked)
+        | None -> None
       in
       let log_multiscales_m05 =
         if multiscale then Some (Mat.make0 d n_inducing)
