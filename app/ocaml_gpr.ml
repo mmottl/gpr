@@ -218,11 +218,14 @@ let write_model
   Marshal.to_channel oc model [];
   close_out oc
 
+exception Iter_max of FIC.Trained.t
+
 let train args =
   let
     {
       Args.
       model_file = model_file;
+      max_iter = max_iter;
       n_inducing = n_inducing;
       sigma2 = sigma2;
       amplitude = amplitude;
@@ -243,8 +246,7 @@ let train args =
   let targets = Vec.map (fun n -> n -. target_mean) targets in
   let target_stddev = nrm2 targets /. sqrt (float n_inputs) in
   let target_variance = target_stddev *. target_stddev in
-  if verbose then
-    eprintf "target variance: %.5f\n%!" target_variance;
+  if verbose then eprintf "target variance: %.5f\n%!" target_variance;
   scal (1. /. target_stddev) targets;
   let input_dim_means = Vec.create big_dim in
   let input_dim_stddevs = Vec.create big_dim in
@@ -294,6 +296,13 @@ let train args =
     let kernel = Cov_se_fat.Eval.Kernel.create params in
     let line_ref = ref "" in
     let report_trained_model, report_gradient_norm =
+      let bail_out =
+        match max_iter with
+        | None -> (fun ~iter:_ _ -> ())
+        | Some max_iter ->
+            (fun ~iter trained ->
+              if iter > max_iter then raise (Iter_max trained))
+      in
       if verbose then
         let rec res_writer () =
           Thread.delay 0.5;
@@ -304,6 +313,7 @@ let train args =
         in
         ignore (Thread.create res_writer ());
         Some (fun ~iter trained ->
+          bail_out ~iter trained;
           let le = FIC.Trained.calc_log_evidence trained in
           let rmse = FIC.Trained.calc_rmse trained *. target_stddev in
           let mean_predictor = FIC.Mean_predictor.calc_trained trained in
@@ -326,23 +336,24 @@ let train args =
         Some (fun ~iter norm ->
           let line = sprintf "iter %4d:  |gradient| = %.5f" iter norm in
           line_ref := line)
-      else None, None
+      else Some bail_out, None
     in
-    GP.Variational_FIC.Deriv.Optim.Gsl.train
-      ?report_trained_model ?report_gradient_norm
-      ~kernel ~sigma2 ~n_rand_inducing:n_inducing
-      ~tol ~step ~epsabs ~inputs ~targets ()
+    try
+      GP.Variational_FIC.Deriv.Optim.Gsl.train
+        ?report_trained_model ?report_gradient_norm
+        ~kernel ~sigma2 ~n_rand_inducing:n_inducing
+        ~tol ~step ~epsabs ~inputs ~targets ()
+    with GP.FIC.Deriv.Optim.Gsl.Optim_exception (Iter_max trained) -> trained
   in
   write_model model_file
     ~target_mean ~target_stddev ~input_dim_means ~input_dim_stddevs trained
 
-let read_test_samples () =
+let read_test_samples big_dim =
   let samples = read_samples () in
   let n = Array.length samples in
-  let d = Array.length samples.(0) - 1 in
-  let inputs = Mat.create d n in
+  let inputs = Mat.create big_dim n in
   let fill c0 sample =
-    for r1 = 1 to d do inputs.{r1, c0 + 1} <- sample.(r1 - 1) done
+    for r1 = 1 to big_dim do inputs.{r1, c0 + 1} <- sample.(r1 - 1) done
   in
   Array.iteri fill samples;
   inputs
@@ -369,7 +380,7 @@ let test args =
     } = read_model model_file
   in
   let big_dim = Vec.dim input_dim_stddevs in
-  let inputs = read_test_samples () in
+  let inputs = read_test_samples big_dim in
   let input_dim = Mat.dim1 inputs in
   let n_inputs = Mat.dim2 inputs in
   if input_dim <> big_dim then
@@ -387,7 +398,7 @@ let test args =
   let inducing = FIC.Inducing.calc kernel inducing_points in
   let inputs = FIC.Inputs.calc inducing inputs in
   let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
-  let means = Vec.map (fun n -> (n +. target_mean) *. target_stddev) means in
+  let means = Vec.map (fun n -> (n *. target_stddev) +. target_mean) means in
   if with_stddev then
     let co_variance_predictor =
       FIC.Co_variance_predictor.calc kernel inducing_points co_variance_coeffs
