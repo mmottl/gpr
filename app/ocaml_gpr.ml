@@ -139,16 +139,17 @@ module Args = struct
 end
 
 let read_samples () =
-  let rex = Pcre.regexp "," in
+  let rex = Str.regexp "," in
+  let split str = Array.of_list (Str.split rex str) in
   match try Some (read_line ()) with _ -> None with
   | None -> failwith "no data"
   | Some line ->
-      let sample = Array.map float_of_string (Pcre.asplit ~rex line) in
+      let sample = Array.map float_of_string (split line) in
       let d = Array.length sample in
       let rec loop samples =
         match try Some (read_line ()) with _ -> None with
         | Some line ->
-            let sample = Pcre.asplit ~rex line in
+            let sample = split line in
             if Array.length sample <> d then
               failwith (
                 sprintf "incompatible dimension of sample in line %d: %s"
