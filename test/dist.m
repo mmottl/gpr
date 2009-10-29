@@ -1,3 +1,5 @@
+% Part of Ed Snelson's SPGP distribution
+
 function D = dist(x0,x1)
 
 % dist: compute pairwise distance matrix from two column vectors x0 and x1

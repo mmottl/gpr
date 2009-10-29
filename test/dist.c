@@ -1,3 +1,5 @@
+/* Part of Ed Snelson's SPGP distribution */
+
 /* Compute matrix of pairwise distances between elements */
 /* of two vectors */
 

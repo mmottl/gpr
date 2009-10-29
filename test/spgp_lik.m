@@ -1,3 +1,5 @@
+% Edward Snelson's SPGP implementation in Octave/Matlab
+
 function [fw,dfw] = spgp_lik(w,y,x,n,del)
 
 % spgp_lik_3: neg. log likelihood for SPGP and gradients with respect to

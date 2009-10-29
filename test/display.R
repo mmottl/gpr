@@ -1,3 +1,9 @@
+# R script for testing Gaussian process regression results
+#
+# Copyright (C) 2009-  Markus Mottl
+# email: markus.mottl@gmail.com
+# WWW:   http://www.ocaml.info
+
 inputs <- t(read.table('data/inputs'))
 targets <- t(read.table('data/targets'))
 one_inducing <- t(read.table('data/one_inducing'))

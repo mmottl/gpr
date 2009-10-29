@@ -1,3 +1,9 @@
+% Octave/Matlab script for testing Gaussian process regression results
+%
+% Copyright (C) 2009-  Markus Mottl
+% email: markus.mottl@gmail.com
+% WWW:   http://www.ocaml.info
+
 format long
 
 global log_sf2;
@@ -174,7 +180,7 @@ vdls1 = -0.5*(sum(vv1) - sum(is))
 vdls = vdls1 + dls2
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Ed's stuff %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%% Ed Snelson's stuff %%%%%%%%%%%%%%%%%%%%%%%%%
 
 hyp = [log_inv_ell2; log_sf2; log(sigma2)];
 ew = [reshape(inducing_points', M*dim, 1); hyp];
