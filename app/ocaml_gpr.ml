@@ -30,6 +30,7 @@ module Args = struct
     cmd : cmd;
     model_file : string;
     with_stddev : bool;
+    predictive : bool;
     max_iter : int option;
     n_inducing : int;
     sigma2 : float;
@@ -46,6 +47,7 @@ module Args = struct
   let cmd : cmd ref = ref `train
   let model_file = ref None
   let with_stddev = ref false
+  let predictive = ref false
   let max_iter = ref None
   let n_inducing = ref 10
   let sigma2 = ref 1.
@@ -79,6 +81,10 @@ module Args = struct
           "-with-stddev",
           Arg.Set with_stddev,
           " make predictions with both mean and variance"
+        );(
+          "-predictive",
+          Arg.Set predictive,
+          " standard deviation includes noise level (predictive distribution)"
         );(
           "-max-iter",
           Arg.Int (set_some max_iter),
@@ -147,6 +153,7 @@ module Args = struct
       cmd = !cmd;
       model_file = some "model" model_file;
       with_stddev = !with_stddev;
+      predictive = !predictive;
       max_iter = !max_iter;
       n_inducing = !n_inducing;
       sigma2 = !sigma2;
@@ -191,6 +198,7 @@ module FIC = GP.Variational_FIC.Eval
 
 module Model = struct
   type t = {
+    sigma2 : float;
     target_mean : float;
     target_stddev : float;
     input_dim_means : vec;
@@ -221,6 +229,7 @@ let write_model
   let oc = open_out model_file in
   let model =
     let model = FIC.Trained.get_model trained in
+    let sigma2 = FIC.Model.get_sigma2 model in
     let kernel = FIC.Model.get_kernel model in
     let inducing = FIC.Model.get_inducing model in
     let inducing_points = FIC.Inducing.get_points inducing in
@@ -229,6 +238,7 @@ let write_model
     let co_variance_coeffs = FIC.Model.calc_co_variance_coeffs model in
     {
       Model.
+      sigma2 = sigma2;
       target_mean = target_mean;
       target_stddev = target_stddev;
       input_dim_means = input_dim_means;
@@ -389,10 +399,18 @@ let read_model model_file : Model.t =
   model
 
 let test args =
-  let { Args.model_file = model_file; with_stddev = with_stddev } = args in
+  let
+    {
+      Args.
+      model_file = model_file;
+      with_stddev = with_stddev;
+      predictive = predictive;
+    } = args
+  in
   let
     {
       Model.
+      sigma2 = sigma2;
       target_mean = target_mean;
       target_stddev = target_stddev;
       input_dim_means = input_dim_means;
@@ -422,18 +440,17 @@ let test args =
   let inducing = FIC.Inducing.calc kernel inducing_points in
   let inputs = FIC.Inputs.calc inducing inputs in
   let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
-  let means = Vec.map (fun n -> (n *. target_stddev) +. target_mean) means in
+  let renorm_mean mean = mean *. target_stddev +. target_mean in
   if with_stddev then
     let co_variance_predictor =
       FIC.Co_variance_predictor.calc kernel inducing_points co_variance_coeffs
     in
-    let variances =
-      FIC.Variances.calc co_variance_predictor ~sigma2:0. inputs
-    in
-    let variances = FIC.Variances.get ~predictive:false variances in
-    Vec.iteri (fun i mean -> printf "%f,%f\n" mean variances.{i}) means
-  else
-    Vec.iter (fun n -> printf "%f\n" n) means
+    let vars = FIC.Variances.calc co_variance_predictor ~sigma2 inputs in
+    let vars = FIC.Variances.get ~predictive vars in
+    Vec.iteri (fun i pre_mean ->
+      let mean = renorm_mean pre_mean in
+      printf "%f,%f\n" mean (target_stddev *. sqrt vars.{i})) means
+  else Vec.iter (fun mean -> printf "%f\n" (renorm_mean mean)) means
 
 let main () =
   let args = Args.get () in
