@@ -111,7 +111,7 @@ module Args = struct
           "-log-het-sked",
           Arg.Float (set_some log_het_sked),
           " turns on / sets log-heteroskedastic \
-          noise (single digit negative values recommended)"
+          noise (may require negative values)"
         );(
           "-multiscale",
           Arg.Set multiscale,
