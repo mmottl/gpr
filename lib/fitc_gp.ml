@@ -330,15 +330,95 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_means trained =
       gemv (Common_model.get_knm trained.model) trained.coeffs
 
-    let calc_rmse ({ y = y } as trained) =
-      let means = calc_means trained in
-      sqrt ((Vec.ssqr_diff y means) /. float (Vec.dim y))
-
     let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
     let get_upper trained = Common_model.get_upper trained.model
     let get_targets trained = trained.y
     let get_model trained = trained.model
+  end
+
+  module Stats = struct
+      type t = {
+        n_samples : int;
+        target_variance : float;
+        sse : float;
+        mse : float;
+        rmse : float;
+        smse : float;
+        msll : float;
+        mad : float;
+        maxad : float;
+      }
+
+    let calc_n_samples { Trained.y = y } = Vec.dim y
+
+    let calc_target_variance { Trained.y = y } =
+      Vec.sqr_nrm2 y /. float (Vec.dim y)
+
+    let calc_sse ({ Trained.y = y } as trained) =
+      let means = Trained.calc_means trained in
+      Vec.ssqr_diff y means
+
+    let calc_mse trained = calc_sse trained /. float (calc_n_samples trained)
+    let calc_rmse trained = sqrt (calc_mse trained)
+    let calc_smse trained = calc_mse trained /. calc_target_variance trained
+
+    let calc_prior_l target_variance =
+      -0.5 *. log (2. *. pi *. target_variance) -. 0.5
+
+    let calc_msll ({ Trained.l = l } as trained) =
+      let prior_l = calc_prior_l (calc_target_variance trained) in
+      prior_l -. l /. float (calc_n_samples trained)
+
+    let calc_mad ({ Trained.y = y } as trained) =
+      let n_samples = Vec.dim y in
+      let f_samples = float n_samples in
+      let means = Trained.calc_means trained in
+      let rec loop madsum i =
+        if i = 0 then madsum /. f_samples
+        else loop (madsum +. abs_float (y.{i} -. means.{i})) (i - 1)
+      in
+      loop 0. n_samples
+
+    let calc_maxad ({ Trained.y = y } as trained) =
+      let means = Trained.calc_means trained in
+      let rec loop maxad i =
+        if i = 0 then maxad
+        else loop (max maxad (abs_float (y.{i} -. means.{i}))) (i - 1)
+      in
+      loop 0. (Vec.dim y)
+
+    let calc ({ Trained.y = y; l = l } as trained) =
+      let n_samples = Vec.dim y in
+      let f_samples = float n_samples in
+      let target_variance = calc_target_variance trained in
+      let means = Trained.calc_means trained in
+      let sse = Vec.ssqr_diff y means in
+      let mse = sse /. f_samples in
+      let rmse = sqrt mse in
+      let smse = mse /. target_variance in
+      let prior_l = calc_prior_l target_variance in
+      let msll = prior_l -. l /. f_samples in
+      let mad, maxad =
+        let rec loop ~madsum ~maxad i =
+          if i = 0 then madsum /. f_samples, maxad
+          else
+            let ad = abs_float (y.{i} -. means.{i}) in
+            loop ~madsum:(madsum +. ad) ~maxad:(max maxad ad) (i - 1)
+        in
+        loop ~madsum:0. ~maxad:0. n_samples
+      in
+      {
+        n_samples = n_samples;
+        target_variance = target_variance;
+        sse = sse;
+        mse = mse;
+        rmse = rmse;
+        smse = smse;
+        msll = msll;
+        mad = mad;
+        maxad = maxad;
+      }
   end
 
   module Mean_predictor = struct

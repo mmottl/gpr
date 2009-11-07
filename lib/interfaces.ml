@@ -191,10 +191,36 @@ module Sigs = struct
       val calc : Model.t -> targets : vec -> t
       val calc_mean_coeffs : t -> vec
       val calc_log_evidence : t -> float
-      val calc_rmse : t -> float
 
       val get_model : t -> Model.t
       val get_targets : t -> vec
+    end
+
+    module Stats : sig
+      type t = {
+        n_samples : int;
+        target_variance : float;
+        sse : float;
+        mse : float;
+        rmse : float;
+        smse : float;
+        msll : float;
+        mad : float;
+        maxad : float;
+      }
+
+      val calc_n_samples : Trained.t -> int
+      val calc_target_variance : Trained.t -> float
+
+      val calc_sse : Trained.t -> float
+      val calc_mse : Trained.t -> float
+      val calc_rmse : Trained.t -> float
+      val calc_smse : Trained.t -> float
+      val calc_msll : Trained.t -> float
+      val calc_mad : Trained.t -> float
+      val calc_maxad : Trained.t -> float
+
+      val calc : Trained.t -> t
     end
 
     module Mean_predictor : sig
