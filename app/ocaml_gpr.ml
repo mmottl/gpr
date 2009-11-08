@@ -174,17 +174,24 @@ let read_samples () =
   match try Some (read_line ()) with _ -> None with
   | None -> failwith "no data"
   | Some line ->
-      let sample = Array.map float_of_string (split line) in
+      let conv_line line =
+        try Array.map float_of_string (split line)
+        with exc ->
+          failwith (
+            sprintf "failure '%s' converting sample: %s"
+              (Printexc.to_string exc) line)
+      in
+      let sample = conv_line line in
       let d = Array.length sample in
       let rec loop samples =
         match try Some (read_line ()) with _ -> None with
         | Some line ->
-            let sample = split line in
-            if Array.length sample <> d then
+            let floats = conv_line line in
+            if Array.length floats <> d then
               failwith (
                 sprintf "incompatible dimension of sample in line %d: %s"
                   (List.length samples + 1) line)
-            else loop (Array.map float_of_string sample :: samples)
+            else loop (floats :: samples)
         | None -> Array.of_list (List.rev samples)
       in
       loop [sample]
@@ -248,7 +255,7 @@ let write_model model_file ~target_mean ~input_means ~input_stddevs trained =
   Marshal.to_channel oc model [];
   close_out oc
 
-exception Bailout of FIC.Trained.t
+exception Bailout
 
 let train args =
   let
@@ -291,93 +298,93 @@ let train args =
   done;
   let n_inducing = min n_inducing (Vec.dim targets) in
   Random.self_init ();
-  let trained =
-    let params =
-      let log_sf2 = 2. *. log amplitude in
-      let d, tproj =
-        match dim_red with
-        | None -> big_dim, None
-        | Some small_dim ->
-            let small_dim = min big_dim small_dim in
-            let tproj = Mat.random big_dim small_dim in
-            Mat.scal (1. /. float big_dim) tproj;
-            small_dim, Some tproj
-      in
-      let log_hetero_skedasticity =
-        match log_het_sked with
-        | Some log_het_sked -> Some (Vec.make n_inducing log_het_sked)
-        | None -> None
-      in
-      let log_multiscales_m05 =
-        if multiscale then Some (Mat.make0 d n_inducing)
-        else None
-      in
-      Cov_se_fat.Params.create
-        {
-          Cov_se_fat.Params.
-          d = d;
-          log_sf2 = log_sf2;
-          tproj = tproj;
-          log_hetero_skedasticity = log_hetero_skedasticity;
-          log_multiscales_m05 = log_multiscales_m05;
-        }
+  let params =
+    let log_sf2 = 2. *. log amplitude in
+    let d, tproj =
+      match dim_red with
+      | None -> big_dim, None
+      | Some small_dim ->
+          let small_dim = min big_dim small_dim in
+          let tproj = Mat.random big_dim small_dim in
+          Mat.scal (1. /. float big_dim) tproj;
+          small_dim, Some tproj
     in
-    let kernel = Cov_se_fat.Eval.Kernel.create params in
-    let line_ref = ref "" in
-    let report_trained_model, report_gradient_norm =
-      let bailout =
-        let got_signal = ref false in
-        Sys.set_signal Sys.sigint
-          (Sys.Signal_handle (fun _ -> got_signal := true));
-        match max_iter with
-        | None ->
-            (fun ~iter:_ trained ->
-              if !got_signal then raise (Bailout (trained)))
-        | Some max_iter ->
-            (fun ~iter trained ->
-              if iter > max_iter || !got_signal
-              then raise (Bailout trained))
-      in
-      if verbose then
-        let rec res_writer () =
-          Thread.delay 0.5;
-          let line = !line_ref in
-          if line <> "" then prerr_endline line;
-          line_ref := "";
-          res_writer ()
-        in
-        ignore (Thread.create res_writer ());
-        Some (fun ~iter trained ->
-          bailout ~iter trained;
-          let
-            {
-              FIC.Stats.
-              smse = smse;
-              msll = msll;
-              mad = mad;
-              maxad = maxad;
-            } = FIC.Stats.calc trained
-          in
-          let line =
-            sprintf
-              "iter %4d: MSLL=%7.7f SMSE=%7.7f MAD=%7.7f MAXAD=%7.7f"
-              iter msll smse mad maxad
-          in
-          line_ref := line),
-        Some (fun ~iter norm ->
-          let line = sprintf "iter %4d:  |gradient| = %.5f" iter norm in
-          line_ref := line)
-      else Some bailout, None
+    let log_hetero_skedasticity =
+      match log_het_sked with
+      | Some log_het_sked -> Some (Vec.make n_inducing log_het_sked)
+      | None -> None
     in
-    try
-      GP.Variational_FIC.Deriv.Optim.Gsl.train
-        ?report_trained_model ?report_gradient_norm
-        ~kernel ~sigma2 ~n_rand_inducing:n_inducing
-        ~tol ~step ~epsabs ~inputs ~targets ()
-    with GP.FIC.Deriv.Optim.Gsl.Optim_exception (Bailout trained) -> trained
+    let log_multiscales_m05 =
+      if multiscale then Some (Mat.make0 d n_inducing)
+      else None
+    in
+    Cov_se_fat.Params.create
+      {
+        Cov_se_fat.Params.
+        d = d;
+        log_sf2 = log_sf2;
+        tproj = tproj;
+        log_hetero_skedasticity = log_hetero_skedasticity;
+        log_multiscales_m05 = log_multiscales_m05;
+      }
   in
-  write_model
-    model_file ~target_mean ~input_means ~input_stddevs trained
+  let kernel = Cov_se_fat.Eval.Kernel.create params in
+  let get_trained_stats trained =
+    let
+      {
+        FIC.Stats.
+        smse = smse;
+        msll = msll;
+        mad = mad;
+        maxad = maxad;
+      } = FIC.Stats.calc trained
+    in
+    sprintf
+      "MSLL=%7.7f SMSE=%7.7f MAD=%7.7f MAXAD=%7.7f"
+      msll smse mad maxad
+  in
+  let best_trained = ref None in
+  let report_trained_model, report_gradient_norm =
+    let got_signal = ref false in
+    Sys.set_signal Sys.sigint
+      (Sys.Signal_handle (fun _ -> got_signal := true));
+    let bailout ~iter _ =
+      if !got_signal then raise Bailout;
+      match max_iter with
+      | Some max_iter when iter > max_iter -> raise Bailout
+      | _ -> ()
+    in
+    if verbose then
+      let last_time = ref (Unix.gettimeofday ()) in
+      let maybe_print line =
+        let now = Unix.gettimeofday () in
+        if !last_time +. 0.5 < now then begin
+          last_time := now;
+          prerr_endline line;
+        end
+      in
+      Some (fun ~iter trained ->
+        best_trained := Some trained;
+        bailout ~iter ();
+        maybe_print (sprintf "iter %4d: %s" iter (get_trained_stats trained))),
+      Some (fun ~iter norm ->
+        bailout ~iter ();
+        maybe_print (sprintf "iter %4d: |gradient|=%.5f" iter norm))
+    else Some bailout, None
+  in
+  match
+    try
+      Some (
+        GP.Variational_FIC.Deriv.Optim.Gsl.train
+          ?report_trained_model ?report_gradient_norm
+          ~kernel ~sigma2 ~n_rand_inducing:n_inducing
+          ~tol ~step ~epsabs ~inputs ~targets ())
+    with GP.FIC.Deriv.Optim.Gsl.Optim_exception Bailout -> !best_trained
+  with
+  | None -> ()
+  | Some trained ->
+      if verbose then eprintf "result: %s\n%!" (get_trained_stats trained);
+      write_model model_file ~target_mean ~input_means ~input_stddevs trained
 
 let read_test_samples big_dim =
   let samples = read_samples () in
