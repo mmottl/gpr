@@ -355,10 +355,11 @@ let train args =
       | _ -> ()
     in
     if verbose then
-      let last_time = ref (Unix.gettimeofday ()) in
-      let maybe_print line =
+      let last_eval_time = ref 0. in
+      let last_deriv_time = ref 0. in
+      let maybe_print last_time line =
         let now = Unix.gettimeofday () in
-        if !last_time +. 0.5 < now then begin
+        if !last_time +. 1. < now then begin
           last_time := now;
           prerr_endline line;
         end
@@ -366,10 +367,12 @@ let train args =
       Some (fun ~iter trained ->
         best_trained := Some trained;
         bailout ~iter ();
-        maybe_print (sprintf "iter %4d: %s" iter (get_trained_stats trained))),
+        maybe_print last_eval_time
+          (sprintf "iter %4d: %s" iter (get_trained_stats trained))),
       Some (fun ~iter norm ->
         bailout ~iter ();
-        maybe_print (sprintf "iter %4d: |gradient|=%.5f" iter norm))
+        maybe_print last_deriv_time
+          (sprintf "iter %4d: |gradient|=%.5f" iter norm))
     else Some bailout, None
   in
   match
