@@ -1728,7 +1728,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             in
             check_exception seen_exception_ref neg_log_likelihood;
             let gnorm = Gsl_blas.nrm2 gsl_dhypers in
-            report_gradient_norm ~iter:!iter_count gnorm;
+            begin
+              try report_gradient_norm ~iter:!iter_count gnorm
+              with exc -> raise (Optim_exception exc)
+            end;
             if gnorm < epsabs then get_best_model ()
             else begin
               incr iter_count;
