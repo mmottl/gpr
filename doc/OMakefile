@@ -1,5 +1,7 @@
 NAME = gpr
 
+gpr.pdf: gpr.bib
+
 LaTeXDocument($(NAME), gpr)
 
 .DEFAULT: $(NAME).pdf
