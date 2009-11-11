@@ -145,30 +145,31 @@ posterior distributions over these functions given data, e.g.\ to
 solve regression problems\footnote{Gaussian processes can also be
 used for classification purposes.  This is by itself a large research
 area, which is not covered by this library.}.  As more data becomes
-available, a Gaussian process framework learns an ever more accurate
-distribution of functions that generate the data.\\
+available, the Gaussian process framework learns an ever more
+accurate distribution of functions that generate the data.\\
 
 Due to their mathematically elegant nature, Gaussian processes allow
 for analytically tractable calculation of the posterior mean and
 covariance functions.  Though it is easy to formulate the required
 equations, GPs come at a usually intractably high computational
-price for large problems.  Good approximation methods have been
-developed in the recent past to address this shortcoming, and this
-library makes heavy use of them.\\
+price for large problems.  Efficient approximation methods have
+been developed in the recent past to address this shortcoming, and
+this library makes heavy use of them.\\
 
 Gaussian processes are true generalizations of e.g.\ linear regression,
-ARMA processes, single-layer neural networks with infinitely many
-hidden units, etc., and thus capable of replacing numerous less
-general approaches.  They are closely related to support vector-
-(SVM) and other modern kernel machines, but have features that may
-make them a more suitable choice in many situations, for example
-predictive variances, Bayesian model selection, \ldots\\
+ARMA processes, single-layer neural networks with an infinite number
+of hidden units, and many other more widely known modeling techniques.
+GPs are closely related to support vector- (SVM) and other kernel
+machines, but have features that may make them a more suitable
+choice in many situations.  For example they offer predictive
+variances, Bayesian model selection, sampling from the posterior
+distribution, etc.\\
 
 It would go beyond the scope of this library documentation to provide
 for a detailed treatment of Gaussian processes.  Hence, readers
-unfamiliar with this approach may want to consult a wealth of online
-resources.  This subsection presents an overview of recommended
-materials.
+unfamiliar with this approach may want to consult online resources,
+of which there are plenty.  This subsection presents an overview
+of recommended materials.
 
 \subsubsection{Video tutorials}
 
@@ -190,7 +191,7 @@ based on Gaussian processes.
 \emph{\footahref{http://videolectures.net/epsrcws08\_rasmussen\_lgp}{Learning
 with Gaussian Processes}}: a slightly longer, two hour video tutorial
 series presented by Carl Edward Rasmussen at the Sheffield EPSRC
-Winter School 2008, which goes into slightly more detail.
+Winter School 2008, which goes into somewhat more detail.
 
 \item
 \emph{\footahref{http://videolectures.net/mlss07\_rasmussen\_bigp}{Bayesian
@@ -222,15 +223,15 @@ needed for implementation.  This library owes a lot to his work.
 
 \item \emph{\footahref{http://www.gaussianprocess.org/gpml}{Gaussian
 Processes for Machine Learning}}: many researchers in this area
-would call this book written by Carl Edward Rasmussen and Christopher
-K.\ I.\  Williams the ``bible of Gaussian processes''.  It presents
-a rigorous treatment of the underlying theory for both regression
-and classification problems, and more general aspects like properties
-of covariance functions, etc.  The authors have kindly made the
-full text and Matlab sources available online.  Their
-\footahref{http://www.gaussianprocess.org}{Gaussian process website}
-also lists a great wealth of other resources valuable for both
-researchers and practitioners.
+would call this book, which was written by Carl Edward Rasmussen
+and Christopher K.\ I.\  Williams, the ``bible of Gaussian processes''.
+It presents a rigorous treatment of the underlying theory for both
+regression and classification problems, and more general aspects
+like properties of covariance functions, etc.  The authors have
+kindly made the full text and Matlab sources available online.
+Their \footahref{http://www.gaussianprocess.org}{Gaussian process
+website} also lists a great wealth of other resources valuable for
+both researchers and practitioners.
 
 \end{itemize}
 
@@ -244,9 +245,9 @@ Among other things the OCaml GPR library currently offers:
 \begin{itemize}
 
 \item Sparse Gaussian processes using the FI(T)C\footnote{\emph{Fully
-Independent (Training) Conditional}} approximation for computationally
+Independent (Training) Conditional}} approximations for computationally
 tractable learning (see \cite{conf/nips/2005}, \cite{SnelsonThesis}).
-Unlike some other approximations that lead to degeneracy, this one
+Unlike some other approximations that lead to degeneracy, FI(T)C
 maintains sane posterior variances.
 
 \item Optimization of hyper parameters by evidence
