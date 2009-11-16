@@ -102,7 +102,7 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let eval k inducing input =
+    let eval k input inducing =
       let d = Mat.dim1 inducing in
       let m = Mat.dim2 inducing in
       let res = Vec.create m in
@@ -118,8 +118,8 @@ module Eval = struct
       done;
       res
 
-    let weighted_eval k inducing ~coeffs input =
-      dot ~x:coeffs (eval k inducing input)
+    let weighted_eval k input inducing ~coeffs =
+      dot ~x:coeffs (eval k input inducing)
 
     let eval_one k _input = k.Kernel.sf2
   end
@@ -131,13 +131,13 @@ module Eval = struct
     let choose_subset inputs indexes = choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
 
-    let create_default_kernel_params ~n_inducing:_ _inputs =
+    let create_default_kernel_params _inputs ~n_inducing:_ =
       { Params.log_ell = 0.; log_sf2 = 0. }
 
     let calc_upper k inputs = Inducing.calc_upper k inputs
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
-    let calc_sqr_diff_mat ~inducing ~inputs =
+    let calc_sqr_diff_mat ~inputs ~inducing =
       let d = Mat.dim1 inducing in
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
@@ -167,11 +167,11 @@ module Eval = struct
       done;
       res
 
-    let calc_cross k inducing inputs =
-      calc_cross_with_sqr_diff_mat k (calc_sqr_diff_mat ~inducing ~inputs)
+    let calc_cross k ~inputs ~inducing =
+      calc_cross_with_sqr_diff_mat k (calc_sqr_diff_mat ~inputs ~inducing)
 
-    let weighted_eval k inducing ~coeffs inputs =
-      let sqr_diff_mat = calc_sqr_diff_mat ~inducing ~inputs in
+    let weighted_eval k ~inputs ~inducing ~coeffs =
+      let sqr_diff_mat = calc_sqr_diff_mat ~inputs ~inducing in
       let n = Mat.dim1 sqr_diff_mat in
       let m = Mat.dim2 sqr_diff_mat in
       if Vec.dim coeffs <> m then
@@ -302,19 +302,19 @@ module Deriv = struct
   module Inputs = struct
     type diag = Eval.Kernel.t
 
-    type cross = Eval.Inducing.t * Eval.Inputs.t * deriv_common
+    type cross = Eval.Inputs.t * Eval.Inducing.t * deriv_common
 
     let calc_shared_diag k diag_eval_inputs =
       Eval.Inputs.calc_diag k diag_eval_inputs, k
 
-    let calc_shared_cross kernel inducing inputs =
+    let calc_shared_cross kernel ~inputs ~inducing =
       let module EI = Eval.Inputs in
-      let sqr_diff_mat = EI.calc_sqr_diff_mat ~inducing ~inputs in
+      let sqr_diff_mat = EI.calc_sqr_diff_mat ~inputs ~inducing in
       let cross = EI.calc_cross_with_sqr_diff_mat kernel sqr_diff_mat in
       let shared =
         (
-          inducing,
           inputs,
+          inducing,
           { kernel = kernel; sqr_diff_mat = sqr_diff_mat; eval_mat = cross }
         )
       in
@@ -324,7 +324,7 @@ module Deriv = struct
       | `Log_sf2 -> `Factor 1.
       | `Log_ell | `Inducing_hyper _ -> `Const 0.
 
-    let calc_deriv_cross (inducing, inputs, common) = function
+    let calc_deriv_cross (inputs, inducing, common) = function
       | `Log_sf2 -> `Factor 1.
       | `Log_ell ->
           let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in

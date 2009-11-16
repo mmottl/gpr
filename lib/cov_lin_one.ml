@@ -53,12 +53,12 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let eval { Kernel.const = alpha } inducing input =
+    let eval { Kernel.const = alpha } input inducing =
       gemv ~alpha ~trans:`T inducing input
         ~beta:1. ~y:(Vec.make (Mat.dim2 inducing) alpha)
 
-    let weighted_eval k inducing ~coeffs input =
-      dot ~x:coeffs (eval k inducing input)
+    let weighted_eval k input inducing ~coeffs =
+      dot ~x:coeffs (eval k input inducing)
 
     let eval_one k input = k.Kernel.const *. (Vec.sqr_nrm2 input +. 1.)
   end
@@ -70,7 +70,7 @@ module Eval = struct
     let choose_subset inputs indexes = choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
 
-    let create_default_kernel_params ~n_inducing:_ _inputs =
+    let create_default_kernel_params _inputs ~n_inducing:_ =
       { Params.log_theta = 0. }
 
     let calc_upper = Inducing.calc_upper
@@ -79,13 +79,13 @@ module Eval = struct
       Mat.syrk_diag ~alpha ~trans:`T inputs ~beta:1.
         ~y:(Vec.make (Mat.dim2 inputs) alpha)
 
-    let calc_cross { Kernel.const = alpha } inducing inputs =
+    let calc_cross { Kernel.const = alpha } ~inputs ~inducing =
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
       gemm ~alpha ~transa:`T inputs inducing ~beta:1. ~c:(Mat.make n m alpha)
 
-    let weighted_eval k inducing ~coeffs inputs =
-      gemv (calc_cross k inducing inputs) coeffs
+    let weighted_eval k ~inputs ~inducing ~coeffs =
+      gemv (calc_cross k ~inputs ~inducing) coeffs
   end
 end
 
@@ -132,8 +132,8 @@ module Deriv = struct
     let calc_shared_diag k diag_eval_inputs =
       Eval.Inputs.calc_diag k diag_eval_inputs, ()
 
-    let calc_shared_cross k inducing cross_eval_inputs =
-      Eval.Inputs.calc_cross k inducing cross_eval_inputs, ()
+    let calc_shared_cross k ~inputs ~inducing =
+      Eval.Inputs.calc_cross k ~inputs ~inducing, ()
 
     let calc_deriv_diag = calc_deriv_common
     let calc_deriv_cross = calc_deriv_common

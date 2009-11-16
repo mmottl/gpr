@@ -447,7 +447,7 @@ let test args =
   done;
   let mean_predictor = FIC.Mean_predictor.calc inducing_points ~coeffs in
   let inducing = FIC.Inducing.calc kernel inducing_points in
-  let inputs = FIC.Inputs.calc inducing inputs in
+  let inputs = FIC.Inputs.calc inputs inducing in
   let means = FIC.Means.get (FIC.Means.calc mean_predictor inputs) in
   let renorm_mean mean = mean +. target_mean in
   if with_stddev then

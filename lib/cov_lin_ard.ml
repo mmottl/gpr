@@ -60,11 +60,11 @@ module Eval = struct
       for i = 1 to d do ard_input.{i} <- consts.{i} *. input.{i} done;
       ard_input
 
-    let eval k inducing input =
+    let eval k input inducing =
       gemv ~trans:`T inducing (calc_ard_input k input)
 
-    let weighted_eval k inducing ~coeffs input =
-      dot ~x:coeffs (eval k inducing input)
+    let weighted_eval k input inducing ~coeffs =
+      dot ~x:coeffs (eval k input inducing)
 
     let eval_one { Kernel.consts = consts } input =
       let rec loop res i =
@@ -89,17 +89,17 @@ module Eval = struct
 
     let create_inducing = calc_ard_inputs
 
-    let create_default_kernel_params ~n_inducing:_ inputs =
+    let create_default_kernel_params inputs ~n_inducing:_ =
       { Params.log_ells = Vec.make (Mat.dim1 inputs) 0. }
 
     let calc_upper k inputs = syrk ~trans:`T (calc_ard_inputs k inputs)
     let calc_diag k inputs = Mat.syrk_diag ~trans:`T (calc_ard_inputs k inputs)
 
-    let calc_cross k inducing inputs =
+    let calc_cross k ~inputs ~inducing =
       gemm ~transa:`T (calc_ard_inputs k inputs) inducing
 
-    let weighted_eval k inducing ~coeffs inputs =
-      gemv (calc_cross k inducing inputs) coeffs
+    let weighted_eval k ~inputs ~inducing ~coeffs =
+      gemv (calc_cross k ~inputs ~inducing) coeffs
   end
 end
 
@@ -144,15 +144,15 @@ module Deriv = struct
 
   module Inputs = struct
     type diag = Eval.Kernel.t * Eval.Inputs.t
-    type cross = Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
+    type cross = Eval.Kernel.t * Eval.Inputs.t* Eval.Inducing.t 
 
     let calc_shared_diag k eval_inputs =
       Eval.Inputs.calc_diag k eval_inputs, (k, eval_inputs)
 
-    let calc_shared_cross k eval_inducing eval_inputs =
+    let calc_shared_cross k ~inputs ~inducing =
       (
-        Eval.Inputs.calc_cross k eval_inducing eval_inputs,
-        (k, eval_inducing, eval_inputs)
+        Eval.Inputs.calc_cross k ~inputs ~inducing,
+        (k, inputs, inducing)
       )
 
     let calc_deriv_diag (k, inputs) (`Log_ell d) =
@@ -165,7 +165,7 @@ module Deriv = struct
       done;
       `Vec res
 
-    let calc_deriv_cross (k, inducing, inputs) (`Log_ell d) =
+    let calc_deriv_cross (k, inputs, inducing) (`Log_ell d) =
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
       let res = Mat.create n m in

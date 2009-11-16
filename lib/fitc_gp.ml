@@ -80,14 +80,14 @@ module Make_common (Spec : Specs.Eval) = struct
       let chosen_inputs = Spec.Inputs.choose_subset inputs indexes in
       Spec.Inputs.create_inducing kernel chosen_inputs
 
-    let choose_n_first_inputs kernel ~n_inducing inputs =
+    let choose_n_first_inputs kernel inputs ~n_inducing =
       check_n_inducing ~n_inducing inputs;
       let indexes = Int_vec.create n_inducing in
       for i = 1 to n_inducing do indexes.{i} <- i done;
       choose kernel inputs indexes
 
     let choose_n_random_inputs
-          ?(rnd_state = Random.get_state ()) kernel ~n_inducing inputs =
+          ?(rnd_state = Random.get_state ()) kernel inputs ~n_inducing =
       check_n_inducing ~n_inducing inputs;
       let n_inputs = Spec.Inputs.get_n_points inputs in
       let indexes = Int_vec.create n_inputs in
@@ -115,7 +115,7 @@ module Make_common (Spec : Specs.Eval) = struct
       {
         inducing = inducing;
         point = point;
-        k_m = Spec.Input.eval kernel inducing_points point;
+        k_m = Spec.Input.eval kernel point inducing_points;
       }
 
     let get_kernel t = t.inducing.Inducing.kernel
@@ -125,22 +125,25 @@ module Make_common (Spec : Specs.Eval) = struct
   module Inputs = struct
     type t = { inducing : Inducing.t; points : Inputs.t; knm : mat }
 
-    let calc_internal inducing points knm =
+    let calc_internal points inducing knm =
       { inducing = inducing; points = points; knm = knm }
 
-    let calc inducing points =
+    let calc points inducing =
       let kernel = inducing.Inducing.kernel in
-      let knm = Inputs.calc_cross kernel inducing.Inducing.points points in
-      calc_internal inducing points knm
+      let knm =
+        Inputs.calc_cross
+          kernel ~inputs:points ~inducing:inducing.Inducing.points
+      in
+      calc_internal points inducing knm
 
     let get_kernel t = t.inducing.Inducing.kernel
 
     let calc_diag inputs = Inputs.calc_diag (get_kernel inputs) inputs.points
     let calc_upper inputs = Inputs.calc_upper (get_kernel inputs) inputs.points
 
-    let create_default_kernel ~n_inducing inputs =
+    let create_default_kernel inputs ~n_inducing =
       Kernel.create (
-        Spec.Inputs.create_default_kernel_params ~n_inducing inputs)
+        Spec.Inputs.create_default_kernel_params inputs ~n_inducing)
 
     let get_km t = t.inducing.Inducing.km
     let get_chol_km t = t.inducing.Inducing.chol_km
@@ -974,10 +977,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let kernel = Inducing.get_kernel inducing in
         let knm, shared_cross =
           Spec.Inputs.calc_shared_cross kernel
-            inducing.Inducing.eval.Eval_inducing.points points
+            ~inputs:points ~inducing:inducing.Inducing.eval.Eval_inducing.points
         in
         let eval =
-          Eval_inputs.calc_internal inducing.Inducing.eval points knm
+          Eval_inputs.calc_internal points inducing.Inducing.eval knm
         in
         { inducing = inducing; eval = eval; shared_cross = shared_cross }
 
@@ -1316,9 +1319,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           update_hyper kernel1 inducing_points1 hyper ~eps
         in
         let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points1 in
-        let eval_cross1 = Eval_inputs.calc eval_inducing1 points in
+        let eval_cross1 = Eval_inputs.calc points eval_inducing1 in
         let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
-        let eval_cross2 = Eval_inputs.calc eval_inducing2 points in
+        let eval_cross2 = Eval_inputs.calc points eval_inducing2 in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
           Mat.axpy ~alpha:(-1.) ~x:mat1 res;
@@ -1512,7 +1515,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               update_hyper kernel1 inducing_points1 hyper ~eps
             in
             let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
-            let eval_inputs2 = Eval_inputs.calc eval_inducing2 points in
+            let eval_inputs2 = Eval_inputs.calc points eval_inducing2 in
             let eval_model2 = Eval_model.calc eval_inputs2 ~sigma2 in
             let model_log_evidence2 =
               Eval_model.calc_log_evidence eval_model2
@@ -1549,7 +1552,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let ignore_report ~iter:_ _ = ()
 
         let train
-              ?(step = 1e-1) ?(tol = 1e-1) ?(epsabs = 0.1)
+              ?(step = 1e-1) ?(tol = 1e-1) ?(epsabs = 1e-1)
               ?(report_trained_model = ignore_report)
               ?(report_gradient_norm = ignore_report)
               ?kernel ?sigma2 ?inducing ?n_rand_inducing
@@ -1662,7 +1665,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let multim_f ~x:gsl_hypers =
             let kernel, inducing = update_hypers ~gsl_hypers in
             let eval_inducing = Eval_inducing.calc kernel inducing in
-            let eval_inputs = Eval_inputs.calc eval_inducing inputs in
+            let eval_inputs = Eval_inputs.calc inputs eval_inducing in
             let model = Eval_model.calc eval_inputs ~sigma2:!sigma2_ref in
             let trained = Eval_trained.calc model ~targets in
             let log_evidence = Eval_trained.calc_log_evidence trained in

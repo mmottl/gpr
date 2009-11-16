@@ -157,7 +157,7 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let eval k inducing input =
+    let eval k input inducing =
       let
         {
           Kernel.
@@ -194,8 +194,8 @@ module Eval = struct
       end;
       res
 
-    let weighted_eval k inducing ~coeffs input =
-      dot ~x:(eval k inducing input) coeffs
+    let weighted_eval k input inducing ~coeffs =
+      dot ~x:(eval k input inducing) coeffs
 
     let eval_one k _input = k.Kernel.sf2
   end
@@ -207,7 +207,7 @@ module Eval = struct
 
     let choose_subset = Utils.choose_cols
 
-    let create_default_kernel_params ~n_inducing inputs =
+    let create_default_kernel_params inputs ~n_inducing =
       let big_dim = Mat.dim1 inputs in
       let n_inputs = Mat.dim2 inputs in
       let small_dim = min big_dim 10 in
@@ -239,7 +239,7 @@ module Eval = struct
     let calc_upper k inputs = calc_upper_vanilla k (project k inputs)
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
-    let calc_cross_with_projections k ~inducing ~projections =
+    let calc_cross_with_projections k ~projections ~inducing =
       let
         {
           Kernel.
@@ -276,12 +276,12 @@ module Eval = struct
       end;
       res
 
-    let calc_cross k inducing inputs =
+    let calc_cross k ~inputs ~inducing =
       let projections = project k inputs in
-      calc_cross_with_projections k ~inducing ~projections
+      calc_cross_with_projections k ~projections ~inducing
 
-    let weighted_eval k inducing ~coeffs inputs =
-      gemv (calc_cross k inducing inputs) coeffs
+    let weighted_eval k ~inputs ~inducing ~coeffs =
+      gemv (calc_cross k ~inputs ~inducing) coeffs
   end
 end
 
@@ -582,17 +582,17 @@ module Deriv = struct
 
     type cross = Cross.t
 
-    let calc_shared_cross k inducing inputs =
+    let calc_shared_cross k ~inputs ~inducing =
       let projections = Eval.Inputs.project k inputs in
       let eval_mat =
-        Eval.Inputs.calc_cross_with_projections k ~inducing ~projections
+        Eval.Inputs.calc_cross_with_projections k ~projections ~inducing
       in
       let shared =
         {
           Cross.
           common = { kernel = k; eval_mat = eval_mat };
-          inducing = inducing;
           inputs = inputs;
+          inducing = inducing;
           projections = projections;
         }
       in
@@ -610,8 +610,8 @@ module Deriv = struct
         {
           Cross.
           common = { kernel = kernel; eval_mat = eval_mat };
-          inducing = inducing;
           inputs = inputs;
+          inducing = inducing;
           projections = projections;
         } = cross
       in

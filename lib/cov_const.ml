@@ -49,8 +49,8 @@ module Eval = struct
   module Input = struct
     type t = unit
 
-    let eval k m () = Vec.make m k.Kernel.const
-    let weighted_eval k _ ~coeffs () = k.Kernel.const *. Vec.sum coeffs
+    let eval k () m = Vec.make m k.Kernel.const
+    let weighted_eval k () _ ~coeffs = k.Kernel.const *. Vec.sum coeffs
     let eval_one k () = k.Kernel.const
   end
 
@@ -61,14 +61,14 @@ module Eval = struct
     let choose_subset _inputs indexes = Array1.dim indexes
     let create_inducing _kernel n = n
 
-    let create_default_kernel_params ~n_inducing:_ _inputs =
+    let create_default_kernel_params _inputs ~n_inducing:_ =
       { Params.log_theta = 0. }
 
     let calc_upper = Inducing.calc_upper
     let calc_diag k n = Vec.make n k.Kernel.const
-    let calc_cross k m n = Mat.make n m k.Kernel.const
+    let calc_cross k ~inputs:n ~inducing:m = Mat.make n m k.Kernel.const
 
-    let weighted_eval k _ ~coeffs _ =
+    let weighted_eval k ~inputs:_ ~inducing:_ ~coeffs =
       let res = copy coeffs in
       scal k.Kernel.const res;
       res
@@ -126,9 +126,9 @@ module Deriv = struct
         }
       )
 
-    let calc_shared_cross k eval_inducing eval_inputs =
+    let calc_shared_cross k ~inputs ~inducing =
       (
-        Eval.Inputs.calc_cross k eval_inducing eval_inputs,
+        Eval.Inputs.calc_cross k ~inputs ~inducing,
         { cross_const_deriv = calc_const_deriv k }
       )
 

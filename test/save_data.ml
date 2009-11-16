@@ -51,7 +51,7 @@ let main () =
     GP.FITC.Deriv.Optim.Gsl.train
       ~report_trained_model:(fun ~iter trained ->
         let le = FITC.Trained.calc_log_evidence trained in
-        let rmse = FITC.Trained.calc_rmse trained in
+        let rmse = FITC.Stats.calc_rmse trained in
         printf "iter %4d:  log evidence: %.5f  rmse: %.5f@." iter le rmse)
       ~report_gradient_norm:(fun ~iter norm ->
         printf "iter %4d:  |gradient| = %.5f@." iter norm)
@@ -77,7 +77,7 @@ let main () =
 
   let inducing = FITC.Model.get_inducing model in
   let inducing_points = FITC.Inducing.get_points inducing in
-  let inducing_inputs = FITC.Inputs.calc inducing inducing_points in
+  let inducing_inputs = FITC.Inputs.calc inducing_points inducing in
 
   write_mat "inducing_points" inducing_points;
 
