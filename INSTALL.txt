@@ -18,11 +18,11 @@
 
      You may want to use Godi to facilitate the installation.
 
-  2) Enter "omake install" to install the library.
+  2) Enter "omake install-findlib" to install the library.
 
 Enjoy!
 
-New York, 2009-10-28
+New York, 2009-11-16
 Markus Mottl
 
 email: markus.mottl@gmail.com

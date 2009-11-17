@@ -3,6 +3,7 @@ ABORT_ON_DEPENDENCY_ERRORS = true
 
 OCAMLPACKS += unix lacaml gsl
 
+BYTE_ENABLED = true
 NATIVE_ENABLED = true
 OCAMLFLAGS = -dtypes -g -w A -warn-error A
 
