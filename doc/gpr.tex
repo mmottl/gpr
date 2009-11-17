@@ -1,4 +1,4 @@
-\documentclass[10pt]{article}
+\documentclass[10pt]{report}
 
 % PACKAGES
 \usepackage[usenames]{color}
@@ -113,11 +113,15 @@
 
 % TITLE
 
+\begin{titlepage}
+
 \title{Gaussian Process Regression with OCaml\\Version 0.9}
 
 \author{Markus Mottl\footnote{\mail}}
 
 \date{\today}
+
+\end{titlepage}
 
 % DOCUMENT
 \begin{document}
@@ -131,13 +135,15 @@ library for Gaussian Process Regression with OCaml.
 
 \end{abstract}
 
-\section{Overview}
+\tableofcontents
+
+\chapter{Overview}
 
 The OCaml GPR library features implementations of many of the latest
 developments in the currently heavily researched machine learning
 area of Gaussian process regression.
 
-\subsection{Background}
+\section{Background}
 
 Gaussian processes define probability distributions over functions
 as prior knowledge.  Bayesian inference can then be used to compute
@@ -168,10 +174,10 @@ distribution, etc.\\
 It would go beyond the scope of this library documentation to provide
 for a detailed treatment of Gaussian processes.  Hence, readers
 unfamiliar with this approach may want to consult online resources,
-of which there are plenty.  This subsection presents an overview
+of which there are plenty.  This section presents an overview
 of recommended materials.
 
-\subsubsection{Video tutorials}
+\subsection{Video tutorials}
 
 Video tutorials are probably best suited for quickly developing an
 intuition and basic formal background of Gaussian processes and
@@ -203,7 +209,7 @@ the MLSS 2007 in T\"ubingen.
 
 \end{itemize}
 
-\subsubsection{Books and papers}
+\subsection{Books and papers}
 
 The following texts are intended for people who need a more formal
 treatment and theory.  This is especially recommended if you want
@@ -238,7 +244,7 @@ both researchers and practitioners.
 References to research about specific techniques used in the OCaml
 GPR library are provided in the bibliography.
 
-\subsection{Features of OCaml GPR}
+\section{Features of OCaml GPR}
 
 Among other things the OCaml GPR library currently offers:
 
@@ -281,7 +287,7 @@ of covariance functions, i.e.\ also string inputs, graph inputs,
 etc., could potentially be used with ease given suitable covariance
 functions\footnote{The library is currently only distributed with
 covariance functions that operate on multivariate numerical inputs.
-Feel free to contribute others.}.
+Interested readers may feel free to contribute others.}.
 
 \item Rigorous test suite for checking both user-provided derivatives
 of covariance functions, which are usually quite hard to implement
@@ -290,13 +296,15 @@ functions using finite differences.
 
 \end{itemize}
 
-\section{API documentation}
+\chapter{API documentation}
 
-\section{Example application}
+\chapter{Example application}
 
-\section{Internals}
+\chapter{Internals}
 
-\section{FIC computations}
+\appendix
+
+\chapter{FIC computations}
 
 This section consists of equations used for computing the FI(T)C
 predictive distribution, and the log-likelihood and its derivatives
@@ -405,9 +413,7 @@ l & = & l_1 + l_2 \\
 \end{eqnarray*}
 }
 
-\newpage
-
-\section{Notes/reminders for future work}
+\chapter{Notes/reminders for future work}
 
 Initialize inducing inputs with partial Cholesky factorization
 (better with discrete values)
@@ -418,7 +424,7 @@ Log-derivatives:
 \item $\tfrac{\partial f}{\partial \log(x)} = \tfrac{\partial f}{\partial x} x$
 \end{itemize}
 
-\subsection{Nonlinear clustering:}
+\section{Nonlinear clustering:}
 
 \begin{itemize}
 \item $k(x, y) = \langle \phi(x) | \phi(y) \rangle$
