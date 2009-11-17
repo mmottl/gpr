@@ -130,8 +130,8 @@
 
 \begin{abstract}
 
-This manual documents the implementation and use of the OCaml GPR
-library for Gaussian Process Regression with OCaml.
+This manual documents the implementation and use of the OCaml GPR library for
+Gaussian Process Regression with OCaml.
 
 \end{abstract}
 
@@ -140,109 +140,100 @@ library for Gaussian Process Regression with OCaml.
 \chapter{Overview}
 
 The OCaml GPR library features implementations of many of the latest
-developments in the currently heavily researched machine learning
-area of Gaussian process regression.
+developments in the currently heavily researched machine learning area of
+Gaussian process regression.
 
 \section{Background}
 
-Gaussian processes define probability distributions over functions
-as prior knowledge.  Bayesian inference can then be used to compute
-posterior distributions over these functions given data, e.g.\ to
-solve regression problems\footnote{Gaussian processes can also be
-used for classification purposes.  This is by itself a large research
-area, which is not covered by this library.}.  As more data becomes
-available, the Gaussian process framework learns an ever more
-accurate distribution of functions that generate the data.\\
+Gaussian processes define probability distributions over functions as prior
+knowledge.  Bayesian inference can then be used to compute posterior
+distributions over these functions given data, e.g.\ to solve regression
+problems\footnote{Gaussian processes can also be used for classification
+purposes.  This is by itself a large research area, which is not covered by this
+library.}.  As more data becomes available, the Gaussian process framework
+learns an ever more accurate distribution of functions that generate the data.\\
 
-Due to their mathematically elegant nature, Gaussian processes allow
-for analytically tractable calculation of the posterior mean and
-covariance functions.  Though it is easy to formulate the required
-equations, GPs come at a usually intractably high computational
-price for large problems.  Efficient approximation methods have
-been developed in the recent past to address this shortcoming, and
-this library makes heavy use of them.\\
+Due to their mathematically elegant nature, Gaussian processes allow for
+analytically tractable calculation of the posterior mean and covariance
+functions.  Though it is easy to formulate the required equations, GPs come at a
+usually intractably high computational price for large problems.  Efficient
+approximation methods have been developed in the recent past to address this
+shortcoming, and this library makes heavy use of them.\\
 
-Gaussian processes are true generalizations of e.g.\ linear regression,
-ARMA processes, single-layer neural networks with an infinite number
-of hidden units, and many other more widely known modeling techniques.
-GPs are closely related to support vector- (SVM) and other kernel
-machines, but have features that may make them a more suitable
-choice in many situations.  For example they offer predictive
-variances, Bayesian model selection, sampling from the posterior
+Gaussian processes are true generalizations of e.g.\ linear regression, ARMA
+processes, single-layer neural networks with an infinite number of hidden units,
+and many other more widely known modeling techniques.  GPs are closely related
+to support vector- (SVM) and other kernel machines, but have features that may
+make them a more suitable choice in many situations.  For example they offer
+predictive variances, Bayesian model selection, sampling from the posterior
 distribution, etc.\\
 
-It would go beyond the scope of this library documentation to provide
-for a detailed treatment of Gaussian processes.  Hence, readers
-unfamiliar with this approach may want to consult online resources,
-of which there are plenty.  This section presents an overview
-of recommended materials.
+It would go beyond the scope of this library documentation to provide for a
+detailed treatment of Gaussian processes.  Hence, readers unfamiliar with this
+approach may want to consult online resources, of which there are plenty.  This
+section presents an overview of recommended materials.
 
 \subsection{Video tutorials}
 
-Video tutorials are probably best suited for quickly developing an
-intuition and basic formal background of Gaussian processes and
-perspectives for their practical use.
+Video tutorials are probably best suited for quickly developing an intuition and
+basic formal background of Gaussian processes and perspectives for their
+practical use.
 
 \begin{itemize}
 
-\item
-\emph{\footahref{http://videolectures.net/gpip06\_mackay\_gpb}{Gaussian
-Process Basics}}: David MacKay's lecture given at the \emph{Gaussian
-Processes in Practice Workshop} in 2006.  This one hour video
-tutorial uses numerous graphical examples and animations to aid
-understanding of the basic principles behind inference techniques
-based on Gaussian processes.
+\item \emph{\footahref{http://videolectures.net/gpip06\_mackay\_gpb}{Gaussian
+Process Basics}}: David MacKay's lecture given at the \emph{Gaussian Processes
+in Practice Workshop} in 2006.  This one hour video tutorial uses numerous
+graphical examples and animations to aid understanding of the basic principles
+behind inference techniques based on Gaussian processes.
 
 \item
 \emph{\footahref{http://videolectures.net/epsrcws08\_rasmussen\_lgp}{Learning
-with Gaussian Processes}}: a slightly longer, two hour video tutorial
-series presented by Carl Edward Rasmussen at the Sheffield EPSRC
-Winter School 2008, which goes into somewhat more detail.
+with Gaussian Processes}}: a slightly longer, two hour video tutorial series
+presented by Carl Edward Rasmussen at the Sheffield EPSRC Winter School 2008,
+which goes into somewhat more detail.
 
 \item
 \emph{\footahref{http://videolectures.net/mlss07\_rasmussen\_bigp}{Bayesian
-Inference and Gaussian Processes}}: readers interested in a fairly
-thorough, from the ground up treatment of Bayesian inference
-techniques using Gaussian processes may want to watch this five
-hour video tutorial series presented by Carl Edward Rasmussen at
-the MLSS 2007 in T\"ubingen.
+Inference and Gaussian Processes}}: readers interested in a fairly thorough,
+from the ground up treatment of Bayesian inference techniques using Gaussian
+processes may want to watch this five hour video tutorial series presented by
+Carl Edward Rasmussen at the MLSS 2007 in T\"ubingen.
 
 \end{itemize}
 
 \subsection{Books and papers}
 
-The following texts are intended for people who need a more formal
-treatment and theory.  This is especially recommended if you want
-to be able to implement Gaussian processes and their approximations
-efficiently.
+The following texts are intended for people who need a more formal treatment and
+theory.  This is especially recommended if you want to be able to implement
+Gaussian processes and their approximations efficiently.
 
 \begin{itemize}
 
 \item
 \emph{\footahref{http://www.gatsby.ucl.ac.uk/\home{snelson}/thesis.pdf}{Flexible
-and efficient Gaussian process models for machine learning}}: Edward
-Lloyd Snelson's PhD thesis (\cite{SnelsonThesis}) offers a particularly
-readable treatment of modern inference and approximation techniques
-that avoids heavy formalism in favor of intuitive notation and
-clearly presented high-level concepts without sacrificing detail
-needed for implementation.  This library owes a lot to his work.
+and efficient Gaussian process models for machine learning}}: Edward Lloyd
+Snelson's PhD thesis (\cite{SnelsonThesis}) offers a particularly readable
+treatment of modern inference and approximation techniques that avoids heavy
+formalism in favor of intuitive notation and clearly presented high-level
+concepts without sacrificing detail needed for implementation.  This library
+owes a lot to his work.
 
-\item \emph{\footahref{http://www.gaussianprocess.org/gpml}{Gaussian
-Processes for Machine Learning}}: many researchers in this area
-would call this book, which was written by Carl Edward Rasmussen
-and Christopher K.\ I.\  Williams, the ``bible of Gaussian processes''.
-It presents a rigorous treatment of the underlying theory for both
-regression and classification problems, and more general aspects
-like properties of covariance functions, etc.  The authors have
-kindly made the full text and Matlab sources available online.
-Their \footahref{http://www.gaussianprocess.org}{Gaussian process
-website} also lists a great wealth of other resources valuable for
-both researchers and practitioners.
+\item \emph{\footahref{http://www.gaussianprocess.org/gpml}{Gaussian Processes
+for Machine Learning}}: many researchers in this area would call this book,
+which was written by Carl Edward Rasmussen and Christopher K.\ I.\  Williams,
+the ``bible of Gaussian processes''.  It presents a rigorous treatment of the
+underlying theory for both regression and classification problems, and more
+general aspects like properties of covariance functions, etc.  The authors have
+kindly made the full text and Matlab sources available online.  Their
+\footahref{http://www.gaussianprocess.org}{Gaussian process website} also lists
+a great wealth of other resources valuable for both researchers and
+practitioners.
 
 \end{itemize}
 
-References to research about specific techniques used in the OCaml
-GPR library are provided in the bibliography.
+References to research about specific techniques used in the OCaml GPR library
+are provided in the bibliography.
 
 \section{Features of OCaml GPR}
 
@@ -252,47 +243,49 @@ Among other things the OCaml GPR library currently offers:
 
 \item Sparse Gaussian processes using the FI(T)C\footnote{\emph{Fully
 Independent (Training) Conditional}} approximations for computationally
-tractable learning (see \cite{conf/nips/2005}, \cite{SnelsonThesis}).
-Unlike some other approximations that lead to degeneracy, FI(T)C
-maintains sane posterior variances.
+tractable learning (see \cite{conf/nips/2005}, \cite{SnelsonThesis}).  Unlike
+some other approximations that lead to degeneracy, FI(T)C maintains sane
+posterior variances.
 
-\item Optimization of hyper parameters by evidence
-maximization\footnote{Also known as type II maximum likelihood.},
-including optimization of inducing inputs (SPGP algorithm\footnote{This
-library exploits sparse matrix operations to achieve optimum big-O
-complexity when learning inducing inputs with the SPGP algorithm,
-but also for multiscales and other hyper parameters that imply
-sparse derivative matrices.}).
+\item Safe and convenient API for computing posterior means, variances,
+covariances, log evidence, for sampling from the posterior distribution,
+calculating statistics of the quality of fit, etc.
 
-\item Supervised dimensionality reduction, and improved predictions
-under heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
+\item Optimization of hyper parameters via evidence maximization\footnote{Also
+known as type II maximum likelihood.}, including optimization of inducing inputs
+(SPGP algorithm\footnote{This library exploits sparse matrix operations to
+achieve optimum big-O complexity when learning inducing inputs with the SPGP
+algorithm, but also for multiscales and other hyper parameters that imply sparse
+derivative matrices.}).
+
+\item Supervised dimensionality reduction, and improved predictions under
+heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
 \cite{SnelsonThesis}).
 
 \item Sparse multiscale Gaussian process regression (see
 \cite{conf/icml/WalderKS08}).
 
-\item Variational improvements to the approximate posterior
-distribution (see \cite{Titsias2009}).
+\item Variational improvements to the approximate posterior distribution (see
+\cite{Titsias2009}).
 
-\item Numerically stable GP calculations using QR-factorization to
-avoid the more commonly used and numerically unstable solution of
-normal equations via Cholesky factorization (see \cite{Foster2009}).
+\item Numerically stable GP calculations using QR-factorization to avoid the
+more commonly used and numerically unstable solution of normal equations via
+Cholesky factorization (see \cite{Foster2009}).
 
-\item Consistent use of BLAS/LAPACK throughout the library for
-optimum performance.
+\item Consistent use of BLAS/LAPACK throughout the library for optimum
+performance.
 
-\item Functors for plugging arbitrary covariance functions (=
-kernels) into the framework.  There is no constraint on the type
-of covariance functions, i.e.\ also string inputs, graph inputs,
-etc., could potentially be used with ease given suitable covariance
-functions\footnote{The library is currently only distributed with
-covariance functions that operate on multivariate numerical inputs.
-Interested readers may feel free to contribute others.}.
+\item Functors for plugging arbitrary covariance functions (= kernels) into the
+framework.  There is no constraint on the type of covariance functions, i.e.\
+also string inputs, graph inputs, etc., could potentially be used with ease
+given suitable covariance functions\footnote{The library is currently only
+distributed with covariance functions that operate on multivariate numerical
+inputs.  Interested readers may feel free to contribute others.}.
 
-\item Rigorous test suite for checking both user-provided derivatives
-of covariance functions, which are usually quite hard to implement
-correctly, and self-test code to verify derivatives of log-likelihood
-functions using finite differences.
+\item Rigorous test suite for checking both user-provided derivatives of
+covariance functions, which are usually quite hard to implement correctly, and
+self-test code to verify derivatives of log likelihood functions using finite
+differences.
 
 \end{itemize}
 
@@ -306,44 +299,43 @@ functions using finite differences.
 
 \chapter{FIC computations}
 
-This section consists of equations used for computing the FI(T)C
-predictive distribution, and the log-likelihood and its derivatives
-in the OCaml GPR library.  The implementation factorizes the
-computations in this way for several reasons: to minimize computation
-time and memory usage, and to improve numerical stability by using
-QR factorization to avoid normal equations, and by avoiding inverses
-whenever possible without great loss of efficiency.  It otherwise
-aims for ease of implementation, e.g.\ combining derivative terms
-to simplify dealing with sparse matrices.\\
+This section consists of equations used for computing the FI(T)C predictive
+distribution, and the log likelihood and its derivatives in the OCaml GPR
+library.  The implementation factorizes the computations in this way for several
+reasons: to minimize computation time and memory usage, and to improve numerical
+stability by e.g.\ using QR factorization to avoid normal equations, and by
+avoiding inverses whenever possible without great loss of
+efficiency\footnote{Unfortunately, inverses and symmetric rank-k operations are
+unavoidable in some cases to preserve optimum big-O complexity.}.  It otherwise
+aims for ease of implementation, e.g.\ combining derivative terms to simplify
+dealing with sparse matrices.\\
 
-The presentation and notation here is somewhat similar to
-\cite{SnelsonThesis}.  Thus, interested readers are encouraged to
-first read his work, especially the derivations in the appendix.
-Our presentation deviates in minor ways, but should hopefully still
-be fairly easy to compare.  The log-likelihood derivatives have
-been heavily restructured though.  The mathematical derivation of
-this restructuring would be extremely tedious, hence only the final
-result is presented.\\
+The presentation and notation here is somewhat similar to \cite{SnelsonThesis}.
+Thus, interested readers are encouraged to first read his work, especially the
+derivations in the appendix.  Our presentation deviates in minor ways, but
+should hopefully still be fairly easy to compare.  The log likelihood
+derivatives have been heavily restructured though.  The mathematical derivation
+of this restructuring would be extremely tedious, hence only the final result is
+presented.\\
 
 Here are a few definitions:
 
 \begin{itemize}
 
-\item $\mathrm{diag_m}$ is the function that returns the matrix
-consisting of only the diagonal of a given matrix.  $\mathrm{diag_v}$
-returns the diagonal as a vector.
+\item $\mathrm{diag_m}$ is the function that returns the matrix consisting of
+only the diagonal of a given matrix.  $\mathrm{diag_v}$ returns the diagonal as
+a vector.
 
-\item $\otimes$ represents element-wise multiplication of vectors.
-A vector raised to a power means element-wise application of that
-power.
+\item $\otimes$ represents element-wise multiplication of vectors.  A vector
+raised to a power means element-wise application of that power.
 
-\item Parts in \red{red} represent terms used for Michalis K.\
-Titsias' variational improvement (see \cite{Titsias2009}) to the
-posterior marginal likelihood.
+\item Parts in \red{red} represent terms used for Michalis K.\ Titsias'
+variational improvement to the posterior marginal likelihood (see
+\cite{Titsias2009}).
 
-\item Parts in \blue{blue} provide for an alternative, more compact,
-direct and hence more efficient way of computing some result if the
-required parameters are already available.
+\item Parts in \blue{blue} provide for an alternative, more compact, direct and
+hence more efficient way of computing some result if the required terms are
+already available.
 
 \end{itemize}
 
@@ -441,5 +433,5 @@ Log-derivatives:
 % BIBLIOGRAPHY
 \bibliographystyle{alpha}
 \bibliography{gpr}
- 
+
 \end{document}
