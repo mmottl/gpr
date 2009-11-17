@@ -21,6 +21,15 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
+(** {6 Isotropic squared exponential covariance} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = sf^2 * exp(-1/2 * |1/ell*(x-y)|^2)]
+
+    where [sf^2] is the amplitude, and [ell] is the length scale.
+*)
+
 open Lacaml.Impl.D
 
 open Interfaces.Specs

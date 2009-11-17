@@ -21,6 +21,16 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
+(** {6 Covariance of linear functions with one hyperparameter} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = x*inv(P)*y + 1/t^2]
+    [logtheta = log(t)]
+
+    where P is a diagonal matrix containing [t^2] along the diagonal.
+*)
+
 open Lacaml.Impl.D
 
 open Interfaces.Specs

@@ -21,6 +21,14 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
+(** {6 Covariance of a constant function} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = 1/s^2]
+    [logtheta = log(s)]
+*)
+
 open Interfaces.Specs
 
 module Params : sig type t = { log_theta : float } end

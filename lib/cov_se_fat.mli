@@ -21,6 +21,31 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
+(** {6 Feature-rich ("fat") squared exponential covariance} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = sf^2 * exp(-1/2 * |(Q_i*P*(x-y))|^2)]
+
+    where [sf^2] is the amplitude, [P] a general [d*D] dimensionality reduction
+    matrix ([d << D]), and [Q_i] is a [d*d] diagonal matrix containing all
+    multiscales for inducing input number [i].
+
+    Note that multiscales must not get smaller than [0.5] in this framework,
+    because the overall length scale is considered to be equal to [1], which
+    imposes this mathematical constraint for positive-definiteness.  There is no
+    need for a variable global length scale, because the dimensionality
+    reduction matrix already generalizes this feature anyway.  Hence an
+    unconstrained multiscale parameter [q] is stored as [log(q - 0.5)].
+
+    If [x] and [y] are the same inducing input, then and only then extra noise
+    (a different noise level for each inducing input) will be added for
+    heteroskedasticity.
+
+    Dimensionality reduction, heteroskedasticity, and multiscales are optional
+    features and can be easily turned off by setting the parameters to [None].
+*)
+
 open Lacaml.Impl.D
 
 open Interfaces.Specs

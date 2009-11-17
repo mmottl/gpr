@@ -21,6 +21,16 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
+(** {6 Covariance of linear functions with Automatic Relevance Determination} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = x*inv(P)*y]
+
+    where P is a diagonal matrix containing ARD parameters ell_1^2,...,ell_D^2,
+    and D is the dimensionality of the input space.
+*)
+
 open Lacaml.Impl.D
 
 open Interfaces.Specs
