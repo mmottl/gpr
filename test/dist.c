@@ -5,8 +5,8 @@
 
 #include "mex.h"
 
-void mexFunction(int nlhs, mxArray *plhs[], 
-		 int nrhs, const mxArray *prhs[]) 
+void mexFunction(int nlhs, mxArray *plhs[],
+                 int nrhs, const mxArray *prhs[])
 {
   int n0, n1;
   double *x0, *x1, *D;
@@ -27,7 +27,7 @@ void mexFunction(int nlhs, mxArray *plhs[],
   x1 = mxGetPr(prhs[1]);
 
   plhs[0] = mxCreateDoubleMatrix(n0, n1, mxREAL);
-  
+
   D = mxGetPr(plhs[0]);
 
   for (j = 0; j < n1; j++) {

@@ -144,7 +144,7 @@ module Deriv = struct
 
   module Inputs = struct
     type diag = Eval.Kernel.t * Eval.Inputs.t
-    type cross = Eval.Kernel.t * Eval.Inputs.t* Eval.Inducing.t 
+    type cross = Eval.Kernel.t * Eval.Inputs.t* Eval.Inducing.t
 
     let calc_shared_diag k eval_inputs =
       Eval.Inputs.calc_diag k eval_inputs, (k, eval_inputs)

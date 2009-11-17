@@ -16,7 +16,7 @@ function [fw,dfw] = spgp_lik(w,y,x,n,del)
 %      hyp(dim+1) = log( c )
 %      hyp(dim+2) = log( sig )
 %
-%      where cov = c * exp[-0.5 * sum_d b_d * (x_d - x'_d)^2] 
+%      where cov = c * exp[-0.5 * sum_d b_d * (x_d - x'_d)^2]
 %                       + sig * delta(x,x')
 %
 %      xb -- pseudo-inputs (n*dim)
@@ -53,7 +53,7 @@ invLmV = Lm\V;
 bet = invLmV*y;
 
 % Likelihood
-fw = sum(log(diag(Lm))) + (N-n)/2*log(sig) + ... 
+fw = sum(log(diag(Lm))) + (N-n)/2*log(sig) + ...
       (y'*y - bet'*bet)/2/sig + sum(log(ep))/2 + 0.5*N*log(2*pi);
 
 % OPTIONAL derivatives
@@ -83,7 +83,7 @@ epdot = -2/sig*dNnK.*invLV; epPmod = -sum(epdot)';
 
 dfxb(:,i) = - b1.*(dNnK*(y-mu)/sig + dnnQ*b1) ...
     + sum((invQ - invA*sig).*dnnQ,2) ...
-    + epdot*bigsum - 2/sig*sum(dnnQ.*TT,2); 
+    + epdot*bigsum - 2/sig*sum(dnnQ.*TT,2);
 
 dfb(i,1) = (((y-mu)'.*(b1'*dNnK))/sig ...
            + (epPmod.*bigsum)')*x(:,i);
@@ -102,9 +102,9 @@ end
 % size
 epc = (c./ep - sumVsq - del*sum((invLV).^2)')/sig;
 
-dfc = (n + del*trace(invQ-sig*invA) ... 
+dfc = (n + del*trace(invQ-sig*invA) ...
      - sig*sum(sum(invA.*Q')))/2 ...
-    - mu'*(y-mu)/sig + b1'*(Q-del*eye(n))*b1/2 ... 
+    - mu'*(y-mu)/sig + b1'*(Q-del*eye(n))*b1/2 ...
       + epc'*bigsum;
 
 % noise
