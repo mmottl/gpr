@@ -3,7 +3,7 @@
 (^|/)\.hgtags($|/)
 \.omakedb
 \.omakedb.lock
-.*\.(cm[iox]|o|a)
+.*\.(cm[ioax]|o|a)
 dist.mex
 test/data
 test/\.R(Data|history)

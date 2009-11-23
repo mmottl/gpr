@@ -18,7 +18,7 @@
 
      You may want to use Godi to facilitate the installation.
 
-  2) Enter "omake install-findlib" to install the library.
+  2) Enter "omake install" to install the library using ocamlfind.
 
   3) Enter "omake" in the doc-directory to build the PDF-manual "gpr.pdf".
 

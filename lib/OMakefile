@@ -19,10 +19,14 @@ OCamlLibrary(gpr, gpr)
 
 LIBINSTALL_FILES = gpr.cmi gpr.cma gpr.cmxa gpr.a
 
-.PHONY: install-findlib
-install-findlib: $(LIBINSTALL_FILES)
+.PHONY: install uninstall
+
+install: $(LIBINSTALL_FILES)
   ocamlfind remove gpr || true
   ocamlfind install gpr META $(LIBINSTALL_FILES)
+
+uninstall:
+  ocamlfind remove gpr
 
 .DEFAULT: gpr.cmxa
 
