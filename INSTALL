@@ -20,9 +20,11 @@
 
   2) Enter "omake install-findlib" to install the library.
 
+  3) Enter "omake" in the doc-directory to build the PDF-manual "gpr.pdf".
+
 Enjoy!
 
-New York, 2009-11-16
+New York, 2009-11-23
 Markus Mottl
 
 email: markus.mottl@gmail.com
