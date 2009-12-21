@@ -184,11 +184,13 @@ system as used by the API make sure that many easily made programming errors can
 be avoided and guide the user to make efficient use of the library.
 
 \item Optimization of hyper parameters via evidence maximization\footnote{Also
-known as type II maximum likelihood.}, including optimization of inducing inputs
+known as type II maximum likelihood.} including optimization of inducing inputs
 (SPGP algorithm\footnote{This library exploits sparse matrix operations to
 achieve optimum big-O complexity when learning inducing inputs with the SPGP
 algorithm, but also for multiscales and other hyper parameters that imply sparse
-derivative matrices for the marginal log likelihood.}).
+derivative matrices for the marginal log likelihood.}).  The limited memory
+BFGS2 algorithm in the \footahref{http://www.gnu.org/software/gsl}{GNU
+scientific library} is employed for this purpose.
 
 \item Supervised dimensionality reduction, and improved predictions under
 heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
