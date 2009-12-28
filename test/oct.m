@@ -1,4 +1,4 @@
-% Octave/Matlab script for testing Gaussian process regression results
+% Octave script for testing Gaussian process regression results
 %
 % Copyright (C) 2009-  Markus Mottl
 % email: markus.mottl@gmail.com
