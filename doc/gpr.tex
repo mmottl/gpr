@@ -136,7 +136,9 @@ Carl Edward Rasmussen at the MLSS 2007 in T\"ubingen.
 
 The following texts are intended for people who need a more formal treatment and
 theory.  This is especially recommended if one wants to be able to implement
-Gaussian processes and their approximations efficiently.
+Gaussian processes and their approximations efficiently, and build up the
+background knowledge necessary for quick comprehension of publications in the
+field.
 
 \begin{itemize}
 
@@ -150,27 +152,35 @@ concepts without sacrificing detail needed for implementation.  This library
 owes a lot to his work.
 
 \item \emph{\footahref{http://www.gaussianprocess.org/gpml}{Gaussian Processes
-for Machine Learning}}: many researchers in this area would call this book,
-which was written by Carl Edward Rasmussen and Christopher K.\ I.\  Williams,
-the ``bible of Gaussian processes''.  It presents a rigorous treatment of the
-underlying theory for both regression and classification problems, and more
-general aspects like properties of covariance functions, etc.  The authors have
-kindly made the full text and Matlab sources available online.  Their
+for Machine Learning}}: many researchers in this area would call this book
+\cite{oai:eprints.pascal-network.org:1211}, which was written by Carl Edward
+Rasmussen and Christopher K.\ I.\ Williams, the ``bible of Gaussian processes''.
+It presents a rigorous treatment of the underlying theory for both regression
+and classification problems, and more general aspects like properties of
+covariance functions, etc.  The authors have kindly made the full text and
+Matlab sources available online.  Their
 \footahref{http://www.gaussianprocess.org}{Gaussian process website} also lists
 a great wealth of other resources valuable for both researchers and
 practitioners.
 
+\item \emph{Pattern Recognition and Machine Learning}: this book
+\cite{BishopMachLearn} by Christopher M.\ Bishop thoroughly introduces the
+reader to the field of machine learning, especially to Bayesian methods and
+including Gaussian processes.
+
+\item \emph{Matrix Analysis and Applied Linear Algebra}: readers who would like
+to obtain a deeper understanding of the methods from linear algebra (e.g.\
+matrix factorizations) used in the OCaml GPR library may find a most comprehensive and
+detailed treatment in this book \cite{MatrixAnalysis} by Carl D.\ Meyer.
+
 \end{itemize}
 
-References to research about specific techniques used in the OCaml GPR library
-are provided in the bibliography.  Readers who would like to obtain a deeper
-understanding of the methods from linear algebra (e.g.\ matrix factorizations)
-used in the library may find a most comprehensive and detailed treatment in
-\cite{MatrixAnalysis}.
+References to research about specific techniques used in OCaml GPR are provided
+in the bibliography.
 
 \section{Features of OCaml GPR}
 
-Among other things the OCaml GPR library currently offers:
+Among other features the OCaml GPR library currently offers:
 
 \begin{itemize}
 
