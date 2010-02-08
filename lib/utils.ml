@@ -21,10 +21,10 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Format
-
 open Bigarray
 open Lacaml.Impl.D
+open Lacaml.Io
+open Core.Std
 
 (* Global definitions *)
 
@@ -50,24 +50,24 @@ let default_rng = Gsl_rng.make (Gsl_rng.default ())
 
 (* Testing and I/O functionality *)
 
-let print_int name n = printf "%s: @[%d@]@.@." name n
-let print_float name n = printf "%s: @[%.9f@]@.@." name n
-let print_vec name vec = printf "%s: @[%a@]@.@." name pp_vec vec
-let print_mat name mat = printf "%s: @[%a@]@.@." name pp_mat mat
+let print_int name n = Format.printf "%s: @[%d@]@.@." name n
+let print_float name n = Format.printf "%s: @[%.9f@]@.@." name n
+let print_vec name vec = Format.printf "%s: @[%a@]@.@." name pp_vec vec
+let print_mat name mat = Format.printf "%s: @[%a@]@.@." name pp_mat mat
 
 let timing name f =
   let t1 = Unix.times () in
   let res = f () in
   let t2 = Unix.times () in
-  printf "%s %.2f@." name (t2.Unix.tms_utime -. t1.Unix.tms_utime);
+  Format.printf "%s %.2f@." name (t2.Unix.tms_utime -. t1.Unix.tms_utime);
   res
 
 let gen_write pp file obj =
   let oc = open_out (Filename.concat "data" file) in
-  fprintf (formatter_of_out_channel oc) "%a@." pp obj;
+  Format.fprintf (Format.formatter_of_out_channel oc) "%a@." pp obj;
   close_out oc
 
-let write_float file = gen_write pp_print_float file
+let write_float file = gen_write Format.pp_print_float file
 let write_vec file = gen_write pp_vec file
 let write_mat file = gen_write pp_mat file
 
@@ -83,9 +83,9 @@ let choose_cols mat indexes =
   for c = 1 to k do
     let real_c = indexes.{c} in
     if real_c < 1 || real_c > n then
-      failwith (
-        sprintf "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
-          real_c n)
+      failwithf
+        "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
+        real_c n ()
     else for r = 1 to m do res.{r, c} <- mat.{r, real_c} done
   done;
   res
@@ -138,26 +138,23 @@ let check_sparse_row_mat_sane ~real_m ~smat ~rows =
     let m = Mat.dim1 smat in
     let n_rows = Int_vec.dim rows in
     if n_rows <> m then
-      failwith (
-        sprintf
-          "Gpr.Utils.check_sparse_row_mat_sane: number of rows in \
-          sparse matrix (%d) disagrees with size of row array (%d)"
-          m n_rows);
+      failwithf
+        "Gpr.Utils.check_sparse_row_mat_sane: number of rows in \
+        sparse matrix (%d) disagrees with size of row array (%d)"
+        m n_rows ();
     let rec loop ~i ~limit =
       if i > 0 then
         let rows_i = rows.{i} in
         if rows_i <= 0 then
-          failwith (
-            sprintf
-              "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d contains \
-              illegal negative real row index %d" i rows_i)
+          failwithf
+            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d contains \
+            illegal negative real row index %d" i rows_i ()
         else if rows_i > limit then
-          failwith (
-            sprintf
-              "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d \
-              associated with real row index %d violates consistency \
-              (current row limit: %d)"
-              i rows_i limit)
+          failwithf
+            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d \
+            associated with real row index %d violates consistency \
+            (current row limit: %d)"
+            i rows_i limit ()
         else loop ~i:(i - 1) ~limit:rows_i
     in
     loop ~i:n_rows ~limit:real_m
@@ -171,26 +168,23 @@ let check_sparse_col_mat_sane ~real_n ~smat ~cols =
     let n = Mat.dim2 smat in
     let n_cols = Int_vec.dim cols in
     if n_cols <> n then
-      failwith (
-        sprintf
-          "Gpr.Utils.check_sparse_col_mat_sane: number of cols in \
-          sparse matrix (%d) disagrees with size of col array (%d)"
-          n n_cols);
+      failwithf
+        "Gpr.Utils.check_sparse_col_mat_sane: number of cols in \
+        sparse matrix (%d) disagrees with size of col array (%d)"
+        n n_cols ();
     let rec loop ~i ~limit =
       if i > 0 then
         let cols_i = cols.{i} in
         if cols_i <= 0 then
-          failwith (
-            sprintf
-              "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d contains \
-              illegal negative real col index %d" i cols_i)
+          failwithf
+            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d contains \
+            illegal negative real col index %d" i cols_i ()
         else if cols_i > limit then
-          failwith (
-            sprintf
-              "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d \
-              associated with real col index %d violates consistency \
-              (current col limit: %d)"
-              i cols_i limit)
+          failwithf
+            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d \
+            associated with real col index %d violates consistency \
+            (current col limit: %d)"
+            i cols_i limit ()
         else loop ~i:(i - 1) ~limit:cols_i
     in
     loop ~i:n_cols ~limit:real_n

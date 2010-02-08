@@ -21,7 +21,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
+open Core.Std
 
 module Args = struct
   type cmd = [ `train | `test ]
@@ -175,11 +175,8 @@ let read_samples () =
   | None -> failwith "no data"
   | Some line ->
       let conv_line line =
-        try Array.map float_of_string (split line)
-        with exc ->
-          failwith (
-            sprintf "failure '%s' converting sample: %s"
-              (Printexc.to_string exc) line)
+        try Array.map ~f:float_of_string (split line)
+        with exc -> Exn.reraisef exc "failure '%s' converting sample" line ()
       in
       let sample = conv_line line in
       let d = Array.length sample in
@@ -188,9 +185,9 @@ let read_samples () =
         | Some line ->
             let floats = conv_line line in
             if Array.length floats <> d then
-              failwith (
-                sprintf "incompatible dimension of sample in line %d: %s"
-                  (List.length samples + 1) line)
+              failwithf
+                "incompatible dimension of sample in line %d: %s"
+                (List.length samples + 1) line ()
             else loop (floats :: samples)
         | None -> Array.of_list (List.rev samples)
       in
@@ -222,11 +219,9 @@ let read_training_samples () =
   let d = Array.length samples.(0) - 1 in
   let inputs = Mat.create d n in
   let targets = Vec.create n in
-  let fill c0 sample =
+  Array.iteri samples ~f:(fun c0 sample ->
     for r1 = 1 to d do inputs.{r1, c0 + 1} <- sample.(r1 - 1) done;
-    targets.{c0 + 1} <- sample.(d)
-  in
-  Array.iteri fill samples;
+    targets.{c0 + 1} <- sample.(d));
   inputs, targets
 
 let write_model model_file ~target_mean ~input_means ~input_stddevs trained =
@@ -346,8 +341,7 @@ let train args =
   let best_trained = ref None in
   let report_trained_model, report_gradient_norm =
     let got_signal = ref false in
-    Sys.set_signal Sys.sigint
-      (Sys.Signal_handle (fun _ -> got_signal := true));
+    Signal.set Signal.int (`Handle (fun _ -> got_signal := true));
     let bailout ~iter _ =
       if !got_signal then raise Bailout;
       match max_iter with
@@ -396,14 +390,12 @@ let read_test_samples big_dim =
   else begin
     let input_dim = Array.length samples.(0) in
     if input_dim <> big_dim then
-      failwith (
-        sprintf "incompatible dimension of inputs (%d), expected %d"
-          input_dim big_dim);
+      failwithf
+        "incompatible dimension of inputs (%d), expected %d"
+        input_dim big_dim ();
     let inputs = Mat.create big_dim n in
-    let fill c0 sample =
-      for r1 = 1 to big_dim do inputs.{r1, c0 + 1} <- sample.(r1 - 1) done
-    in
-    Array.iteri fill samples;
+    Array.iteri samples ~f:(fun c0 sample ->
+      for r1 = 1 to big_dim do inputs.{r1, c0 + 1} <- sample.(r1 - 1) done);
     inputs
   end
 

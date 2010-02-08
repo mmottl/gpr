@@ -21,10 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Bigarray
-open Printf
 open Lacaml.Impl.D
-open Lacaml.Io
+open Core.Std
 
 module Params = struct type t = { log_theta : float } end
 
@@ -58,7 +56,7 @@ module Eval = struct
     type t = int
 
     let get_n_points n = n
-    let choose_subset _inputs indexes = Array1.dim indexes
+    let choose_subset _inputs indexes = Bigarray.Array1.dim indexes
     let create_inducing _kernel n = n
 
     let create_default_kernel_params _inputs ~n_inducing:_ =

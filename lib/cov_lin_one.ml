@@ -21,11 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
 open Lacaml.Impl.D
-open Lacaml.Io
-
-open Utils
+open Core.Std
 
 module Params = struct type t = { log_theta : float } end
 
@@ -67,7 +64,7 @@ module Eval = struct
     type t = mat
 
     let get_n_points = Mat.dim2
-    let choose_subset inputs indexes = choose_cols inputs indexes
+    let choose_subset inputs indexes = Utils.choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
 
     let create_default_kernel_params _inputs ~n_inducing:_ =

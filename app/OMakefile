@@ -1,6 +1,5 @@
 OCAML_LIBS = ../lib/gpr
-OCAMLPACKS += str threads
-OCAMLFLAGS += -thread
+OCAMLPACKS += str
 
 OCamlProgram(ocaml_gpr, ocaml_gpr)
 

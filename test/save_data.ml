@@ -21,9 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Format
-
 open Lacaml.Impl.D
+open Core.Std
 
 open Gpr
 open Utils
@@ -37,7 +36,7 @@ module FIC = GP.FIC.Eval
 let main () =
   Random.self_init ();
 
-  begin try Unix.mkdir "data" 0o755 with _ -> () end;
+  begin try Unix.mkdir "data" ~perm:0o755 with _ -> () end;
 
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;
@@ -52,9 +51,9 @@ let main () =
       ~report_trained_model:(fun ~iter trained ->
         let le = FITC.Trained.calc_log_evidence trained in
         let rmse = FITC.Stats.calc_rmse trained in
-        printf "iter %4d:  log evidence: %.5f  rmse: %.5f@." iter le rmse)
+        printf "iter %4d:  log evidence: %.5f  rmse: %.5f\n%!" iter le rmse)
       ~report_gradient_norm:(fun ~iter norm ->
-        printf "iter %4d:  |gradient| = %.5f@." iter norm)
+        printf "iter %4d:  |gradient| = %.5f\n%!" iter norm)
       ~kernel ~n_rand_inducing:n_inducing
       ~tol:0.1 ~step:0.1 ~epsabs:3.
       ~inputs:training_inputs ~targets:training_targets ()
@@ -66,8 +65,8 @@ let main () =
   in
 
   let model = FITC.Trained.get_model trained in
-  printf "model log evidence: %.9f@." (FITC.Model.calc_log_evidence model);
-  printf "log evidence: %.9f@." (FITC.Trained.calc_log_evidence trained);
+  printf "model log evidence: %.9f\n%!" (FITC.Model.calc_log_evidence model);
+  printf "log evidence: %.9f\n%!" (FITC.Trained.calc_log_evidence trained);
 
   let inputs = FITC.Model.get_inputs model in
 

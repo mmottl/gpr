@@ -21,12 +21,10 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
-open Bigarray
-open Lacaml.Impl.D
-
 open Interfaces
-open Utils
+
+open Lacaml.Impl.D
+open Core.Std
 
 module Params = struct type t = { log_ell : float; log_sf2 : float } end
 
@@ -128,7 +126,7 @@ module Eval = struct
     type t = mat
 
     let get_n_points = Mat.dim2
-    let choose_subset inputs indexes = choose_cols inputs indexes
+    let choose_subset inputs indexes = Utils.choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
 
     let create_default_kernel_params _inputs ~n_inducing:_ =
@@ -202,7 +200,7 @@ module Deriv = struct
       let m = Mat.dim2 inducing in
       let n_inducing_hypers = d * m in
       let n_all_hypers = 2 + n_inducing_hypers in
-      let hypers = Array.make n_all_hypers `Log_ell in
+      let hypers = Array.create n_all_hypers `Log_ell in
       hypers.(1) <- `Log_sf2 ;
       for ind = 1 to m do
         let indd = (ind - 1) * d in

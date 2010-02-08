@@ -204,9 +204,8 @@ module Specs = struct
           derivatives can be computed. *)
       val get_all : Eval.Kernel.t -> Eval.Inducing.t -> t array
 
-      (** [get_value kernel inducing hyper] @return value
-          of hyper parameter [hyper] of [kernel] and/or [inducing]
-          inputs. *)
+      (** [get_value kernel inducing hyper] @return value of hyper parameter
+          [hyper] of [kernel] and/or [inducing] inputs. *)
       val get_value : Eval.Kernel.t -> Eval.Inducing.t -> t -> float
 
       (** [set_values kernel inducing hypers values] @return pair

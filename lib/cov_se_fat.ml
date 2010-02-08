@@ -21,12 +21,11 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
-open Bigarray
-open Lacaml.Impl.D
-
 open Interfaces
 open Utils
+
+open Lacaml.Impl.D
+open Core.Std
 
 let option_map ~f = function None -> None | Some v -> Some (f v)
 let option_iter ~f = function None -> () | Some v -> f v
@@ -46,10 +45,9 @@ module Params = struct
     let check v_dim name v =
       let n = v_dim v in
       if n <> params.d then
-        failwith (
-          sprintf
-            "Cov_se_fat.Params.create: %s projection (%d) disagrees \
-            with target dimension d (%d)" name n params.d)
+        failwithf
+          "Cov_se_fat.Params.create: %s projection (%d) disagrees \
+          with target dimension d (%d)" name n params.d ()
     in
     option_iter params.tproj ~f:(check Mat.dim2 "tproj");
     params
@@ -369,8 +367,7 @@ module Deriv = struct
 
     let option_get_value name = function
       | None ->
-          failwith (
-            sprintf "Deriv.Hyper.option_get_value: %s not supported" name)
+          failwithf "Deriv.Hyper.option_get_value: %s not supported" name ()
       | Some v -> v
 
     let get_value { Eval.Kernel.params = params } inducing = function

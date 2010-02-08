@@ -21,11 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
 open Lacaml.Impl.D
-open Lacaml.Io
-
-open Utils
+open Core.Std
 
 module Params = struct type t = { log_ells : vec } end
 
@@ -80,7 +77,7 @@ module Eval = struct
     type t = mat
 
     let get_n_points = Mat.dim2
-    let choose_subset inputs indexes = choose_cols inputs indexes
+    let choose_subset inputs indexes = Utils.choose_cols inputs indexes
 
     let calc_ard_inputs { Kernel.consts = consts } inputs =
       let res = lacpy inputs in
@@ -110,7 +107,7 @@ module Deriv = struct
     type t = [ `Log_ell of int ]
 
     let get_all { Eval.Kernel.params = params } _inducing =
-      Array.init (Vec.dim params.Params.log_ells) (fun d ->
+      Array.init (Vec.dim params.Params.log_ells) ~f:(fun d ->
         `Log_ell (d + 1))
 
     let get_value { Eval.Kernel.params = params } _inducing = function

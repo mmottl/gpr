@@ -21,8 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Format
 open Lacaml.Impl.D
+open Core.Std
 
 open Gpr
 
@@ -47,7 +47,7 @@ let main () =
   FITC.Deriv.Test.self_test
     kernel inducing_points training_inputs
     ~sigma2 ~targets:training_targets `Sigma2;
-  Array.iter (fun hyper ->
+  Array.iter all_hypers ~f:(fun hyper ->
     let module Csf = Cov_se_fat in
       let hyper_str =
         match hyper with
@@ -68,6 +68,5 @@ let main () =
         kernel inducing_points training_inputs
         ~sigma2 ~targets:training_targets (`Hyper hyper)
     )
-    all_hypers
 
 let () = main ()

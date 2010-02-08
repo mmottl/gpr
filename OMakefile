@@ -1,11 +1,11 @@
 USE_OCAMLFIND = 1
 ABORT_ON_DEPENDENCY_ERRORS = true
 
-OCAMLPACKS += unix lacaml gsl
+OCAMLPACKS += unix lacaml gsl threads core
 
 BYTE_ENABLED = true
 NATIVE_ENABLED = true
-OCAMLFLAGS = -dtypes -g -w A -warn-error A
+OCAMLFLAGS = -thread -dtypes -g -w A -warn-error A
 
 OCAMLINCLUDES += $(dir lib)
 

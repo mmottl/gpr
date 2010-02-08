@@ -21,7 +21,6 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Format
 open Bigarray
 
 open Lacaml.Impl.D
@@ -29,6 +28,8 @@ open Lacaml.Impl.D
 open Utils
 open Interfaces
 open Specs
+
+open Core.Std
 
 module type Sig = functor (Spec : Specs.Eval) ->
   Sigs.Eval with module Spec = Spec
@@ -55,11 +56,10 @@ module Make_common (Spec : Specs.Eval) = struct
     let check_n_inducing ~n_inducing inputs =
       let n_inputs = Spec.Inputs.get_n_points inputs in
       if n_inputs < 1 || n_inducing > n_inputs then
-        failwith
-          (sprintf
-            "Gpr.Fitc_gp.Make_common.check_n_inducing: \
-            violating 1 <= n_inducing (%d) <= n_inputs (%d)"
-            n_inducing n_inputs)
+        failwithf
+          "Gpr.Fitc_gp.Make_common.check_n_inducing: \
+          violating 1 <= n_inducing (%d) <= n_inputs (%d)"
+          n_inducing n_inputs ()
 
     let calc_internal kernel points km =
       let chol_km = lacpy ~uplo:`U km in
@@ -239,7 +239,7 @@ module Make_common (Spec : Specs.Eval) = struct
       }
 
     let calc_r_vec ~kn_diag ~v_mat =
-      Mat.syrk_diag ~alpha:(-1.) v_mat ~beta:1. ~y:(copy kn_diag)
+      Mat.syrk_diag ~alpha:~-.1. v_mat ~beta:1. ~y:(copy kn_diag)
 
     let calc_with_kn_diag inputs sigma2 kn_diag =
       let v_mat = lacpy inputs.Inputs.knm in
@@ -317,7 +317,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let n = Vec.dim sqrt_is_vec in
       let n_y = Vec.dim y in
       if n_y <> n then
-        failwith (sprintf "Trained.calc: Vec.dim targets (%d) <> n (%d)" n_y n);
+        failwithf "Trained.calc: Vec.dim targets (%d) <> n (%d)" n_y n ();
       let y_ = Vec.mul y sqrt_is_vec in
       y_, gemv ~m:n ~trans:`T model.Common_model.q_mat y_
 
@@ -452,8 +452,10 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc mean_predictor input =
       if
-        mean_predictor.Mean_predictor.inducing
-          != Inducing.get_points input.Input.inducing
+        not (
+          phys_equal
+            mean_predictor.Mean_predictor.inducing
+            (Inducing.get_points input.Input.inducing))
       then
         failwith
           "Mean.calc: mean predictor and input disagree about inducing points"
@@ -472,8 +474,10 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc mean_predictor inputs =
       if
-        mean_predictor.Mean_predictor.inducing
-          != Inducing.get_points inputs.Inputs.inducing
+        not (
+          phys_equal
+            mean_predictor.Mean_predictor.inducing
+            (Inducing.get_points inputs.Inputs.inducing))
       then
         failwith "Means.calc: trained and inputs disagree about inducing points"
       else
@@ -510,8 +514,10 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc co_variance_predictor ~sigma2 input =
       if
-        co_variance_predictor.Co_variance_predictor.inducing
-          != Inducing.get_points input.Input.inducing
+        not (
+          phys_equal
+            co_variance_predictor.Co_variance_predictor.inducing
+            (Inducing.get_points input.Input.inducing))
       then
         failwith
           "Variance.calc: \
@@ -562,8 +568,10 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc cvp ~sigma2 inputs =
       if
-        cvp.Co_variance_predictor.inducing
-          != Inducing.get_points inputs.Inputs.inducing
+        not (
+          phys_equal
+            cvp.Co_variance_predictor.inducing
+            (Inducing.get_points inputs.Inputs.inducing))
       then
         failwith
           "Variances.calc: \
@@ -574,7 +582,7 @@ module Make_common (Spec : Specs.Eval) = struct
           let y = Inputs.calc_diag inputs in
           let tmp = lacpy ktm in
           trsm ~side:`R tmp ~a:cvp.Co_variance_predictor.chol_km;
-          let y = Mat.syrk_diag ~alpha:(-1.) tmp ~beta:1. ~y in
+          let y = Mat.syrk_diag ~alpha:~-.1. tmp ~beta:1. ~y in
           let tmp = lacpy ktm ~b:tmp in
           trsm ~side:`R tmp ~a:cvp.Co_variance_predictor.r_mat;
           Mat.syrk_diag tmp ~beta:1. ~y
@@ -600,14 +608,15 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let check_inducing ~loc co_variance_predictor inputs =
       if
-        co_variance_predictor.Co_variance_predictor.inducing
-          != Inducing.get_points inputs.Inputs.inducing
+        not (
+          phys_equal
+            co_variance_predictor.Co_variance_predictor.inducing
+            (Inducing.get_points inputs.Inputs.inducing))
       then
-        failwith (
-          sprintf
-            "%s_covariances.calc: \
-            co-variance predictor and inputs disagree about inducing points"
-            loc)
+        failwithf
+          "%s_covariances.calc: \
+          co-variance predictor and inputs disagree about inducing points"
+          loc ()
 
     let get_common ?predictive ~covariances ~sigma2 =
       match predictive with
@@ -635,7 +644,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_model_inputs model =
       let covariances = Inputs.calc_upper model.Common_model.inputs in
       let v_mat = model.Common_model.v_mat in
-      ignore (syrk ~alpha:(-1.) v_mat ~beta:1. ~c:covariances);
+      ignore (syrk ~alpha:~-.1. v_mat ~beta:1. ~c:covariances);
       let q_mat = model.Common_model.q_mat in
       let n = Mat.dim1 v_mat in
       ignore (syrk ~n q_mat ~beta:1. ~c:covariances);
@@ -657,7 +666,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let covariances =
         let tmp = lacpy ktm in
         trsm ~side:`R tmp ~a:chol_km;
-        ignore (syrk ~alpha:(-1.) tmp ~c:covariances);
+        ignore (syrk ~alpha:~-.1. tmp ~c:covariances);
         let tmp = lacpy ktm ~b:tmp in
         trsm ~side:`R tmp ~a:r_mat;
         syrk tmp ~c:covariances;
@@ -702,7 +711,7 @@ module Make_common (Spec : Specs.Eval) = struct
     type t = { mean : float; stddev : float }
 
     let calc ~loc ?predictive mean variance =
-      if mean.Mean.point != variance.Variance.point then
+      if not (phys_equal mean.Mean.point variance.Variance.point) then
         failwith (
           loc ^ ".Sampler: mean and variance disagree about input point");
       let used_variance =
@@ -728,7 +737,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc ~loc ?predictive means covariances =
       let module Covariances = Common_covariances in
-      if means.Means.points != covariances.Covariances.points then
+      if not (phys_equal means.Means.points covariances.Covariances.points) then
         failwith (
           loc ^
           ".Cov_sampler: means and covariances disagree about input points");
@@ -1115,7 +1124,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let q_mat = Eval_model.get_q_mat eval_model in
         let n = Mat.dim1 q_mat - Mat.dim2 q_mat in
         let t_mat = lacpy ~uplo:`U inv_km in
-        Mat.axpy ~alpha:(-1.) ~x:(ichol eval_model.Eval_model.r_mat) t_mat;
+        Mat.axpy ~alpha:~-.1. ~x:(ichol eval_model.Eval_model.r_mat) t_mat;
         {
           model_kind = model_kind;
           model_shared = model_shared;
@@ -1251,7 +1260,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         for i = 1 to n do w_vec.{i} <- w_vec.{i} *. sqrt_is_vec.{i} done;
         let v2_vec = Vec.sqr w_vec in
         let v_vec = Cm.calc_v1_vec common_model in
-        axpy ~alpha:(-1.) ~x:v2_vec v_vec;
+        axpy ~alpha:~-.1. ~x:v2_vec v_vec;
         {
           common_model = common_model;
           eval_trained = Eval_trained.calc_internal eval_model ~y ~coeffs ~l2;
@@ -1277,11 +1286,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let w_mat =
           let w_mat =
             let t_mat = trained.common_model.Cm.t_mat in
-            syr ~alpha:(-1.) t_vec (lacpy ~uplo:`U t_mat)
+            syr ~alpha:~-.1. t_vec (lacpy ~uplo:`U t_mat)
           in
           let u1_mat = lacpy u_mat in
           Mat.scal_rows (Vec.sqrt (Cm.calc_v1_vec common_model)) u1_mat;
-          let w_mat = syrk ~trans:`T ~alpha:(-1.) u1_mat ~beta:1. ~c:w_mat in
+          let w_mat = syrk ~trans:`T ~alpha:~-.1. u1_mat ~beta:1. ~c:w_mat in
           let u2_mat = lacpy u_mat ~b:u1_mat in
           Mat.scal_rows w_vec u2_mat;
           syrk ~trans:`T u2_mat ~beta:1. ~c:w_mat
@@ -1289,8 +1298,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let v_vec = trained.v_vec in
         let x_mat =
           Mat.scal_rows v_vec u_mat;
-          Mat.axpy ~alpha:(-1.) ~x:u_mat x_mat;
-          ger ~alpha:(-1.) w_vec t_vec x_mat
+          Mat.axpy ~alpha:~-.1. ~x:u_mat x_mat;
+          ger ~alpha:~-.1. w_vec t_vec x_mat
         in
         {
           Shared.
@@ -1324,7 +1333,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_cross2 = Eval_inputs.calc points eval_inducing2 in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
-          Mat.axpy ~alpha:(-1.) ~x:mat1 res;
+          Mat.axpy ~alpha:~-.1. ~x:mat1 res;
           Mat.scal (1. /. eps) res;
           res
         in
@@ -1336,11 +1345,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let check_mat ~name ~deriv ~finite ~r ~c =
           let finite_el = finite.{r, c} in
           if is_bad_deriv ~finite_el ~deriv ~tol then
-            failwith (
-              sprintf
-                "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
-                finite difference (%f) and derivative (%f) differ \
-                by more than %f on %s.{%d, %d}" finite_el deriv tol name r c)
+            failwithf
+              "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
+              finite difference (%f) and derivative (%f) differ \
+              by more than %f on %s.{%d, %d}" finite_el deriv tol name r c ()
         in
         (* Check dkm *)
         begin
@@ -1441,18 +1449,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let kn_diag2 = Spec.Eval.Inputs.calc_diag kernel2 points in
           let finite_dkn_diag =
             let res = copy kn_diag2 in
-            axpy ~alpha:(-1.) ~x:kn_diag1 res;
+            axpy ~alpha:~-.1. ~x:kn_diag1 res;
             scal (1. /. eps) res;
             res
           in
           let check ~deriv ~r =
             let finite_el = finite_dkn_diag.{r} in
             if is_bad_deriv ~finite_el ~deriv ~tol then
-              failwith (
-                sprintf
-                  "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
-                  finite difference (%f) and derivative (%f) differ \
-                  by more than %f on dkn_diag.{%d}" finite_el deriv tol r)
+              failwithf
+                "Gpr.Fitc_gp.Make_deriv.Test.check_deriv_hyper: \
+                finite difference (%f) and derivative (%f) differ \
+                by more than %f on dkn_diag.{%d}" finite_el deriv tol r ()
           in
           match Spec.Inputs.calc_deriv_diag shared_diag hyper with
           | `Vec dkn_diag ->
@@ -1483,11 +1490,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let check ~name ~before ~after ~deriv =
           let finite_el = (after -. before) /. eps in
           if is_bad_deriv ~finite_el ~deriv ~tol then
-            failwith (
-              sprintf
-                "Gpr.Fitc_gp.Make_deriv.Test.self_test: \
-                finite difference (%f) and derivative (%f) differ \
-                by more than %f on %s" finite_el deriv tol name)
+            failwithf
+              "Gpr.Fitc_gp.Make_deriv.Test.self_test: \
+              finite difference (%f) and derivative (%f) differ \
+              by more than %f on %s" finite_el deriv tol name ()
         in
         match hyper with
         | `Sigma2 ->
@@ -1571,16 +1577,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                   | None -> min (n_inputs / 10) 1000
                   | Some n_rand_inducing ->
                       if n_rand_inducing < 1 then
-                        failwith (
-                          sprintf
-                            "Gpr.Fitc_gp.Optim.Gsl.train: \
-                            n_rand_inducing (%d) < 1" n_rand_inducing)
+                        failwithf
+                          "Gpr.Fitc_gp.Optim.Gsl.train: \
+                          n_rand_inducing (%d) < 1" n_rand_inducing ()
                       else if n_rand_inducing > n_inputs then
-                        failwith (
-                          sprintf
-                            "Gpr.Fitc_gp.Optim.Gsl.train: \
-                            n_rand_inducing (%d) > n_inputs (%d)"
-                            n_rand_inducing n_inputs)
+                        failwithf
+                          "Gpr.Fitc_gp.Optim.Gsl.train: \
+                          n_rand_inducing (%d) > n_inputs (%d)"
+                          n_rand_inducing n_inputs ()
                       else n_rand_inducing
                 in
                 let kernel =

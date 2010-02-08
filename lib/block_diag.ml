@@ -21,9 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Printf
-
 open Lacaml.Impl.D
+open Core.Std
 
 type t = { data : mat array; n : int }
 
@@ -32,29 +31,22 @@ let check_square (i, size) mat =
   let n = Mat.dim2 mat in
   if m = n then i + 1, size + n
   else
-    failwith (
-      sprintf
-        "Block_diag.check_square: matrix at index %d not square: m = %d, n = %d"
-        i m n)
+    failwithf
+      "Block_diag.check_square: matrix at index %d not square: m = %d, n = %d"
+      i m n ()
 
 let create mats =
-  { data = mats; n = snd (Array.fold_left check_square (0, 0) mats) }
+  { data = mats; n = snd (Array.fold_left ~f:check_square ~init:(0, 0) mats) }
 
-let copy t = { t with data = Array.map (fun mat -> lacpy mat) t.data }
+let copy t = { t with data = Array.map ~f:(fun mat -> lacpy mat) t.data }
 
 let reraise_exc loc i exc =
-  failwith (
-    sprintf "Block_diag.%s: failed at index %d: %s"
-      loc i (Printexc.to_string exc))
+  Exn.reraisef exc "Block_diag.%s: failed at index %d" loc i  ()
 
 let potrf ?jitter t =
-  let acti i mat =
-    try potrf ?jitter mat with exc -> reraise_exc "potrf" i exc
-  in
-  Array.iteri acti t.data
+  Array.iteri t.data ~f:(fun i mat ->
+    try potrf ?jitter mat with exc -> reraise_exc "potrf" i exc)
 
 let potri ?jitter ?factorize t =
-  let acti i mat =
-    try potri ?jitter ?factorize mat with exc -> reraise_exc "potri" i exc
-  in
-  Array.iteri acti t.data
+  Array.iteri t.data ~f:(fun i mat ->
+    try potri ?jitter ?factorize mat with exc -> reraise_exc "potri" i exc)
