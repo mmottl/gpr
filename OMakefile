@@ -16,7 +16,7 @@ CLEANCMD = \
 clean:
 	$(CLEANCMD)
 
-OCAML_SUFFIXES = .cmi .cmo .cmx .o .exe .bc
+OCAML_SUFFIXES = .cmi .cmo .cmx .o
 
 InstClean() =
   .PHONY: clean
