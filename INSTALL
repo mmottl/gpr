@@ -15,6 +15,7 @@
 
          * lacaml
          * gsl
+         * core  (Jane Street Core library)
 
      You may want to use Godi to facilitate the installation.
 
@@ -24,7 +25,7 @@
 
 Enjoy!
 
-New York, 2009-11-23
+New York, 2010-04-27
 Markus Mottl
 
 email: markus.mottl@gmail.com
