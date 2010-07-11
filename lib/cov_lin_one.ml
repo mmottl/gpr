@@ -32,7 +32,7 @@ module Eval = struct
     type t = { params : params; const : float }
 
     let create params =
-      { params = params; const = exp (-2. *. params.Params.log_theta) }
+      { params; const = exp (-2. *. params.Params.log_theta) }
 
     let get_params k = k.params
   end
@@ -42,7 +42,7 @@ module Eval = struct
 
     let get_n_points = Mat.dim2
 
-    let calc_upper { Kernel.const = alpha } inducing =
+    let calc_upper { Kernel.const = alpha; _ } inducing =
       let m = Mat.dim2 inducing in
       syrk ~alpha ~trans:`T inducing ~beta:1. ~c:(Mat.make m m alpha)
   end
@@ -50,7 +50,7 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let eval { Kernel.const = alpha } input inducing =
+    let eval { Kernel.const = alpha; _ } input inducing =
       gemv ~alpha ~trans:`T inducing input
         ~beta:1. ~y:(Vec.make (Mat.dim2 inducing) alpha)
 
@@ -63,6 +63,7 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
     let choose_subset inputs indexes = Utils.choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
@@ -72,11 +73,11 @@ module Eval = struct
 
     let calc_upper = Inducing.calc_upper
 
-    let calc_diag { Kernel.const = alpha } inputs =
+    let calc_diag { Kernel.const = alpha; _ } inputs =
       Mat.syrk_diag ~alpha ~trans:`T inputs ~beta:1.
         ~y:(Vec.make (Mat.dim2 inputs) alpha)
 
-    let calc_cross { Kernel.const = alpha } ~inputs ~inducing =
+    let calc_cross { Kernel.const = alpha; _ } ~inputs ~inducing =
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
       gemm ~alpha ~transa:`T inputs inducing ~beta:1. ~c:(Mat.make n m alpha)
@@ -94,11 +95,11 @@ module Deriv = struct
 
     let get_all _kernel _inducing = [| `Log_theta |]
 
-    let get_value { Eval.Kernel.params = params } _inducing = function
+    let get_value { Eval.Kernel.params = params; _ } _inducing = function
       | `Log_theta -> params.Params.log_theta
 
     let set_values kernel inducing hypers values =
-      let { Eval.Kernel.params = params } = kernel in
+      let { Eval.Kernel.params; _ } = kernel in
       let log_theta_ref = ref params.Params.log_theta in
       let kernel_changed_ref = ref false in
       for i = 1 to Array.length hypers do

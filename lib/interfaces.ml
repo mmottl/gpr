@@ -152,6 +152,9 @@ module Specs = struct
     module Inputs : sig
       type t  (** Type of input points *)
 
+      (** [create inputs] @return inputs given an array of single [inputs]. *)
+      val create : Input.t array -> t
+
       (** [get_n_points inputs] @return number of input points. *)
       val get_n_points : t -> int
 
@@ -824,7 +827,96 @@ module Sigs = struct
             unit ->
             Eval.Trained.t
         end
+
+        module SGD : sig
+          type t
+
+          val create :
+            ?tau : float ->
+            ?eta0 : float ->
+            ?step : int ->
+            ?kernel : Eval.Spec.Kernel.t ->
+            ?sigma2 : float ->
+            ?inducing : Eval.Spec.Inducing.t ->
+            ?n_rand_inducing : int ->
+            ?learn_sigma2 : bool ->
+            ?hypers : Spec.Hyper.t array ->
+            inputs : Eval.Spec.Inputs.t ->
+            targets : vec ->
+            unit ->
+            t
+
+          val step : t -> t
+          val gradient_norm : t -> float
+          val get_trained : t -> Eval.Trained.t
+
+          val get_eta : t -> float
+          val get_step : t -> int
+
+          val test :
+            ?epsabs : float ->
+            ?max_iter : int ->
+            ?report : (t -> unit) ->
+            t ->
+            t
+        end
+
+        module SMD : sig
+          type t
+
+          val create :
+            ?eps : float ->
+            ?lambda : float ->
+            ?mu : float ->
+            ?eta0 : vec ->
+            ?nu0 : vec ->
+            ?kernel : Eval.Spec.Kernel.t ->
+            ?sigma2 : float ->
+            ?inducing : Eval.Spec.Inducing.t ->
+            ?n_rand_inducing : int ->
+            ?learn_sigma2 : bool ->
+            ?hypers : Spec.Hyper.t array ->
+            inputs : Eval.Spec.Inputs.t ->
+            targets : vec ->
+            unit ->
+            t
+
+          val step : t -> t
+          val gradient_norm : t -> float
+          val get_trained : t -> Eval.Trained.t
+
+          val get_eta : t -> vec
+          val get_nu : t -> vec
+
+          val test :
+            ?epsabs : float ->
+            ?max_iter : int ->
+            ?report : (t -> unit) ->
+            t ->
+            t
+        end
       end
+
+(*
+      (** Online learning *)
+      module Online : sig
+        type t
+
+        val sgd :
+          ?capacity : int ->
+          ?eta0 : float -> ?tau : float -> Spec.Eval.Kernel.t -> t
+
+        val smd :
+          ?capacity : int ->
+          ?eta0 : vec -> ?mu : float -> ?lam : float -> Spec.Eval.Kernel.t -> t
+
+        val train : t -> Spec.Eval.Input.t -> target : float -> t
+
+        val calc_mean_predictor : t -> Eval.Mean_predictor.t
+        val calc_co_variance_predictor : t -> Eval.Co_variance_predictor.t
+      end
+*)
+
     end
   end
 end

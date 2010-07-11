@@ -31,8 +31,7 @@ module Eval = struct
     type params = Params.t
     type t = { params : params; const : float }
 
-    let create params =
-      { params = params; const = exp (-2. *. params.Params.log_theta) }
+    let create params = { params; const = exp (-2. *. params.Params.log_theta) }
 
     let get_params k = k.params
   end
@@ -55,6 +54,7 @@ module Eval = struct
   module Inputs = struct
     type t = int
 
+    let create = Array.length
     let get_n_points n = n
     let choose_subset _inputs indexes = Bigarray.Array1.dim indexes
     let create_inducing _kernel n = n
@@ -81,11 +81,11 @@ module Deriv = struct
 
     let get_all _kernel _inducing = [| `Log_theta |]
 
-    let get_value { Eval.Kernel.params = params } _inducing = function
+    let get_value { Eval.Kernel.params; _ } _inducing = function
       | `Log_theta -> params.Params.log_theta
 
     let set_values kernel inducing hypers values =
-      let { Eval.Kernel.params = params } = kernel in
+      let { Eval.Kernel.params; _ } = kernel in
       let log_theta_ref = ref params.Params.log_theta in
       let kernel_changed_ref = ref false in
       for i = 1 to Array.length hypers do
@@ -106,7 +106,7 @@ module Deriv = struct
     type upper = { m : int; deriv_const : float }
 
     let calc_shared_upper k m =
-      Eval.Inducing.calc_upper k m, { m = m; deriv_const = calc_const_deriv k }
+      Eval.Inducing.calc_upper k m, { m; deriv_const = calc_const_deriv k }
 
     let calc_deriv_upper shared `Log_theta = `Const shared.deriv_const
   end
@@ -118,10 +118,7 @@ module Deriv = struct
     let calc_shared_diag k diag_eval_inputs =
       (
         Eval.Inputs.calc_diag k diag_eval_inputs,
-        {
-          diag_eval_inputs = diag_eval_inputs;
-          diag_const_deriv = calc_const_deriv k;
-        }
+        { diag_eval_inputs; diag_const_deriv = calc_const_deriv k }
       )
 
     let calc_shared_cross k ~inputs ~inducing =

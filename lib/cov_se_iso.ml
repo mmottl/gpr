@@ -42,16 +42,10 @@ module Eval = struct
       sf2 : float;
     }
 
-    let create params =
-      let log_sf2 = params.Params.log_sf2 in
-      let inv_ell2 = exp (-2. *. params.Params.log_ell) in
-      {
-        params = params;
-        inv_ell2 = inv_ell2;
-        inv_ell2_05 = -0.5 *. inv_ell2;
-        log_sf2 = log_sf2;
-        sf2 = exp log_sf2;
-      }
+    let create ({ Params.log_sf2; log_ell } as params) =
+      let inv_ell2 = exp (-2. *. log_ell) in
+      let inv_ell2_05 = -0.5 *. inv_ell2 in
+      { params; inv_ell2; inv_ell2_05; log_sf2; sf2 = exp log_sf2 }
 
     let get_params k = k.params
   end
@@ -84,7 +78,7 @@ module Eval = struct
     let calc_upper_with_sqr_diff_mat k sqr_diff_mat =
       let m = Mat.dim2 sqr_diff_mat in
       let res = Mat.create m m in
-      let { inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2; sf2 = sf2 } = k in
+      let { inv_ell2_05; log_sf2; sf2; _ } = k in
       for c = 1 to m do
         for r = 1 to c - 1 do
           res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c});
@@ -100,11 +94,10 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let eval k input inducing =
+    let eval { Kernel.inv_ell2_05; log_sf2; _ } input inducing =
       let d = Mat.dim1 inducing in
       let m = Mat.dim2 inducing in
       let res = Vec.create m in
-      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
       let ssqr_diff_ref = ref 0. in
       for c = 1 to m do
         for i = 1 to d do
@@ -125,6 +118,7 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
     let choose_subset inputs indexes = Utils.choose_cols inputs indexes
     let create_inducing _kernel inputs = inputs
@@ -154,7 +148,7 @@ module Eval = struct
       res
 
     let calc_cross_with_sqr_diff_mat k sqr_diff_mat =
-      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
+      let { Kernel.inv_ell2_05; log_sf2; _ } = k in
       let n = Mat.dim1 sqr_diff_mat in
       let m = Mat.dim2 sqr_diff_mat in
       let res = Mat.create n m in
@@ -174,7 +168,7 @@ module Eval = struct
       let m = Mat.dim2 sqr_diff_mat in
       if Vec.dim coeffs <> m then
         failwith "Gpr.Cov_se_iso.Eval.Inputs.weighted_eval: dim(coeffs) <> m";
-      let { Kernel.inv_ell2_05 = inv_ell2_05; log_sf2 = log_sf2 } = k in
+      let { Kernel.inv_ell2_05; log_sf2; _ } = k in
       let rec loop r acc c =
         if c = 0 then acc
         else
@@ -205,32 +199,32 @@ module Deriv = struct
       for ind = 1 to m do
         let indd = (ind - 1) * d in
         for dim = 1 to d do
-          let inducing_hyper = { ind = ind; dim = dim } in
+          let inducing_hyper = { ind; dim } in
           hypers.(1 + indd + dim) <- `Inducing_hyper inducing_hyper
         done
       done;
       hypers
 
-    let get_value { Eval.Kernel.params = params } inducing = function
+    let get_value { Eval.Kernel.params; _ } inducing = function
       | `Log_ell -> params.Params.log_ell
       | `Log_sf2 -> params.Params.log_sf2
-      | `Inducing_hyper { ind = ind; dim = dim } -> inducing.{dim, ind}
+      | `Inducing_hyper { ind; dim } -> inducing.{dim, ind}
 
-    let set_values kernel inducing hypers values =
-      let { Eval.Kernel.params = params } = kernel in
-      let log_ell_ref = ref params.Params.log_ell in
-      let log_sf2_ref = ref params.Params.log_sf2 in
+    let set_values { Eval.Kernel.params; _ } inducing hypers values =
+      let { Params.log_ell; log_sf2; _ } = params in
+      let log_ell_ref = ref log_ell in
+      let log_sf2_ref = ref log_sf2 in
       let inducing_lazy = lazy (lacpy inducing) in
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with
         | `Log_ell -> log_ell_ref := values.{i}
         | `Log_sf2 -> log_sf2_ref := values.{i}
-        | `Inducing_hyper { ind = ind; dim = dim } ->
+        | `Inducing_hyper { ind; dim } ->
             (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
       done;
       let new_kernel =
-        Eval.Kernel.create
-          { Params.log_ell = !log_ell_ref; log_sf2 = !log_sf2_ref }
+        let log_ell = !log_ell_ref in
+        Eval.Kernel.create { Params.log_ell; log_sf2 = !log_sf2_ref }
       in
       let lift lazy_value value =
         if Lazy.lazy_is_val lazy_value then Lazy.force lazy_value
@@ -252,49 +246,43 @@ module Deriv = struct
     let calc_shared_upper kernel eval_inducing =
       let module EI = Eval.Inducing in
       let sqr_diff_mat = EI.calc_sqr_diff_mat eval_inducing in
-      let upper = EI.calc_upper_with_sqr_diff_mat kernel sqr_diff_mat in
-      let shared =
-        (
-          eval_inducing,
-          { kernel = kernel; sqr_diff_mat = sqr_diff_mat; eval_mat = upper }
-        )
-      in
-      upper, shared
+      let eval_mat = EI.calc_upper_with_sqr_diff_mat kernel sqr_diff_mat in
+      eval_mat, (eval_inducing, { kernel; sqr_diff_mat; eval_mat })
 
     let calc_deriv_upper (inducing, common) = function
-    | `Log_sf2 -> `Factor 1.
-    | `Log_ell ->
-        let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in
-        let m = Mat.dim1 sqr_diff_mat in
-        let res = Mat.create m m in
-        let { Eval.Kernel.inv_ell2 = inv_ell2 } = common.kernel in
-        for c = 1 to m do
-          for r = 1 to c - 1 do
-            res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
+      | `Log_sf2 -> `Factor 1.
+      | `Log_ell ->
+          let { sqr_diff_mat; eval_mat; kernel } = common in
+          let m = Mat.dim1 sqr_diff_mat in
+          let res = Mat.create m m in
+          let { Eval.Kernel.inv_ell2; _ } = kernel in
+          for c = 1 to m do
+            for r = 1 to c - 1 do
+              res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
+            done;
+            res.{c, c} <- 0.;
           done;
-          res.{c, c} <- 0.;
-        done;
-        `Dense res
-      | `Inducing_hyper { ind = ind; dim = dim } ->
-          let eval_mat = common.eval_mat in
-          let m = Mat.dim2 eval_mat in
-          let res = Mat.create 1 m in
-          let inducing_dim = inducing.{dim, ind} in
-          let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
-          for i = 1 to ind - 1 do
-            let ind_d = inducing.{dim, i} in
-            res.{1, i} <-
-              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{i, ind}
-          done;
-          res.{1, ind} <- 0.;
-          for i = ind + 1 to m do
-            let ind_d = inducing.{dim, i} in
-            res.{1, i} <-
-              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{ind, i}
-          done;
-          let rows = Sparse_indices.create 1 in
-          rows.{1} <- ind;
-          `Sparse_rows (res, rows)
+          `Dense res
+        | `Inducing_hyper { ind; dim } ->
+            let eval_mat = common.eval_mat in
+            let m = Mat.dim2 eval_mat in
+            let res = Mat.create 1 m in
+            let inducing_dim = inducing.{dim, ind} in
+            let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+            for i = 1 to ind - 1 do
+              let ind_d = inducing.{dim, i} in
+              res.{1, i} <-
+                inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{i, ind}
+            done;
+            res.{1, ind} <- 0.;
+            for i = ind + 1 to m do
+              let ind_d = inducing.{dim, i} in
+              res.{1, i} <-
+                inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{ind, i}
+            done;
+            let rows = Sparse_indices.create 1 in
+            rows.{1} <- ind;
+            `Sparse_rows (res, rows)
   end
 
   module Inputs = struct
@@ -308,15 +296,9 @@ module Deriv = struct
     let calc_shared_cross kernel ~inputs ~inducing =
       let module EI = Eval.Inputs in
       let sqr_diff_mat = EI.calc_sqr_diff_mat ~inputs ~inducing in
-      let cross = EI.calc_cross_with_sqr_diff_mat kernel sqr_diff_mat in
-      let shared =
-        (
-          inputs,
-          inducing,
-          { kernel = kernel; sqr_diff_mat = sqr_diff_mat; eval_mat = cross }
-        )
-      in
-      cross, shared
+      let eval_mat = EI.calc_cross_with_sqr_diff_mat kernel sqr_diff_mat in
+      let shared = inputs, inducing, { kernel; sqr_diff_mat; eval_mat } in
+      eval_mat, shared
 
     let calc_deriv_diag _diag = function
       | `Log_sf2 -> `Factor 1.
@@ -325,18 +307,18 @@ module Deriv = struct
     let calc_deriv_cross (inputs, inducing, common) = function
       | `Log_sf2 -> `Factor 1.
       | `Log_ell ->
-          let { sqr_diff_mat = sqr_diff_mat; eval_mat = eval_mat } = common in
+          let { sqr_diff_mat; eval_mat; kernel } = common in
           let n = Mat.dim1 sqr_diff_mat in
           let m = Mat.dim2 sqr_diff_mat in
           let res = Mat.create n m in
-          let { Eval.Kernel.inv_ell2 = inv_ell2 } = common.kernel in
+          let { Eval.Kernel.inv_ell2; _ } = kernel in
           for c = 1 to m do
             for r = 1 to n do
               res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
             done
           done;
           `Dense res
-      | `Inducing_hyper { ind = ind; dim = dim } ->
+      | `Inducing_hyper { ind; dim } ->
           let eval_mat = common.eval_mat in
           let n = Mat.dim1 eval_mat in
           let res = Mat.create n 1 in

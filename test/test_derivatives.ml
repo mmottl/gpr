@@ -52,13 +52,13 @@ let main () =
       let hyper_str =
         match hyper with
         | `Log_sf2 -> "Log_sf2"
-        | `Inducing_hyper { Csf.Inducing_hyper.ind = ind; dim = dim } ->
+        | `Inducing_hyper { Csf.Inducing_hyper.ind; dim } ->
             sprintf "Inducing_hyper { ind = %d; dim = %d }" ind dim
-        | `Proj { Csf.Proj_hyper.big_dim = big_dim; small_dim = small_dim } ->
+        | `Proj { Csf.Proj_hyper.big_dim; small_dim } ->
             sprintf "Proj { big_dim = %d; small_dim = %d }" big_dim small_dim
         | `Log_hetero_skedasticity dim ->
             sprintf "Log_hetero_skedasticity %d" dim
-        | `Log_multiscale_m05 { Csf.Inducing_hyper.ind = ind; dim = dim } ->
+        | `Log_multiscale_m05 { Csf.Inducing_hyper.ind; dim } ->
             sprintf "Log_multiscale_m05 { ind = %d; dim = %d }" ind dim
       in
       printf "-------- testing finite differences for hyper: %s\n%!" hyper_str;

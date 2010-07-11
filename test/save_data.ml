@@ -32,6 +32,7 @@ open Gen_data
 module GP = Fitc_gp.Make_deriv (Cov_se_iso.Deriv)
 module FITC = GP.FITC.Eval
 module FIC = GP.FIC.Eval
+module SMD = GP.FITC.Deriv.Optim.SMD
 
 let main () =
   Random.self_init ();
@@ -47,6 +48,25 @@ let main () =
         ~n_inducing training_inputs
     in
     let kernel = Cov_se_iso.Eval.Kernel.create params in
+    let smd =
+      SMD.create
+        ~kernel ~n_rand_inducing:n_inducing
+        ~inputs:training_inputs ~targets:training_targets ()
+    in
+    let smd =
+      let step = ref 1 in
+      let report smd =
+        let trained = SMD.get_trained smd in
+        let le = FITC.Trained.calc_log_evidence trained in
+        let rmse = FITC.Stats.calc_rmse trained in
+        printf "iter %4d:  log evidence: %.5f  rmse: %.5f  |gradient|: %f\n%!"
+          !step le rmse (SMD.gradient_norm smd);
+        incr step;
+      in
+      SMD.test ~epsabs:3. ~max_iter:1000 ~report smd
+    in
+    SMD.get_trained smd
+(*
     GP.FITC.Deriv.Optim.Gsl.train
       ~report_trained_model:(fun ~iter trained ->
         let le = FITC.Trained.calc_log_evidence trained in
@@ -57,6 +77,7 @@ let main () =
       ~kernel ~n_rand_inducing:n_inducing
       ~tol:0.1 ~step:0.1 ~epsabs:3.
       ~inputs:training_inputs ~targets:training_targets ()
+*)
   in
   let params =
     let model = FITC.Trained.get_model trained in

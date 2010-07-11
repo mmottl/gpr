@@ -73,10 +73,10 @@ module Eval = struct
         option_map params.Params.log_multiscales_m05 ~f:(Mat.map f)
       in
       {
-        params = params;
+        params;
         sf2 = exp params.Params.log_sf2;
-        hetero_skedasticity = hetero_skedasticity;
-        multiscales = multiscales;
+        hetero_skedasticity;
+        multiscales;
       }
 
     let get_params k = k.params
@@ -91,9 +91,7 @@ module Eval = struct
     exp (log_sf2 -. 0.5 *. x)
 
   let calc_upper_vanilla k mat =
-    let
-      { Kernel.sf2 = sf2; params = { Params.d = d; log_sf2 = log_sf2 } } = k
-    in
+    let { Kernel.sf2; params = { Params.d; log_sf2; _ }; _ } = k in
     let n = Mat.dim2 mat in
     let res = Mat.create n n in
     let tmp = { x = 0. } in
@@ -123,7 +121,7 @@ module Eval = struct
         match k.Kernel.multiscales with
         | None -> calc_upper_vanilla k inducing
         | Some multiscales ->
-            let { Kernel.params = { Params.d = d; log_sf2 = log_sf2 } } = k in
+            let { Kernel.params = { Params.d; log_sf2; _ }; _ } = k in
             let res = Mat.create m m in
             let tmp = { x = 0. } in
             for c = 1 to m do
@@ -157,11 +155,7 @@ module Eval = struct
 
     let eval k input inducing =
       let
-        {
-          Kernel.
-          multiscales = multiscales;
-          params = { Params.d = d; log_sf2 = log_sf2; tproj = tproj }
-        } = k
+        { Kernel.multiscales; params = { Params.d; log_sf2; tproj; _ }; _ } = k
       in
       let projection =
         match tproj with
@@ -201,35 +195,35 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
-
     let choose_subset = Utils.choose_cols
 
     let create_default_kernel_params inputs ~n_inducing =
       let big_dim = Mat.dim1 inputs in
       let n_inputs = Mat.dim2 inputs in
-      let small_dim = min big_dim 10 in
-      let tproj = Mat.create big_dim small_dim in
+      let d = min big_dim 10 in
+      let tproj = Mat.create big_dim d in
       let factor = float n_inputs /. float big_dim in
       for r = 1 to big_dim do
         let sum_ref = ref 0. in
         for c = 1 to n_inputs do sum_ref := !sum_ref +. inputs.{r, c} done;
         let mean_factor = factor /. !sum_ref in
-        for c = 1 to small_dim do
+        for c = 1 to d do
           tproj.{r, c} <-  mean_factor *. (Random.float 2. -. 1.)
         done;
       done;
       {
         Params.
-        d = small_dim;
+        d;
         log_sf2 = Random.float 2. -. 1.;
         tproj = Some tproj;
         log_hetero_skedasticity = Some (Vec.make n_inducing ~-.5.);
-        log_multiscales_m05 = Some (Mat.make0 small_dim n_inducing);
+        log_multiscales_m05 = Some (Mat.make0 d n_inducing);
       }
 
-    let project { Kernel.params = { Params.tproj = tproj } } inputs =
-      match tproj with
+    let project k inputs =
+      match k.Kernel.params.Params.tproj with
       | None -> inputs
       | Some tproj -> gemm ~transa:`T tproj inputs
 
@@ -238,13 +232,7 @@ module Eval = struct
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
     let calc_cross_with_projections k ~projections ~inducing =
-      let
-        {
-          Kernel.
-          multiscales = multiscales;
-          params = { Params.d = d; log_sf2 = log_sf2 }
-        } = k
-      in
+      let { Kernel.multiscales; params = { Params.d; log_sf2; _ }; _ } = k in
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 projections in
       let res = Mat.create n m in
@@ -303,15 +291,10 @@ module Deriv = struct
   module Hyper = struct
     type t = Hyper_repr.t
 
-    let get_all { Eval.Kernel.params = params } inducing =
+    let get_all { Eval.Kernel.params; _ } inducing =
       let
-        {
-          Params.
-          d = d;
-          tproj = tproj;
-          log_hetero_skedasticity = log_hetero_skedasticity;
-          log_multiscales_m05 = log_multiscales_m05;
-        } = params
+        { Params.d; tproj; log_hetero_skedasticity; log_multiscales_m05; _ } =
+          params
       in
       let m = Mat.dim2 inducing in
       let n_mandatory_hypers = 1 + d * m in
@@ -332,7 +315,7 @@ module Deriv = struct
       for ind = 1 to m do
         let indd = (ind - 1) * d in
         for dim = 1 to d do
-          let inducing_hyper = { Inducing_hyper.ind = ind; dim = dim } in
+          let inducing_hyper = { Inducing_hyper.ind; dim } in
           hypers.(indd + dim) <- `Inducing_hyper inducing_hyper
         done
       done;
@@ -343,8 +326,7 @@ module Deriv = struct
           for small_dim = 1 to d do
             let pos = !pos_ref in
             pos_ref := pos + 1;
-            hypers.(pos) <-
-              `Proj { Proj_hyper.big_dim = big_dim; small_dim = small_dim };
+            hypers.(pos) <- `Proj { Proj_hyper.big_dim; small_dim };
           done;
         done);
       option_iter log_hetero_skedasticity ~f:(fun log_hetero_skedasticity ->
@@ -359,8 +341,7 @@ module Deriv = struct
           for dim = 1 to d do
             let pos = !pos_ref in
             pos_ref := pos + 1;
-            hypers.(pos) <-
-              `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim };
+            hypers.(pos) <- `Log_multiscale_m05 { Inducing_hyper.ind; dim };
           done;
         done);
       hypers
@@ -370,21 +351,19 @@ module Deriv = struct
           failwithf "Deriv.Hyper.option_get_value: %s not supported" name ()
       | Some v -> v
 
-    let get_value { Eval.Kernel.params = params } inducing = function
+    let get_value { Eval.Kernel.params; _ } inducing = function
       | `Log_sf2 -> params.Params.log_sf2
-      | `Proj { Proj_hyper.big_dim = big_dim; small_dim = small_dim } ->
+      | `Proj { Proj_hyper.big_dim; small_dim } ->
           (option_get_value "tproj" params.Params.tproj).{big_dim, small_dim}
       | `Log_hetero_skedasticity dim ->
           (option_get_value "log_hetero_skedasticity"
             params.Params.log_hetero_skedasticity).{dim}
-      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind; dim } ->
           (option_get_value
             "log_multiscales_m05" params.Params.log_multiscales_m05).{dim, ind}
-      | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
-          inducing.{dim, ind}
+      | `Inducing_hyper { Inducing_hyper.ind; dim } -> inducing.{dim, ind}
 
-    let set_values kernel inducing hypers values =
-      let { Eval.Kernel.params = params } = kernel in
+    let set_values { Eval.Kernel.params; _ } inducing hypers values =
       let log_sf2_ref = ref params.Params.log_sf2 in
       let lazy_opt name f opt_v = lazy (f (option_get_value name opt_v)) in
       let tproj_lazy = lazy_opt "tproj" lacpy params.Params.tproj in
@@ -399,13 +378,13 @@ module Deriv = struct
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with
         | `Log_sf2 -> log_sf2_ref := values.{i}
-        | `Proj { Proj_hyper.big_dim = big_dim; small_dim = small_dim } ->
+        | `Proj { Proj_hyper.big_dim; small_dim } ->
             (Lazy.force tproj_lazy).{big_dim, small_dim} <- values.{i}
         | `Log_hetero_skedasticity dim ->
             (Lazy.force log_hetero_skedasticity_lazy).{dim} <- values.{i}
-        | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
+        | `Log_multiscale_m05 { Inducing_hyper.ind; dim } ->
             (Lazy.force log_multiscales_m05_lazy).{dim, ind} <- values.{i}
-        | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
+        | `Inducing_hyper { Inducing_hyper.ind; dim } ->
             (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
       done;
       let lift_opt lazy_value value =
@@ -441,12 +420,10 @@ module Deriv = struct
     type upper = Eval.Inducing.t * deriv_common
 
     let calc_shared_upper kernel inducing =
-      let upper = Eval.Inducing.calc_upper kernel inducing in
-      let shared = inducing, { kernel = kernel; eval_mat = upper } in
-      upper, shared
+      let eval_mat = Eval.Inducing.calc_upper kernel inducing in
+      eval_mat, (inducing, { kernel; eval_mat })
 
-    let calc_deriv_upper (inducing, common) hyper =
-      let { kernel = kernel; eval_mat = eval_mat } = common in
+    let calc_deriv_upper (inducing, { kernel; eval_mat }) hyper =
       match hyper with
       | `Log_sf2 ->
           begin
@@ -474,7 +451,7 @@ module Deriv = struct
                 (* TODO: sparse diagonal derivatives? *)
                 `Diag_vec deriv
           end
-      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind; dim } ->
           begin match kernel.Eval.Kernel.multiscales with
           | None ->
               failwith (
@@ -519,7 +496,7 @@ module Deriv = struct
               rows.{1} <- ind;
               `Sparse_rows (res, rows)
           end
-      | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Inducing_hyper { Inducing_hyper.ind; dim } ->
           let m = Mat.dim2 eval_mat in
           let res = Mat.create 1 m in
           let inducing_dim = inducing.{dim, ind} in
@@ -579,19 +556,13 @@ module Deriv = struct
 
     type cross = Cross.t
 
-    let calc_shared_cross k ~inputs ~inducing =
-      let projections = Eval.Inputs.project k inputs in
+    let calc_shared_cross kernel ~inputs ~inducing =
+      let projections = Eval.Inputs.project kernel inputs in
       let eval_mat =
-        Eval.Inputs.calc_cross_with_projections k ~projections ~inducing
+        Eval.Inputs.calc_cross_with_projections kernel ~projections ~inducing
       in
       let shared =
-        {
-          Cross.
-          common = { kernel = k; eval_mat = eval_mat };
-          inputs = inputs;
-          inducing = inducing;
-          projections = projections;
-        }
+        { Cross.common = { kernel; eval_mat }; inputs; inducing; projections }
       in
       eval_mat, shared
 
@@ -604,17 +575,12 @@ module Deriv = struct
 
     let calc_deriv_cross cross hyper =
       let
-        {
-          Cross.
-          common = { kernel = kernel; eval_mat = eval_mat };
-          inputs = inputs;
-          inducing = inducing;
-          projections = projections;
-        } = cross
+        { Cross.common = { kernel; eval_mat }; inputs; inducing; projections } =
+          cross
       in
       match hyper with
       | `Log_sf2 -> `Factor 1.
-      | `Proj { Proj_hyper.big_dim = big_dim; small_dim = small_dim } ->
+      | `Proj { Proj_hyper.big_dim; small_dim } ->
           check_tproj_available kernel.Eval.Kernel.params.Params.tproj;
           let m = Mat.dim2 inducing in
           let n = Mat.dim2 inputs in
@@ -643,7 +609,7 @@ module Deriv = struct
           end;
           `Dense res
       | `Log_hetero_skedasticity _ -> `Const 0.
-      | `Log_multiscale_m05 { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Log_multiscale_m05 { Inducing_hyper.ind; dim } ->
           begin match kernel.Eval.Kernel.multiscales with
           | None ->
               failwith (
@@ -669,7 +635,7 @@ module Deriv = struct
             cols.{1} <- ind;
             `Sparse_cols (res, cols)
           end
-      | `Inducing_hyper { Inducing_hyper.ind = ind; dim = dim } ->
+      | `Inducing_hyper { Inducing_hyper.ind; dim } ->
           let n = Mat.dim1 eval_mat in
           let res = Mat.create n 1 in
           let inducing_dim = inducing.{dim, ind} in

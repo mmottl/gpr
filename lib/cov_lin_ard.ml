@@ -36,7 +36,7 @@ module Eval = struct
       let d = Vec.dim log_ells in
       let consts = Vec.create d in
       for i = 1 to d do consts.{i} <- exp (-. log_ells.{i}) done;
-      { params = params; consts = consts }
+      { params; consts }
 
     let get_params k = k.params
   end
@@ -51,7 +51,7 @@ module Eval = struct
   module Input = struct
     type t = vec
 
-    let calc_ard_input { Kernel.consts = consts } input =
+    let calc_ard_input { Kernel.consts; _ } input =
       let d = Vec.dim input in
       let ard_input = Vec.create d in
       for i = 1 to d do ard_input.{i} <- consts.{i} *. input.{i} done;
@@ -63,7 +63,7 @@ module Eval = struct
     let weighted_eval k input inducing ~coeffs =
       dot ~x:coeffs (eval k input inducing)
 
-    let eval_one { Kernel.consts = consts } input =
+    let eval_one { Kernel.consts; _ } input =
       let rec loop res i =
         if i = 0 then res
         else
@@ -76,10 +76,11 @@ module Eval = struct
   module Inputs = struct
     type t = mat
 
+    let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
     let choose_subset inputs indexes = Utils.choose_cols inputs indexes
 
-    let calc_ard_inputs { Kernel.consts = consts } inputs =
+    let calc_ard_inputs { Kernel.consts; _ } inputs =
       let res = lacpy inputs in
       Mat.scal_rows consts res;
       res
@@ -106,15 +107,15 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_ell of int ]
 
-    let get_all { Eval.Kernel.params = params } _inducing =
+    let get_all { Eval.Kernel.params; _ } _inducing =
       Array.init (Vec.dim params.Params.log_ells) ~f:(fun d ->
         `Log_ell (d + 1))
 
-    let get_value { Eval.Kernel.params = params } _inducing = function
+    let get_value { Eval.Kernel.params; _ } _inducing = function
       | `Log_ell i -> params.Params.log_ells.{i}
 
     let set_values k inducing hypers values =
-      let { Eval.Kernel.params = params } = k in
+      let { Eval.Kernel.params; _ } = k in
       let log_ells_lazy = lazy (copy params.Params.log_ells) in
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with

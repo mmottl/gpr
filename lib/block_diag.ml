@@ -35,8 +35,8 @@ let check_square (i, size) mat =
       "Block_diag.check_square: matrix at index %d not square: m = %d, n = %d"
       i m n ()
 
-let create mats =
-  { data = mats; n = snd (Array.fold_left ~f:check_square ~init:(0, 0) mats) }
+let create data =
+  { data; n = snd (Array.fold_left ~f:check_square ~init:(0, 0) data) }
 
 let copy t = { t with data = Array.map ~f:(fun mat -> lacpy mat) t.data }
 

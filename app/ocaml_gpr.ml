@@ -237,14 +237,8 @@ let write_model model_file ~target_mean ~input_means ~input_stddevs trained =
     let co_variance_coeffs = FIC.Model.calc_co_variance_coeffs model in
     {
       Model.
-      sigma2 = sigma2;
-      target_mean = target_mean;
-      input_means = input_means;
-      input_stddevs = input_stddevs;
-      kernel = kernel;
-      inducing_points = inducing_points;
-      coeffs = coeffs;
-      co_variance_coeffs = co_variance_coeffs;
+      sigma2; target_mean; input_means; input_stddevs; kernel;
+      inducing_points; coeffs; co_variance_coeffs;
     }
   in
   Marshal.to_channel oc model [];
@@ -256,18 +250,8 @@ let train args =
   let
     {
       Args.
-      model_file = model_file;
-      max_iter = max_iter;
-      n_inducing = n_inducing;
-      sigma2 = sigma2;
-      amplitude = amplitude;
-      dim_red = dim_red;
-      log_het_sked = log_het_sked;
-      multiscale = multiscale;
-      tol = tol;
-      step = step;
-      eps = epsabs;
-      verbose = verbose;
+      model_file; max_iter; n_inducing; sigma2; amplitude; dim_red;
+      log_het_sked; multiscale; tol; step; eps = epsabs; verbose; _
     } = args
   in
   let inputs, targets = read_training_samples () in
@@ -316,24 +300,12 @@ let train args =
     Cov_se_fat.Params.create
       {
         Cov_se_fat.Params.
-        d = d;
-        log_sf2 = log_sf2;
-        tproj = tproj;
-        log_hetero_skedasticity = log_hetero_skedasticity;
-        log_multiscales_m05 = log_multiscales_m05;
+        d; log_sf2; tproj; log_hetero_skedasticity; log_multiscales_m05
       }
   in
   let kernel = Cov_se_fat.Eval.Kernel.create params in
   let get_trained_stats trained =
-    let
-      {
-        FIC.Stats.
-        smse = smse;
-        msll = msll;
-        mad = mad;
-        maxad = maxad;
-      } = FIC.Stats.calc trained
-    in
+    let { FIC.Stats.smse; msll; mad; maxad; _ } = FIC.Stats.calc trained in
     sprintf
       "MSLL=%7.7f SMSE=%7.7f MAD=%7.7f MAXAD=%7.7f"
       msll smse mad maxad
@@ -406,25 +378,12 @@ let read_model model_file : Model.t =
   model
 
 let test args =
-  let
-    {
-      Args.
-      model_file = model_file;
-      with_stddev = with_stddev;
-      predictive = predictive;
-    } = args
-  in
+  let { Args.model_file; with_stddev; predictive; _ } = args in
   let
     {
       Model.
-      sigma2 = sigma2;
-      target_mean = target_mean;
-      input_means = input_means;
-      input_stddevs = input_stddevs;
-      kernel = kernel;
-      inducing_points = inducing_points;
-      coeffs = coeffs;
-      co_variance_coeffs = co_variance_coeffs;
+      sigma2; target_mean; input_means; input_stddevs; kernel;
+      inducing_points; coeffs; co_variance_coeffs
     } = read_model model_file
   in
   let big_dim = Vec.dim input_stddevs in
