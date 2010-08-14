@@ -88,7 +88,7 @@ module Args = struct
         );(
           "-max-iter",
           Arg.Int (set_some max_iter),
-          " make predictions with 95%-confidence interval (default: limitless)"
+          " maximum number of optimization steps (default: limitless)"
         );(
           "-n-inducing",
           Arg.Set_int n_inducing,
