@@ -79,12 +79,12 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_theta ]
 
-    let get_all _kernel _inducing = [| `Log_theta |]
+    let get_all _kernel _inducing _inputs = [| `Log_theta |]
 
-    let get_value { Eval.Kernel.params; _ } _inducing = function
+    let get_value { Eval.Kernel.params; _ } _inducing _inputs = function
       | `Log_theta -> params.Params.log_theta
 
-    let set_values kernel inducing hypers values =
+    let set_values kernel inducing inputs hypers values =
       let { Eval.Kernel.params; _ } = kernel in
       let log_theta_ref = ref params.Params.log_theta in
       let kernel_changed_ref = ref false in
@@ -97,7 +97,7 @@ module Deriv = struct
           Eval.Kernel.create { Params.log_theta = !log_theta_ref }
         else kernel
       in
-      new_kernel, inducing
+      new_kernel, inducing, inputs
   end
 
   let calc_const_deriv k = -2. *. k.Eval.Kernel.const

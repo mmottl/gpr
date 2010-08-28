@@ -291,7 +291,7 @@ module Deriv = struct
   module Hyper = struct
     type t = Hyper_repr.t
 
-    let get_all { Eval.Kernel.params; _ } inducing =
+    let get_all { Eval.Kernel.params; _ } inducing _inputs =
       let
         { Params.d; tproj; log_hetero_skedasticity; log_multiscales_m05; _ } =
           params
@@ -351,7 +351,7 @@ module Deriv = struct
           failwithf "Deriv.Hyper.option_get_value: %s not supported" name ()
       | Some v -> v
 
-    let get_value { Eval.Kernel.params; _ } inducing = function
+    let get_value { Eval.Kernel.params; _ } inducing _inputs = function
       | `Log_sf2 -> params.Params.log_sf2
       | `Proj { Proj_hyper.big_dim; small_dim } ->
           (option_get_value "tproj" params.Params.tproj).{big_dim, small_dim}
@@ -363,7 +363,7 @@ module Deriv = struct
             "log_multiscales_m05" params.Params.log_multiscales_m05).{dim, ind}
       | `Inducing_hyper { Inducing_hyper.ind; dim } -> inducing.{dim, ind}
 
-    let set_values { Eval.Kernel.params; _ } inducing hypers values =
+    let set_values { Eval.Kernel.params; _ } inducing inputs hypers values =
       let log_sf2_ref = ref params.Params.log_sf2 in
       let lazy_opt name f opt_v = lazy (f (option_get_value name opt_v)) in
       let tproj_lazy = lazy_opt "tproj" lacpy params.Params.tproj in
@@ -411,7 +411,7 @@ module Deriv = struct
           }
       in
       let new_inducing = lift inducing_lazy inducing in
-      new_kernel, new_inducing
+      new_kernel, new_inducing, inputs
   end
 
   type deriv_common = { kernel : Eval.Kernel.t; eval_mat : mat }

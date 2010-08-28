@@ -42,7 +42,9 @@ let main () =
   let inducing_points =
     FITC.Eval.Inducing.choose_n_random_inputs kernel ~n_inducing training_inputs
   in
-  let all_hypers = FITC.Deriv.Spec.Hyper.get_all kernel inducing_points in
+  let all_hypers =
+    FITC.Deriv.Spec.Hyper.get_all kernel inducing_points training_inputs
+  in
   let sigma2 = 1. in
   FITC.Deriv.Test.self_test
     kernel inducing_points training_inputs

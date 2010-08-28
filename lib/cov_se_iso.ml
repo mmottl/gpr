@@ -189,7 +189,7 @@ module Deriv = struct
   module Hyper = struct
     type t = [ gen_deriv | `Inducing_hyper of inducing_hyper ]
 
-    let get_all _kernel inducing =
+    let get_all _kernel inducing _inputs =
       let d = Mat.dim1 inducing in
       let m = Mat.dim2 inducing in
       let n_inducing_hypers = d * m in
@@ -205,12 +205,12 @@ module Deriv = struct
       done;
       hypers
 
-    let get_value { Eval.Kernel.params; _ } inducing = function
+    let get_value { Eval.Kernel.params; _ } inducing _inputs = function
       | `Log_ell -> params.Params.log_ell
       | `Log_sf2 -> params.Params.log_sf2
       | `Inducing_hyper { ind; dim } -> inducing.{dim, ind}
 
-    let set_values { Eval.Kernel.params; _ } inducing hypers values =
+    let set_values { Eval.Kernel.params; _ } inducing inputs hypers values =
       let { Params.log_ell; log_sf2; _ } = params in
       let log_ell_ref = ref log_ell in
       let log_sf2_ref = ref log_sf2 in
@@ -231,7 +231,7 @@ module Deriv = struct
         else value
       in
       let new_inducing = lift inducing_lazy inducing in
-      new_kernel, new_inducing
+      new_kernel, new_inducing, inputs
   end
 
   type deriv_common = {

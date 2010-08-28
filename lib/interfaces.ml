@@ -202,21 +202,22 @@ module Specs = struct
     module Hyper : sig
       type t  (** Type of hyper parameter *)
 
-      (** [get_all kernel inducing] @return array of all hyper
-          parameters of [kernel] and/or [inducing] inputs for which
+      (** [get_all kernel inducing inputs] @return array of all hyper
+          parameters of [kernel] and/or ([inducing]) [inputs] for which
           derivatives can be computed. *)
-      val get_all : Eval.Kernel.t -> Eval.Inducing.t -> t array
+      val get_all : Eval.Kernel.t -> Eval.Inducing.t -> Eval.Inputs.t -> t array
 
-      (** [get_value kernel inducing hyper] @return value of hyper parameter
-          [hyper] of [kernel] and/or [inducing] inputs. *)
-      val get_value : Eval.Kernel.t -> Eval.Inducing.t -> t -> float
+      (** [get_value kernel inducing inputs hyper] @return value of hyper
+          parameter [hyper] of [kernel] and/or ([inducing]) [inputs]. *)
+      val get_value :
+        Eval.Kernel.t -> Eval.Inducing.t -> Eval.Inputs.t -> t -> float
 
-      (** [set_values kernel inducing hypers values] @return pair
-          of [(kernel, inducing)] in which [hypers] have been
+      (** [set_values kernel inducing inputs hypers values] @return triple
+          of [(kernel, inducing, inputs)] in which [hypers] have been
           substituted with [values] position-wise. *)
       val set_values :
-        Eval.Kernel.t -> Eval.Inducing.t -> t array -> vec ->
-        Eval.Kernel.t * Eval.Inducing.t
+        Eval.Kernel.t -> Eval.Inducing.t -> Eval.Inputs.t -> t array -> vec ->
+        Eval.Kernel.t * Eval.Inducing.t * Eval.Inputs.t
     end
 
     (** Derivatives of the covariance matrix of inducing inputs *)

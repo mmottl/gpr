@@ -107,14 +107,14 @@ module Deriv = struct
   module Hyper = struct
     type t = [ `Log_ell of int ]
 
-    let get_all { Eval.Kernel.params; _ } _inducing =
+    let get_all { Eval.Kernel.params; _ } _inducing _inputs =
       Array.init (Vec.dim params.Params.log_ells) ~f:(fun d ->
         `Log_ell (d + 1))
 
-    let get_value { Eval.Kernel.params; _ } _inducing = function
+    let get_value { Eval.Kernel.params; _ } _inducing _inputs = function
       | `Log_ell i -> params.Params.log_ells.{i}
 
-    let set_values k inducing hypers values =
+    let set_values k inducing inputs hypers values =
       let { Eval.Kernel.params; _ } = k in
       let log_ells_lazy = lazy (copy params.Params.log_ells) in
       for i = 1 to Array.length hypers do
@@ -126,7 +126,7 @@ module Deriv = struct
           Eval.Kernel.create { Params.log_ells = Lazy.force log_ells_lazy }
         else k
       in
-      new_kernel, inducing
+      new_kernel, inducing, inputs
   end
 
   module Inducing = struct

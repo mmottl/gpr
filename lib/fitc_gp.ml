@@ -1224,10 +1224,10 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
     end
 
     module Test = struct
-      let update_hyper kernel inducing_points hyper ~eps =
-        let value = Spec.Hyper.get_value kernel inducing_points hyper in
+      let update_hyper kernel inducing_points points hyper ~eps =
+        let value = Spec.Hyper.get_value kernel inducing_points points hyper in
         let value_eps = value +. eps in
-        Spec.Hyper.set_values kernel inducing_points
+        Spec.Hyper.set_values kernel inducing_points points
           [| hyper |] (Vec.make 1 value_eps)
 
       let is_bad_deriv ~finite_el ~deriv ~tol =
@@ -1236,14 +1236,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           || abs_float (finite_el -. deriv) > tol
 
       let check_deriv_hyper ?(eps = 1e-8) ?(tol = 1e-2)
-            kernel1 inducing_points1 points hyper =
-        let kernel2, inducing_points2 =
-          update_hyper kernel1 inducing_points1 hyper ~eps
+            kernel1 inducing_points1 points1 hyper =
+        let kernel2, inducing_points2, points2 =
+          update_hyper kernel1 inducing_points1 points1 hyper ~eps
         in
         let eval_inducing1 = Eval_inducing.calc kernel1 inducing_points1 in
-        let eval_cross1 = Eval_inputs.calc points eval_inducing1 in
+        let eval_cross1 = Eval_inputs.calc points1 eval_inducing1 in
         let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
-        let eval_cross2 = Eval_inputs.calc points eval_inducing2 in
+        let eval_cross2 = Eval_inputs.calc points2 eval_inducing2 in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
           Mat.axpy ~alpha:~-.1. ~x:mat1 res;
@@ -1316,7 +1316,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               for c = 1 to m do check ~deriv:const ~r:c ~c done
         end;
         (* Check dknm *)
-        let inputs = Inputs.calc inducing1 points in
+        let inputs = Inputs.calc inducing1 points1 in
         begin
           let knm1 = eval_cross1.Eval_inputs.knm in
           let finite_dknm =
@@ -1357,9 +1357,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         (* Check dkn diag *)
         begin
           let kn_diag1, shared_diag =
-            Spec.Inputs.calc_shared_diag kernel1 points
+            Spec.Inputs.calc_shared_diag kernel1 points1
           in
-          let kn_diag2 = Spec.Eval.Inputs.calc_diag kernel2 points in
+          let kn_diag2 = Spec.Eval.Inputs.calc_diag kernel2 points2 in
           let finite_dkn_diag =
             let res = copy kn_diag2 in
             axpy ~alpha:~-.1. ~x:kn_diag1 res;
@@ -1389,9 +1389,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         end
 
       let self_test ?(eps = 1e-8) ?(tol = 1e-2)
-            kernel1 inducing_points1 points ~sigma2 ~targets hyper =
+            kernel1 inducing_points1 points1 ~sigma2 ~targets hyper =
         let inducing1 = Inducing.calc kernel1 inducing_points1 in
-        let inputs1 = Inputs.calc inducing1 points in
+        let inputs1 = Inputs.calc inducing1 points1 in
         let deriv_model = Cm.calc inputs1 ~sigma2 in
         let eval_model1 = Cm.calc_eval deriv_model in
         let model_log_evidence1 = Eval_model.calc_log_evidence eval_model1 in
@@ -1430,11 +1430,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               ~before:trained_log_evidence1 ~after:trained_log_evidence2
               ~deriv:trained_deriv
         | `Hyper hyper ->
-            let kernel2, inducing_points2 =
-              update_hyper kernel1 inducing_points1 hyper ~eps
+            let kernel2, inducing_points2, points2 =
+              update_hyper kernel1 inducing_points1 points1 hyper ~eps
             in
             let eval_inducing2 = Eval_inducing.calc kernel2 inducing_points2 in
-            let eval_inputs2 = Eval_inputs.calc points eval_inducing2 in
+            let eval_inputs2 = Eval_inputs.calc points2 eval_inducing2 in
             let eval_model2 = Eval_model.calc eval_inputs2 ~sigma2 in
             let model_log_evidence2 =
               Eval_model.calc_log_evidence eval_model2
@@ -1501,16 +1501,16 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 )
             | Some kernel -> kernel, inducing
 
-      let get_hypers_vals kernel inducing hypers =
+      let get_hypers_vals kernel inducing points hypers =
         let hypers =
           match hypers with
-          | None -> Spec.Hyper.get_all kernel inducing
+          | None -> Spec.Hyper.get_all kernel inducing points
           | Some hypers -> hypers
         in
         let n_hypers = Array.length hypers in
         let hyper_vals =
           Vec.init n_hypers (fun i1 ->
-            Spec.Hyper.get_value kernel inducing hypers.(i1 - 1))
+            Spec.Hyper.get_value kernel inducing points hypers.(i1 - 1))
         in
         hypers, hyper_vals
 
@@ -1536,7 +1536,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let kernel, inducing =
             get_kernel_inducing ?kernel ?n_rand_inducing ~inputs inducing
           in
-          let hypers, hyper_vals = get_hypers_vals kernel inducing hypers in
+          let hypers, hyper_vals =
+            get_hypers_vals kernel inducing inputs hypers
+          in
           let n_hypers = Array.length hypers in
           let n_gsl_hypers, gsl_hypers =
             if learn_sigma2 then
@@ -1560,14 +1562,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 sigma2_ref := exp gsl_hypers.{0};
                 let hyper_vals = Vec.create n_hypers in
                 for i = 1 to n_hypers do hyper_vals.{i} <- gsl_hypers.{i} done;
-                Spec.Hyper.set_values kernel inducing hypers hyper_vals)
+                Spec.Hyper.set_values kernel inducing inputs hypers hyper_vals)
             else
               (fun ~gsl_hypers ->
                 let hyper_vals = Vec.create n_hypers in
                 for i = 1 to n_hypers do
                   hyper_vals.{i} <- gsl_hypers.{i - 1}
                 done;
-                Spec.Hyper.set_values kernel inducing hypers hyper_vals)
+                Spec.Hyper.set_values kernel inducing inputs hypers hyper_vals)
           in
           let seen_exception_ref = ref None in
           let wrap_seen_exception f =
@@ -1589,7 +1591,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                 best_model_ref := Some (trained, log_evidence)
           in
           let multim_f ~x:gsl_hypers =
-            let kernel, inducing = update_hypers ~gsl_hypers in
+            let kernel, inducing, inputs = update_hypers ~gsl_hypers in
             let eval_inducing = Eval_inducing.calc kernel inducing in
             let eval_inputs = Eval_inputs.calc inputs eval_inducing in
             let model = Eval_model.calc eval_inputs ~sigma2:!sigma2_ref in
@@ -1600,7 +1602,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           let multim_f ~x = wrap_seen_exception (fun () -> multim_f ~x) in
           let multim_dcommon ~x:gsl_hypers ~g:gradient =
-            let kernel, inducing = update_hypers ~gsl_hypers in
+            let kernel, inducing, inputs = update_hypers ~gsl_hypers in
             let deriv_inducing = Inducing.calc kernel inducing in
             let deriv_inputs = Inputs.calc deriv_inducing inputs in
             let dmodel = Cm.calc ~sigma2:!sigma2_ref deriv_inputs in
@@ -1745,7 +1747,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let kernel, inducing =
             get_kernel_inducing ?kernel ?n_rand_inducing ~inputs inducing
           in
-          let hypers, hyper_vals = get_hypers_vals kernel inducing hypers in
+          let hypers, hyper_vals =
+            get_hypers_vals kernel inducing inputs hypers
+          in
           let trained =
             let deriv_inducing = Inducing.calc kernel inducing in
             let deriv_inputs = Inputs.calc deriv_inducing inputs in
@@ -1769,7 +1773,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
               gradient_norm = _gradient_norm;
             } = t
           in
-          let old_sigma2, input_points, old_inducing, old_kernel =
+          let old_sigma2, old_input_points, old_inducing, old_kernel =
             let eval_trained = Trained.calc_eval old_trained in
             let eval_model = Eval_trained.get_model eval_trained in
             let input_points = Eval_model.get_input_points eval_model in
@@ -1786,8 +1790,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let hyper_vals = copy old_hyper_vals in
           axpy ~alpha:eta ~ofsx:hyper_ix ~x:old_gradient hyper_vals;
           let trained =
-            let kernel, inducing =
-              Spec.Hyper.set_values old_kernel old_inducing hypers hyper_vals
+            let kernel, inducing, input_points =
+              Spec.Hyper.set_values
+                old_kernel old_inducing old_input_points hypers hyper_vals
             in
             let deriv_inducing = Inducing.calc kernel inducing in
             let deriv_inputs = Inputs.calc deriv_inducing input_points in
@@ -1851,7 +1856,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let kernel, inducing =
             get_kernel_inducing ?kernel ?n_rand_inducing ~inputs inducing
           in
-          let hypers, hyper_vals = get_hypers_vals kernel inducing hypers in
+          let hypers, hyper_vals =
+            get_hypers_vals kernel inducing inputs hypers
+          in
           let n_all_hypers =
             let n_hypers = Array.length hypers in
             if learn_sigma2 then n_hypers + 1 else n_hypers
@@ -1910,7 +1917,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let eval_trained = Trained.calc_eval old_trained in
           let targets = Eval_trained.get_targets eval_trained in
           let eval_model = Eval_trained.get_model eval_trained in
-          let input_points = Eval_model.get_input_points eval_model in
+          let old_input_points = Eval_model.get_input_points eval_model in
           let old_sigma2 = Eval_model.get_sigma2 eval_model in
           let log_old_sigma2 = log old_sigma2 in
           let old_inducing = Eval_model.get_inducing_points eval_model in
@@ -1926,13 +1933,14 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
                   exp (log_old_sigma2 +. eps *. old_nu.{1}), 1
                 else old_sigma2, 0
               in
-              let kernel, inducing =
+              let kernel, inducing, input_points =
                 let hyper_vals = Vec.create n_hypers in
                 for i1 = 1 to n_hypers do
                   hyper_vals.{i1} <-
                     old_hyper_vals.{i1} +. eps *. old_nu.{i1 + hyper_ofs}
                 done;
-                Spec.Hyper.set_values old_kernel old_inducing hypers hyper_vals
+                Spec.Hyper.set_values
+                  old_kernel old_inducing old_input_points hypers hyper_vals
               in
               let deriv_inducing = Inducing.calc kernel inducing in
               let deriv_inputs = Inputs.calc deriv_inducing input_points in
@@ -1965,8 +1973,9 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           in
           axpy ~alpha:lambda ~x:old_nu nu;
           let trained =
-            let kernel, inducing =
-              Spec.Hyper.set_values old_kernel old_inducing hypers hyper_vals
+            let kernel, inducing, input_points =
+              Spec.Hyper.set_values
+                old_kernel old_inducing old_input_points hypers hyper_vals
             in
             let deriv_inducing = Inducing.calc kernel inducing in
             let deriv_inputs = Inputs.calc deriv_inducing input_points in
