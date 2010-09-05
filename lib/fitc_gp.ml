@@ -1231,8 +1231,8 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           [| hyper |] (Vec.make 1 value_eps)
 
       let is_bad_deriv ~finite_el ~deriv ~tol =
-        Utils.is_nan finite_el
-          || Utils.is_nan deriv
+        Float.is_nan finite_el
+          || Float.is_nan deriv
           || abs_float (finite_el -. deriv) > tol
 
       let check_deriv_hyper ?(eps = 1e-8) ?(tol = 1e-2)
