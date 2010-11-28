@@ -388,10 +388,7 @@ module Make_common (Spec : Specs.Eval) = struct
   end
 
   module Mean_predictor = struct
-    type t = {
-      inducing : Spec.Inducing.t;
-      coeffs : vec;
-    }
+    type t = { inducing : Spec.Inducing.t; coeffs : vec }
 
     let calc_trained trained =
       {
