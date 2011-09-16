@@ -36,7 +36,7 @@ let check_square (i, size) mat =
       i m n ()
 
 let create data =
-  { data; n = snd (Array.fold_left ~f:check_square ~init:(0, 0) data) }
+  { data; n = snd (Array.fold ~f:check_square ~init:(0, 0) data) }
 
 let copy t = { t with data = Array.map ~f:(fun mat -> lacpy mat) t.data }
 

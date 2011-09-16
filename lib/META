@@ -1,5 +1,5 @@
 name="gpr"
-version="0.10.0"
+version="0.11.0"
 description="Gaussian Process Regression"
 requires="gsl,lacaml,threads,core"
 archive(byte)="gpr.cma"
