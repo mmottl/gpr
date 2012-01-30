@@ -80,7 +80,7 @@ module Make_common (Spec : Specs.Eval) = struct
       choose kernel inputs indexes
 
     let choose_n_random_inputs
-          ?(rnd_state = Random.get_state ()) kernel inputs ~n_inducing =
+          ?(rnd_state = Random.State.default) kernel inputs ~n_inducing =
       check_n_inducing ~n_inducing inputs;
       let n_inputs = Spec.Inputs.get_n_points inputs in
       let indexes = Int_vec.create n_inputs in
