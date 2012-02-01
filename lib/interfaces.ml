@@ -23,7 +23,7 @@
 
 open Core.Std
 open Bigarray
-open Lacaml.Impl.D
+open Lacaml.D
 
 open Utils
 

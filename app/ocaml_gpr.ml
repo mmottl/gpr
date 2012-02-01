@@ -193,7 +193,7 @@ let read_samples () =
       in
       loop [sample]
 
-open Lacaml.Impl.D
+open Lacaml.D
 
 open Gpr
 

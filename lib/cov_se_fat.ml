@@ -24,8 +24,8 @@
 open Interfaces
 open Utils
 
-open Lacaml.Impl.D
 open Core.Std
+open Lacaml.D
 
 let option_map ~f = function None -> None | Some v -> Some (f v)
 let option_iter ~f = function None -> () | Some v -> f v

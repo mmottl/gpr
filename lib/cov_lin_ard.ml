@@ -21,8 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Lacaml.Impl.D
 open Core.Std
+open Lacaml.D
 
 module Params = struct type t = { log_ells : vec } end
 

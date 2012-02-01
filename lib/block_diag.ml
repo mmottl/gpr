@@ -21,8 +21,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Lacaml.Impl.D
 open Core.Std
+open Lacaml.D
 
 type t = { data : mat array; n : int }
 

@@ -23,8 +23,8 @@
 
 open Interfaces
 
-open Lacaml.Impl.D
 open Core.Std
+open Lacaml.D
 
 module Params = struct type t = { log_ell : float; log_sf2 : float } end
 

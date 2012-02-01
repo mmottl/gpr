@@ -31,7 +31,7 @@
     where P is a diagonal matrix containing [t^2] along the diagonal.
 *)
 
-open Lacaml.Impl.D
+open Lacaml.D
 
 open Interfaces.Specs
 

@@ -21,7 +21,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Lacaml.Impl.D
+open Lacaml.D
 
 (** Type of block diagonal matrices *)
 type t = private { data : mat array; n : int }

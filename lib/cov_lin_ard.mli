@@ -31,7 +31,7 @@
     and D is the dimensionality of the input space.
 *)
 
-open Lacaml.Impl.D
+open Lacaml.D
 
 open Interfaces.Specs
 

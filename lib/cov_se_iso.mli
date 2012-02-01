@@ -30,7 +30,7 @@
     where [sf^2] is the amplitude, and [ell] is the length scale.
 *)
 
-open Lacaml.Impl.D
+open Lacaml.D
 
 open Interfaces.Specs
 
