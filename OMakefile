@@ -5,7 +5,8 @@ OCAMLPACKS += unix lacaml gsl threads core
 
 BYTE_ENABLED = true
 NATIVE_ENABLED = true
-OCAMLFLAGS = -thread -dtypes -g -w A -warn-error A
+
+OCAMLFLAGS = -dtypes -g -w Aer -strict-sequence -thread
 
 OCAMLINCLUDES += $(dir lib)
 

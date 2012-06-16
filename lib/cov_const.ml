@@ -81,11 +81,11 @@ module Deriv = struct
 
     let get_all _kernel _inducing _inputs = [| `Log_theta |]
 
-    let get_value { Eval.Kernel.params; _ } _inducing _inputs = function
+    let get_value { Eval.Kernel.params } _inducing _inputs = function
       | `Log_theta -> params.Params.log_theta
 
     let set_values kernel inducing inputs hypers values =
-      let { Eval.Kernel.params; _ } = kernel in
+      let { Eval.Kernel.params } = kernel in
       let log_theta_ref = ref params.Params.log_theta in
       let kernel_changed_ref = ref false in
       for i = 1 to Array.length hypers do

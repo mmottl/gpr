@@ -251,7 +251,7 @@ let train args =
     {
       Args.
       model_file; max_iter; n_inducing; sigma2; amplitude; dim_red;
-      log_het_sked; multiscale; tol; step; eps = epsabs; verbose; _
+      log_het_sked; multiscale; tol; step; eps = epsabs; verbose
     } = args
   in
   let inputs, targets = read_training_samples () in
@@ -305,7 +305,7 @@ let train args =
   in
   let kernel = Cov_se_fat.Eval.Kernel.create params in
   let get_trained_stats trained =
-    let { FIC.Stats.smse; msll; mad; maxad; _ } = FIC.Stats.calc trained in
+    let { FIC.Stats.smse; msll; mad; maxad } = FIC.Stats.calc trained in
     sprintf
       "MSLL=%7.7f SMSE=%7.7f MAD=%7.7f MAXAD=%7.7f"
       msll smse mad maxad
@@ -378,7 +378,7 @@ let read_model model_file : Model.t =
   model
 
 let test args =
-  let { Args.model_file; with_stddev; predictive; _ } = args in
+  let { Args.model_file; with_stddev; predictive } = args in
   let
     {
       Model.

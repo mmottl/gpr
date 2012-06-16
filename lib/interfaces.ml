@@ -22,7 +22,6 @@
 *)
 
 open Core.Std
-open Bigarray
 open Lacaml.D
 
 open Utils

@@ -80,10 +80,7 @@ module Eval = struct
       }
 
     let get_params k = k.params
-    let get_d k = k.params.Params.d
   end
-
-  open Kernel
 
   let calc_res_el ~log_sf2 tmp =
     let x = tmp.x in
@@ -91,7 +88,7 @@ module Eval = struct
     exp (log_sf2 -. 0.5 *. x)
 
   let calc_upper_vanilla k mat =
-    let { Kernel.sf2; params = { Params.d; log_sf2; _ }; _ } = k in
+    let { Kernel.sf2; params = { Params.d; log_sf2 } } = k in
     let n = Mat.dim2 mat in
     let res = Mat.create n n in
     let tmp = { x = 0. } in
@@ -121,7 +118,7 @@ module Eval = struct
         match k.Kernel.multiscales with
         | None -> calc_upper_vanilla k inducing
         | Some multiscales ->
-            let { Kernel.params = { Params.d; log_sf2; _ }; _ } = k in
+            let { Kernel.params = { Params.d; log_sf2 } } = k in
             let res = Mat.create m m in
             let tmp = { x = 0. } in
             for c = 1 to m do
@@ -155,7 +152,7 @@ module Eval = struct
 
     let eval k input inducing =
       let
-        { Kernel.multiscales; params = { Params.d; log_sf2; tproj; _ }; _ } = k
+        { Kernel.multiscales; params = { Params.d; log_sf2; tproj } } = k
       in
       let projection =
         match tproj with
@@ -232,7 +229,7 @@ module Eval = struct
     let calc_diag k inputs = Vec.make (Mat.dim2 inputs) k.Kernel.sf2
 
     let calc_cross_with_projections k ~projections ~inducing =
-      let { Kernel.multiscales; params = { Params.d; log_sf2; _ }; _ } = k in
+      let { Kernel.multiscales; params = { Params.d; log_sf2 } } = k in
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 projections in
       let res = Mat.create n m in
@@ -291,9 +288,9 @@ module Deriv = struct
   module Hyper = struct
     type t = Hyper_repr.t
 
-    let get_all { Eval.Kernel.params; _ } inducing _inputs =
+    let get_all { Eval.Kernel.params } inducing _inputs =
       let
-        { Params.d; tproj; log_hetero_skedasticity; log_multiscales_m05; _ } =
+        { Params.d; tproj; log_hetero_skedasticity; log_multiscales_m05 } =
           params
       in
       let m = Mat.dim2 inducing in
@@ -351,7 +348,7 @@ module Deriv = struct
           failwithf "Deriv.Hyper.option_get_value: %s not supported" name ()
       | Some v -> v
 
-    let get_value { Eval.Kernel.params; _ } inducing _inputs = function
+    let get_value { Eval.Kernel.params } inducing _inputs = function
       | `Log_sf2 -> params.Params.log_sf2
       | `Proj { Proj_hyper.big_dim; small_dim } ->
           (option_get_value "tproj" params.Params.tproj).{big_dim, small_dim}
@@ -363,7 +360,7 @@ module Deriv = struct
             "log_multiscales_m05" params.Params.log_multiscales_m05).{dim, ind}
       | `Inducing_hyper { Inducing_hyper.ind; dim } -> inducing.{dim, ind}
 
-    let set_values { Eval.Kernel.params; _ } inducing inputs hypers values =
+    let set_values { Eval.Kernel.params } inducing inputs hypers values =
       let log_sf2_ref = ref params.Params.log_sf2 in
       let lazy_opt name f opt_v = lazy (f (option_get_value name opt_v)) in
       let tproj_lazy = lazy_opt "tproj" lacpy params.Params.tproj in

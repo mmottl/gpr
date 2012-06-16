@@ -23,7 +23,6 @@
 
 open Utils
 open Interfaces
-open Specs
 
 open Core.Std
 open Bigarray
@@ -93,7 +92,6 @@ module Make_common (Spec : Specs.Eval) = struct
       choose kernel inputs indexes
 
     let get_kernel inducing = inducing.kernel
-    let get_upper inducing = inducing.km
     let get_points inducing = inducing.points
   end
 
@@ -102,10 +100,8 @@ module Make_common (Spec : Specs.Eval) = struct
     type t = { inducing : Inducing.t; point : Spec.Input.t; k_m : vec }
 
     let calc inducing point =
-      let { Inducing.kernel; points = inducing_points; _ } = inducing in
+      let { Inducing.kernel; points = inducing_points } = inducing in
       { inducing; point; k_m = Spec.Input.eval kernel point inducing_points }
-
-    let get_kernel t = t.inducing.Inducing.kernel
   end
 
   (* Evaluation of input points *)
@@ -115,7 +111,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_internal points inducing knm = { inducing; points; knm }
 
     let calc points inducing =
-      let { Inducing.kernel; points = inducing_points; _ } = inducing in
+      let { Inducing.kernel; points = inducing_points } = inducing in
       let knm =
         Inputs.calc_cross kernel ~inputs:points ~inducing:inducing_points
       in
@@ -130,7 +126,6 @@ module Make_common (Spec : Specs.Eval) = struct
       Kernel.create (
         Spec.Inputs.create_default_kernel_params inputs ~n_inducing)
 
-    let get_km t = t.inducing.Inducing.km
     let get_chol_km t = t.inducing.Inducing.chol_km
     let get_log_det_km t = t.inducing.Inducing.log_det_km
     let get_knm t = t.knm
@@ -227,7 +222,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc inputs ~sigma2 =
       calc_with_kn_diag inputs sigma2 (Inputs.calc_diag inputs)
 
-    let update_sigma2 { inputs; kn_diag; v_mat; r_vec; _ } sigma2 =
+    let update_sigma2 { inputs; kn_diag; v_mat; r_vec } sigma2 =
       check_sigma2 sigma2;
       calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
@@ -236,7 +231,6 @@ module Make_common (Spec : Specs.Eval) = struct
     let get_v_mat model = model.v_mat
     let get_inducing model = model.inputs.Inputs.inducing
     let get_inducing_points model = Inducing.get_points (get_inducing model)
-    let get_upper model = Inducing.get_upper (get_inducing model)
     let get_inputs model = model.inputs
     let get_input_points model = model.inputs.Inputs.points
     let get_kernel model = (get_inducing model).Inducing.kernel
@@ -258,11 +252,8 @@ module Make_common (Spec : Specs.Eval) = struct
   module Variational_model = struct
     include Common_model
 
-    let from_common ({ r_vec; is_vec; l1; _ } as model) =
+    let from_common ({ r_vec; is_vec; l1 } as model) =
       { model with l1 = l1 +. -0.5 *. dot ~x:is_vec r_vec }
-
-    let calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec =
-      from_common (calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec)
 
     let calc_with_kn_diag inputs sigma2 kn_diag =
       from_common (calc_with_kn_diag inputs sigma2 kn_diag)
@@ -304,9 +295,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_means trained =
       gemv (Common_model.get_knm trained.model) trained.coeffs
 
-    let get_kernel trained = Common_model.get_kernel trained.model
     let get_inducing trained = Common_model.get_inducing trained.model
-    let get_upper trained = Common_model.get_upper trained.model
     let get_targets trained = trained.y
     let get_model trained = trained.model
   end
@@ -324,9 +313,9 @@ module Make_common (Spec : Specs.Eval) = struct
         maxad : float;
       }
 
-    let calc_n_samples { Trained.y; _ } = Vec.dim y
+    let calc_n_samples { Trained.y } = Vec.dim y
 
-    let calc_target_variance { Trained.y; _ } =
+    let calc_target_variance { Trained.y } =
       Vec.sqr_nrm2 y /. float (Vec.dim y)
 
     let calc_sse trained =
@@ -344,7 +333,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let prior_l = calc_prior_l (calc_target_variance trained) in
       prior_l -. trained.Trained.l /. float (calc_n_samples trained)
 
-    let calc_mad ({ Trained.y; _ } as trained) =
+    let calc_mad ({ Trained.y } as trained) =
       let n_samples = Vec.dim y in
       let f_samples = float n_samples in
       let means = Trained.calc_means trained in
@@ -354,7 +343,7 @@ module Make_common (Spec : Specs.Eval) = struct
       in
       loop 0. n_samples
 
-    let calc_maxad ({ Trained.y; _ } as trained) =
+    let calc_maxad ({ Trained.y } as trained) =
       let means = Trained.calc_means trained in
       let rec loop maxad i =
         if i = 0 then maxad
@@ -362,7 +351,7 @@ module Make_common (Spec : Specs.Eval) = struct
       in
       loop 0. (Vec.dim y)
 
-    let calc ({ Trained.y; l; _ } as trained) =
+    let calc ({ Trained.y; l } as trained) =
       let n_samples = Vec.dim y in
       let f_samples = float n_samples in
       let target_variance = calc_target_variance trained in
@@ -477,7 +466,7 @@ module Make_common (Spec : Specs.Eval) = struct
       else
         let variance =
           let
-            { Co_variance_predictor.kernel; chol_km; r_mat; _ } =
+            { Co_variance_predictor.kernel; chol_km; r_mat } =
               co_variance_predictor
           in
           let tmp = copy k_m in
@@ -521,7 +510,7 @@ module Make_common (Spec : Specs.Eval) = struct
           "Variances.calc: \
           co-variance predictor and inputs disagree about inducing points"
       else
-        let { Inputs.points; knm = ktm; _ } = inputs in
+        let { Inputs.points; knm = ktm } = inputs in
         let variances =
           let y = Inputs.calc_diag inputs in
           let tmp = lacpy ktm in
@@ -541,7 +530,7 @@ module Make_common (Spec : Specs.Eval) = struct
           predictive_variances
       | Some false -> variances
 
-    let get ?predictive { variances; sigma2; _ } =
+    let get ?predictive { variances; sigma2 } =
       get_common ?predictive ~variances ~sigma2
   end
 
@@ -570,7 +559,7 @@ module Make_common (Spec : Specs.Eval) = struct
           res
       | Some false -> covariances
 
-    let get ?predictive { covariances; sigma2; _ } =
+    let get ?predictive { covariances; sigma2 } =
       get_common ?predictive ~covariances ~sigma2
 
     let get_variances { points; covariances; sigma2 } =
@@ -594,9 +583,9 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc co_variance_predictor ~sigma2 inputs =
       check_inducing ~loc:"FITC" co_variance_predictor inputs;
-      let { Co_variance_predictor.chol_km; r_mat; _ } = co_variance_predictor in
+      let { Co_variance_predictor.chol_km; r_mat } = co_variance_predictor in
       let covariances = Inputs.calc_upper inputs in
-      let { Inputs.points; knm = ktm; _ } = inputs in
+      let { Inputs.points; knm = ktm } = inputs in
       let covariances =
         let tmp = lacpy ktm in
         trsm ~side:`R tmp ~a:chol_km;
@@ -627,7 +616,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let sigma2 = Common_model.get_sigma2 model in
       calc_common ~points ~sigma2 ~q_mat ~r_vec
 
-    let calc co_variance_predictor ~sigma2 ({ Inputs.knm = ktm; _ } as inputs) =
+    let calc co_variance_predictor ~sigma2 ({ Inputs.knm = ktm } as inputs) =
       check_inducing ~loc:"FIC" co_variance_predictor inputs;
       let kt_diag = Inputs.calc_diag inputs in
       let r_vec = Mat.syrk_diag ~alpha:~-.1. ktm ~beta:1. ~y:kt_diag in
@@ -711,10 +700,6 @@ module Make_common (Spec : Specs.Eval) = struct
       samples
   end
 end
-
-module FIC_Loc = struct let loc = "FIC" end
-module Variational_FITC_Loc = struct let loc = "Variational_FITC" end
-module Variational_FIC_Loc = struct let loc = "Variational_FIC" end
 
 let fitc_loc = "FITC"
 let fic_loc = "FIC"
@@ -870,8 +855,6 @@ module type Deriv_sig = functor (Spec : Specs.Deriv) ->
 (* Computations shared by FIC and FITC, and standard and variational
    version for derivatives *)
 module Make_common_deriv (Spec : Specs.Deriv) = struct
-  open Spec
-
   (* Eval modules *)
 
   module Eval_common = Make_common (Spec.Eval)
@@ -904,7 +887,6 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       let calc_eval inducing = inducing.eval
       let get_kernel inducing = Eval_inducing.get_kernel inducing.eval
-      let get_points inducing = Eval_inducing.get_points inducing.eval
     end
 
     (* Derivative of inputs *)
@@ -1092,7 +1074,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let calc_eval model = model.eval_model
       let calc inputs ~sigma2 = calc_common Standard inputs sigma2
 
-      let update_sigma2 ({ model_kind; _ } as model) sigma2 =
+      let update_sigma2 ({ model_kind } as model) sigma2 =
         let update_sigma2 =
           match model_kind with
           | Standard -> Eval_model.update_sigma2
@@ -1101,7 +1083,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_model = update_sigma2 model.eval_model sigma2 in
         calc_internal model_kind model.model_shared eval_model model.inv_km
 
-      let calc_v1_vec { q_diag; eval_model; model_kind; _ } =
+      let calc_v1_vec { q_diag; eval_model; model_kind } =
         let is_vec = Eval_model.get_is_vec eval_model in
         let n = Vec.dim is_vec in
         let v1_vec = Vec.create n in
@@ -1119,7 +1101,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (* Derivative of sigma2 *)
 
-      let common_calc_log_evidence_sigma2 { eval_model; model_kind; _ } v_vec =
+      let common_calc_log_evidence_sigma2 { eval_model; model_kind } v_vec =
         let sum_v_vec = Vec.sum v_vec in
         let sum =
           match model_kind with
@@ -1133,7 +1115,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (* Prepare derivative of general hyper-parameters *)
 
-      let prepare_hyper ({ eval_model; t_mat; model_shared; _ } as model) =
+      let prepare_hyper ({ eval_model; t_mat; model_shared } as model) =
         let v_vec = calc_v1_vec model in
         let sqrt_v_vec = Vec.sqrt v_vec in
         let u_mat, x_mat = Shared.calc_us_mat eval_model in
@@ -1190,13 +1172,13 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       (* Derivative of sigma2 *)
 
-      let calc_log_evidence_sigma2 { common_model; v_vec; _ } =
+      let calc_log_evidence_sigma2 { common_model; v_vec } =
         Cm.common_calc_log_evidence_sigma2 common_model v_vec
 
       (* Derivative of general hyper-parameters *)
 
       let prepare_hyper { common_model; eval_trained; w_vec; v_vec } =
-        let { Cm.eval_model; t_mat; model_shared = shared; _ } = common_model in
+        let { Cm.eval_model; t_mat; model_shared = shared } = common_model in
         let u_mat, x_mat = Shared.calc_us_mat eval_model in
         let t_vec = eval_trained.Eval_trained.coeffs in
         let w_mat =
