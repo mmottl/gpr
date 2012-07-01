@@ -1,7 +1,0 @@
-open build/OCaml
-
-include $(STDROOT)
-
-DefineCommandVars()
-
-.SUBDIRS: .
