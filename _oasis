@@ -1,0 +1,58 @@
+OASISFormat:      0.3
+OCamlVersion:     >= 4.00
+Name:             gpr
+Version:          0.13
+Synopsis:         GPR - Library and Application for Gaussian Process Regression
+Authors:          Markus Mottl <markus.mottl@gmail.com>
+License:          LGPL-2.1+ with OCaml linking exception
+Plugins:          META (0.3), StdFiles (0.3), DevFiles (0.3)
+Homepage:         http://www.bitbucket.org/mmottl/gpr
+XStdFilesREADME:  false
+XStdFilesAUTHORS: false
+PostDistcleanCommand: $rmdir test/data
+
+Library gpr
+  Path:           lib
+  FindlibName:    gpr
+  Pack:           true
+  Modules:        Interfaces,
+                  Utils,
+                  Block_diag,
+                  Cov_const,
+                  Cov_lin_ard,
+                  Cov_lin_one,
+                  Cov_se_iso,
+                  Cov_se_fat,
+                  Fitc_gp
+  BuildTools:     ocamlbuild
+  BuildDepends:   threads, core, lacaml, gsl
+
+Executable ocaml_gpr
+  Path:           app
+  MainIs:         ocaml_gpr.ml
+  BuildDepends:   gpr, str
+  CompiledObject: best
+  BuildTools:     ocamlbuild
+
+Executable test_derivatives
+  Path:               test
+  MainIs:             test_derivatives.ml
+  Build$:             flag(tests)
+  Install:            false
+  BuildDepends:       gpr
+  BuildTools:         ocamlbuild
+  CompiledObject:     best
+
+Executable save_data
+  Path:               test
+  MainIs:             save_data.ml
+  Build$:             flag(tests)
+  Install:            false
+  BuildDepends:       gpr
+  BuildTools:         ocamlbuild
+  CompiledObject:     best
+
+Test test_derivatives
+  Run$:               flag(tests)
+  Command:            $test_derivatives
+  WorkingDirectory:   test

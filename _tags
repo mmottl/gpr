@@ -1,0 +1,62 @@
+# OASIS_START
+# DO NOT EDIT (digest: 1c724db7e1aa2e7925376bc58b871898)
+# Ignore VCS directories, you can use the same kind of rule outside 
+# OASIS_START/STOP if you want to exclude directories that contains 
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library gpr
+"lib/gpr.cmxs": use_gpr
+"lib/interfaces.cmx": for-pack(Gpr)
+"lib/utils.cmx": for-pack(Gpr)
+"lib/block_diag.cmx": for-pack(Gpr)
+"lib/cov_const.cmx": for-pack(Gpr)
+"lib/cov_lin_ard.cmx": for-pack(Gpr)
+"lib/cov_lin_one.cmx": for-pack(Gpr)
+"lib/cov_se_iso.cmx": for-pack(Gpr)
+"lib/cov_se_fat.cmx": for-pack(Gpr)
+"lib/fitc_gp.cmx": for-pack(Gpr)
+<lib/*.ml{,i}>: pkg_threads
+<lib/*.ml{,i}>: pkg_core
+<lib/*.ml{,i}>: pkg_lacaml
+<lib/*.ml{,i}>: pkg_gsl
+# Executable ocaml_gpr
+<app/ocaml_gpr.{native,byte}>: use_gpr
+<app/ocaml_gpr.{native,byte}>: pkg_str
+<app/ocaml_gpr.{native,byte}>: pkg_threads
+<app/ocaml_gpr.{native,byte}>: pkg_core
+<app/ocaml_gpr.{native,byte}>: pkg_lacaml
+<app/ocaml_gpr.{native,byte}>: pkg_gsl
+<app/*.ml{,i}>: use_gpr
+<app/*.ml{,i}>: pkg_str
+<app/*.ml{,i}>: pkg_threads
+<app/*.ml{,i}>: pkg_core
+<app/*.ml{,i}>: pkg_lacaml
+<app/*.ml{,i}>: pkg_gsl
+# Executable test_derivatives
+<test/test_derivatives.{native,byte}>: use_gpr
+<test/test_derivatives.{native,byte}>: pkg_threads
+<test/test_derivatives.{native,byte}>: pkg_core
+<test/test_derivatives.{native,byte}>: pkg_lacaml
+<test/test_derivatives.{native,byte}>: pkg_gsl
+# Executable save_data
+<test/save_data.{native,byte}>: use_gpr
+<test/save_data.{native,byte}>: pkg_threads
+<test/save_data.{native,byte}>: pkg_core
+<test/save_data.{native,byte}>: pkg_lacaml
+<test/save_data.{native,byte}>: pkg_gsl
+<test/*.ml{,i}>: use_gpr
+<test/*.ml{,i}>: pkg_threads
+<test/*.ml{,i}>: pkg_core
+<test/*.ml{,i}>: pkg_lacaml
+<test/*.ml{,i}>: pkg_gsl
+# OASIS_STOP
+<**/*.ml{,i}>: warn_A, warn_e, warn_r

@@ -1,6 +1,12 @@
-name="gpr"
-version="0.12.0"
-description="Gaussian Process Regression"
-requires="gsl,lacaml,threads,core"
-archive(byte)="gpr.cma"
-archive(native)="gpr.cmxa"
+# OASIS_START
+# DO NOT EDIT (digest: d105a5bdd905b0a18e41e801118c94d2)
+version = "0.13"
+description = "GPR - Library and Application for Gaussian Process Regression"
+requires = "threads core lacaml gsl"
+archive(byte) = "gpr.cma"
+archive(byte, plugin) = "gpr.cma"
+archive(native) = "gpr.cmxa"
+archive(native, plugin) = "gpr.cmxs"
+exists_if = "gpr.cma"
+# OASIS_STOP
+
