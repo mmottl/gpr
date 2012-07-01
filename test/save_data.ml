@@ -25,7 +25,6 @@ open Core.Std
 open Lacaml.D
 
 open Gpr
-open Utils
 
 open Gen_data
 
@@ -37,7 +36,7 @@ module SMD = GP.FITC.Deriv.Optim.SMD
 let main () =
   Random.self_init ();
 
-  begin try Unix.mkdir "data" ~perm:0o755 with _ -> () end;
+  begin try Unix.mkdir "test/data" ~perm:0o755 with _ -> () end;
 
   write_mat "inputs" training_inputs;
   write_vec "targets" training_targets;

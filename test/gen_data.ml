@@ -48,3 +48,12 @@ let get_data ?with_noise n =
   inputs, targets
 
 let training_inputs, training_targets = get_data ~with_noise:true n_inputs
+
+let gen_write pp file obj =
+  let oc = open_out (Filename.concat "test/data" file) in
+  Format.fprintf (Format.formatter_of_out_channel oc) "%a@." pp obj;
+  close_out oc
+
+let write_float file = gen_write Format.pp_print_float file
+let write_vec file = gen_write pp_vec file
+let write_mat file = gen_write pp_mat file

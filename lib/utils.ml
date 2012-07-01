@@ -59,15 +59,6 @@ let timing name f =
   Format.printf "%s %.2f@." name (t2.Unix.tms_utime -. t1.Unix.tms_utime);
   res
 
-let gen_write pp file obj =
-  let oc = open_out (Filename.concat "data" file) in
-  Format.fprintf (Format.formatter_of_out_channel oc) "%a@." pp obj;
-  close_out oc
-
-let write_float file = gen_write Format.pp_print_float file
-let write_vec file = gen_write pp_vec file
-let write_mat file = gen_write pp_mat file
-
 
 (* General matrix functions *)
 
