@@ -1,0 +1,12 @@
+# OASIS_START
+# DO NOT EDIT (digest: 6e717a1bed5b6942fd1469d04916bc60)
+lib/Interfaces
+lib/Utils
+lib/Block_diag
+lib/Cov_const
+lib/Cov_lin_ard
+lib/Cov_lin_one
+lib/Cov_se_iso
+lib/Cov_se_fat
+lib/Fitc_gp
+# OASIS_STOP

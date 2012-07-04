@@ -56,3 +56,11 @@ Test test_derivatives
   Run$:               flag(tests)
   Command:            $test_derivatives
   WorkingDirectory:   test
+
+Document API
+  Title:           API reference for GPR
+  Type:            OCamlbuild (0.3)
+  InstallDir:      $docdir/api
+  BuildTools:      ocamldoc, ocamlbuild
+  XOCamlbuildPath: .
+  XOCamlbuildLibraries: gpr
