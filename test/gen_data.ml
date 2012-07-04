@@ -34,7 +34,7 @@ let noise_sigma2 = noise_sigma *. noise_sigma
 let f ?(with_noise = false) x =
   let v = (sin (3. *. x)) /. x +. abs_float (x -. 3.) /. (x *. x +. 1.) in
   if with_noise then
-    v +. Gsl_randist.gaussian Utils.default_rng ~sigma:noise_sigma
+    v +. Gsl.Randist.gaussian Utils.default_rng ~sigma:noise_sigma
   else v
 
 let get_data ?with_noise n =

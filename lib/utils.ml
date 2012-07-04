@@ -42,7 +42,7 @@ type fast_float_ref = { mutable x : float }
 let pi = 4. *. atan 1.
 let log_2pi = log (pi +. pi)
 
-let default_rng = Gsl_rng.make (Gsl_rng.default ())
+let default_rng = Gsl.Rng.make (Gsl.Rng.default ())
 
 
 (* Testing and I/O functionality *)

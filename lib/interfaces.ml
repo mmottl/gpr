@@ -597,14 +597,14 @@ module Sigs = struct
 
           @param [rng] default = GSL default
       *)
-      val sample : ?rng : Gsl_rng.t -> t -> float
+      val sample : ?rng : Gsl.Rng.t -> t -> float
 
       (** [samples ?rng sampler ~n] @return [n] samples from the posterior
           distribution given [sampler].
 
           @param [rng] default = GSL default
       *)
-      val samples : ?rng : Gsl_rng.t -> t -> n : int -> vec
+      val samples : ?rng : Gsl.Rng.t -> t -> n : int -> vec
     end
 
     (** Module for sampling (multiple) points from the posterior distribution
@@ -621,14 +621,14 @@ module Sigs = struct
 
           @param [rng] default = GSL default
       *)
-      val sample : ?rng : Gsl_rng.t -> t -> vec
+      val sample : ?rng : Gsl.Rng.t -> t -> vec
 
       (** [samples ?rng sampler ~n] @return matrix of [n] sample vectors (stored
           row-wise) from the posterior distribution given [sampler].
 
           @param [rng] default = GSL default
       *)
-      val samples : ?rng : Gsl_rng.t -> t -> n : int -> mat
+      val samples : ?rng : Gsl.Rng.t -> t -> n : int -> mat
     end
   end
 

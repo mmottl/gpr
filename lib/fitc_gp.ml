@@ -645,7 +645,7 @@ module Make_common (Spec : Specs.Eval) = struct
       { mean = mean.Mean.value; stddev = sqrt used_variance }
 
     let sample ?(rng = default_rng) sampler =
-      let noise = Gsl_randist.gaussian_ziggurat rng ~sigma:sampler.stddev in
+      let noise = Gsl.Randist.gaussian_ziggurat rng ~sigma:sampler.stddev in
       sampler.mean +. noise
 
     let samples ?(rng = default_rng) sampler ~n =
@@ -679,7 +679,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let sample ?(rng = default_rng) samplers =
       let n = Vec.dim samplers.means in
       let sample =
-        Vec.init n (fun _ -> Gsl_randist.gaussian_ziggurat rng ~sigma:1.)
+        Vec.init n (fun _ -> Gsl.Randist.gaussian_ziggurat rng ~sigma:1.)
       in
       trmv ~trans:`T samplers.cov_chol sample;
       axpy ~x:samplers.means sample;
@@ -689,7 +689,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let n_means = Vec.dim means in
       let samples =
         Mat.init_cols n_means n (fun _ _ ->
-          Gsl_randist.gaussian_ziggurat rng ~sigma:1.)
+          Gsl.Randist.gaussian_ziggurat rng ~sigma:1.)
       in
       trmm ~transa:`T ~a:cov_chol samples;
       for col = 1 to n do
@@ -1520,18 +1520,18 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let n_gsl_hypers, gsl_hypers =
             if learn_sigma2 then
               let n_gsl_hypers = 1 + n_hypers in
-              let gsl_hypers = Gsl_vector.create n_gsl_hypers in
+              let gsl_hypers = Gsl.Vector.create n_gsl_hypers in
               gsl_hypers.{0} <- log sigma2;
               for i = 1 to n_hypers do gsl_hypers.{i} <- hyper_vals.{i} done;
               n_gsl_hypers, gsl_hypers
             else
-              let gsl_hypers = Gsl_vector.create n_hypers in
+              let gsl_hypers = Gsl.Vector.create n_hypers in
               for i = 1 to n_hypers do
                 gsl_hypers.{i - 1} <- hyper_vals.{i}
               done;
               n_hypers, gsl_hypers
            in
-          let module Gd = Gsl_multimin.Deriv in
+          let module Gd = Gsl.Multimin.Deriv in
           let sigma2_ref = ref sigma2 in
           let update_hypers =
             if learn_sigma2 then
@@ -1618,18 +1618,18 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let multim_fdf ~x ~g =
             wrap_seen_exception (fun () -> multim_fdf ~x ~g)
           in
-          let multim_fun_fdf = { Gsl_fun.multim_f; multim_df; multim_fdf } in
+          let multim_fun_fdf = { Gsl.Fun.multim_f; multim_df; multim_fdf } in
           let mumin =
             Gd.make Gd.VECTOR_BFGS2 n_gsl_hypers
               multim_fun_fdf ~x:gsl_hypers ~step ~tol
           in
-          let gsl_dhypers = Gsl_vector.create n_gsl_hypers in
+          let gsl_dhypers = Gsl.Vector.create n_gsl_hypers in
           let rec loop () =
             let neg_log_likelihood =
               Gd.minimum ~x:gsl_hypers ~g:gsl_dhypers mumin
             in
             check_exception seen_exception_ref neg_log_likelihood;
-            let gnorm = Gsl_blas.nrm2 gsl_dhypers in
+            let gnorm = Gsl.Blas.nrm2 gsl_dhypers in
             begin
               try report_gradient_norm ~iter:!iter_count gnorm
               with exc -> raise (Optim_exception exc)
