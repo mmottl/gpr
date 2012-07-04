@@ -595,14 +595,14 @@ module Sigs = struct
       (** [sample ?rng sampler] @return a sample from the posterior distribution
           given [sampler] and GSL random number generator [rng].
 
-          @param [rng] default = GSL default
+          @param rng default = GSL default
       *)
       val sample : ?rng : Gsl.Rng.t -> t -> float
 
       (** [samples ?rng sampler ~n] @return [n] samples from the posterior
           distribution given [sampler].
 
-          @param [rng] default = GSL default
+          @param rng default = GSL default
       *)
       val samples : ?rng : Gsl.Rng.t -> t -> n : int -> vec
     end
@@ -619,14 +619,14 @@ module Sigs = struct
       (** [sample ?rng sampler] @return a sample vector from the posterior
           distribution given [sampler] and GSL random number generator [rng].
 
-          @param [rng] default = GSL default
+          @param rng default = GSL default
       *)
       val sample : ?rng : Gsl.Rng.t -> t -> vec
 
       (** [samples ?rng sampler ~n] @return matrix of [n] sample vectors (stored
           row-wise) from the posterior distribution given [sampler].
 
-          @param [rng] default = GSL default
+          @param rng default = GSL default
       *)
       val samples : ?rng : Gsl.Rng.t -> t -> n : int -> mat
     end
