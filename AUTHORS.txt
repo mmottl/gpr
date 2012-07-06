@@ -1,0 +1,8 @@
+(* OASIS_START *)
+(* DO NOT EDIT (digest: d5b7cfbef6452ae255b061c7745dfbe0) *)
+Authors of gpr
+Markus Mottl <markus.mottl@gmail.com>
+
+Current maintainers of gpr
+Markus Mottl <markus.mottl@gmail.com>
+(* OASIS_STOP *)

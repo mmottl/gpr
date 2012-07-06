@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1c724db7e1aa2e7925376bc58b871898)
+# DO NOT EDIT (digest: ce9c9627b1595c7c47657cd1d36d4afb)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -24,6 +24,7 @@
 "lib/cov_se_iso.cmx": for-pack(Gpr)
 "lib/cov_se_fat.cmx": for-pack(Gpr)
 "lib/fitc_gp.cmx": for-pack(Gpr)
+"lib/version.cmx": for-pack(Gpr)
 <lib/*.ml{,i}>: pkg_threads
 <lib/*.ml{,i}>: pkg_core
 <lib/*.ml{,i}>: pkg_lacaml
