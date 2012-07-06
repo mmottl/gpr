@@ -491,7 +491,7 @@ let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
 let () =
   let additional_rules = function
-    | After_rules -> flag ["compile"; "ocaml"] (S [A "-strict-sequence" ])
+    | After_rules -> flag ["compile"; "ocaml"] (S [A "-strict-sequence"])
     | _ -> ()
   in
   dispatch
