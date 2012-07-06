@@ -1,9 +1,6 @@
----------------------------------------------------------------------------
+Applications that are part of this distribution are subject to the terms of
+the GNU General Public License version 3 (see file GPL.txt).
 
-Applications that are part of this distribution are subject to the
-GNU General Public License version 3 (see GPL.txt).
-
----------------------------------------------------------------------------
-
-The GPR-library is distributed under the terms of the GNU Lesser General
-Public License version 2.1 with the OCaml linking exception (see LGPL.txt).
+Libraries that are part of this distribution are subject to the terms of the
+GNU Lesser General Public License version 2.1 with the OCaml linking exception
+(see file LGPL.txt).
