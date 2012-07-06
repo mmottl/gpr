@@ -59,4 +59,4 @@
 <test/*.ml{,i}>: pkg_lacaml
 <test/*.ml{,i}>: pkg_gsl
 # OASIS_STOP
-<**/*.ml{,i}>: warn_A, warn_e, warn_r
+<**/*.ml{,i}>: warn_A, warn_e, warn_r, annot
