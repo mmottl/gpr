@@ -8,7 +8,5 @@
 ^.*\.swp$
 ^setup\.(log|data)$
 ^_build/.*$
-^ocaml_gpr\.native$
-^test_derivatives\.native$
-^save_data\.native$
+^.*\.native$
 ^API\.docdir$
