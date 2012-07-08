@@ -18,6 +18,8 @@ Plugins:          META (0.3), StdFiles (0.3), DevFiles (0.3)
 XStdFilesREADME:  false
 PostDistcleanCommand: $rmdir test/data
 
+BuildTools:       ocamlbuild, ocamldoc
+
 Library gpr
   Path:           lib
   FindlibName:    gpr
@@ -32,7 +34,6 @@ Library gpr
                   Cov_se_fat,
                   Fitc_gp,
                   Version
-  BuildTools:     ocamlbuild
   BuildDepends:   threads, core, lacaml, gsl
 
 Executable ocaml_gpr
@@ -40,7 +41,6 @@ Executable ocaml_gpr
   MainIs:         ocaml_gpr.ml
   BuildDepends:   gpr, str
   CompiledObject: best
-  BuildTools:     ocamlbuild
 
 Executable test_derivatives
   Path:               test
@@ -48,7 +48,6 @@ Executable test_derivatives
   Build$:             flag(tests)
   Install:            false
   BuildDepends:       gpr
-  BuildTools:         ocamlbuild
   CompiledObject:     best
 
 Executable save_data
@@ -57,7 +56,6 @@ Executable save_data
   Build$:             flag(tests)
   Install:            false
   BuildDepends:       gpr
-  BuildTools:         ocamlbuild
   CompiledObject:     best
 
 Test test_derivatives
@@ -71,7 +69,6 @@ Document API
   Title:                API reference for GPR
   Type:                 OCamlbuild (0.3)
   InstallDir:           $docdir/api
-  BuildTools:           ocamldoc, ocamlbuild
   XOCamlbuildPath:      .
   XOCamlbuildLibraries: gpr
 

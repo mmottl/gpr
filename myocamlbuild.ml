@@ -494,7 +494,9 @@ let () =
     | After_rules -> flag ["compile"; "ocaml"] (S [A "-strict-sequence"])
     | _ -> ()
   in
-  dispatch
-    (MyOCamlbuildBase.dispatch_combine [
-         MyOCamlbuildBase.dispatch_default package_default;
-         additional_rules ])
+  dispatch (
+    MyOCamlbuildBase.dispatch_combine [
+      MyOCamlbuildBase.dispatch_default package_default;
+      additional_rules
+    ]
+  )
