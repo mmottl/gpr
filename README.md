@@ -9,7 +9,7 @@ Gaussian process to a nonlinear function:
   ![Sparse Gaussian Process](https://bitbucket.org/mmottl/gpr/downloads/fit.png)
 
 Please refer to the
-[manual](https://bitbucket.org/mmottl/gpr/downloads/manual.pdf) for further
+[GPR manual](https://bitbucket.org/mmottl/gpr/downloads/gpr_manual.pdf) for further
 details.
 
 Markus Mottl in Rutherford, NJ on July 08, 2012
