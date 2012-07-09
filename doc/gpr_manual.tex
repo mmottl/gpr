@@ -2,6 +2,7 @@
 
 % PACKAGES
 \usepackage[usenames]{color}
+\usepackage{graphicx}
 
 \newcommand{\mail}{\mailto{markus.mottl@gmail.com}}
 \newcommand{\athome}[2]{\ahref{http://www.ocaml.info/#1}{#2}}
@@ -39,7 +40,8 @@
 
 \begin{titlepage}
 
-\title{\footahref{http://www.ocaml.info/home/ocaml\_sources.html\#gpr}{Gaussian Process Regression with OCaml}\\Version 0.9.3}
+\title{\footahref{https://bitbucket.org/mmottl/gpr}{Gaussian Process Regression
+with OCaml}\\Version 0.9.3}
 \author{Markus Mottl\footnote{\mail}}
 
 \date{\today}
@@ -68,19 +70,20 @@ Gaussian process regression.
 
 \section{Background}
 
-Gaussian processes define probability distributions over functions.  This allows
-us to apply probabilistic reasoning to problems where we are dealing with
-\emph{latent functions}, i.e.\ functions that cannot be directly observed or
-known with certainty.  By specifying prior knowledge about these distributions
-in form of a mean function and a \emph{covariance function}\footnote{Sometimes
-also called a \emph{kernel}.} and making use of Bayes' theorem, Gaussian
-processes provide us with a rigorous nonparametric way of computing posterior
-distributions over latent functions given data, e.g.\ to solve regression
-problems\footnote{Gaussian processes can also be used for classification
-purposes.  This is by itself a large research area, which is not covered by this
-library.}.  As more data becomes available, the Gaussian process framework
-learns an ever more accurate reflection of the probability distribution of
-latent functions that probably generate the observed data.\\
+Gaussian processes define probability distributions over functions.
+This allows us to apply probabilistic reasoning to problems where we are
+dealing with \emph{latent functions}, i.e.\ functions that cannot be directly
+observed or known with certainty.  By specifying prior knowledge about
+these distributions in form of a \emph{mean} function and a \emph{covariance
+function}\footnote{Sometimes also called a \emph{kernel}.} and making use of
+Bayes' theorem, Gaussian processes provide us with a rigorous nonparametric
+way of computing posterior distributions over latent functions given data,
+e.g.\ to solve regression problems\footnote{Gaussian processes can also be
+used for classification purposes.  This is by itself a large research area,
+which is not covered by this library.}.  As more data becomes available,
+the Gaussian process framework learns an ever more accurate reflection of
+the probability distribution of latent functions that probably generate the
+observed data.\\
 
 Due to their mathematically elegant nature, Gaussian processes allow for
 analytically tractable calculation of the posterior mean and covariance
@@ -91,12 +94,12 @@ time.  Efficient approximation methods have been developed in the recent past to
 address this shortcoming, and this library makes heavy use of them.\\
 
 Gaussian processes are true generalizations of e.g.\ linear regression, ARMA
-processes, single-layer neural networks with an infinite number of hidden units,
-and many other more widely known approaches and modeling techniques.  GPs are
-closely related to support vector- (SVM) and other kernel machines, but have
-features that may make them a more suitable choice in many situations.  For
-example they offer predictive variances, Bayesian model selection, sampling from
-the posterior distribution, etc.\\
+processes, single-layer neural networks with an infinite number of hidden
+units, and many other more widely known approaches and modeling techniques.
+GPs are closely related to support vector (SVM) and other kernel machines, but
+have features that may make them a more suitable choice in many situations.
+For example they offer predictive variances, Bayesian model selection,
+sampling from the posterior distribution, etc.\\
 
 It would go beyond the scope of this library documentation to provide for a
 detailed treatment of Gaussian processes.  Hence, readers unfamiliar with this
@@ -146,10 +149,10 @@ field.
 \emph{\footahref{http://www.gatsby.ucl.ac.uk/\home{snelson}/thesis.pdf}{Flexible
 and efficient Gaussian process models for machine learning}}: Edward Lloyd
 Snelson's PhD thesis \cite{SnelsonThesis} offers a particularly readable
-treatment of modern inference and approximation techniques that avoids heavy
-formalism in favor of intuitive notation and clearly presented high-level
-concepts without sacrificing detail needed for implementation.  This library
-owes a lot to his work.
+treatment of modern inference and approximation techniques for Gaussian
+processes that avoids heavy formalism in favor of intuitive notation and
+clearly presented high-level concepts without sacrificing detail needed
+for implementation.  This library owes a lot to his work.
 
 \item \emph{\footahref{http://www.gaussianprocess.org/gpml}{Gaussian Processes
 for Machine Learning}}: many researchers in this area would call this book
@@ -165,7 +168,7 @@ practitioners.
 
 \item \emph{Pattern Recognition and Machine Learning}: this book
 \cite{BishopMachLearn} by Christopher M.\ Bishop thoroughly introduces the
-reader to the field of machine learning, especially to Bayesian methods and
+reader to the field of machine learning, especially to Bayesian methods,
 including Gaussian processes.
 
 \item \emph{Matrix Analysis and Applied Linear Algebra}: readers who would like
@@ -205,8 +208,8 @@ derivative matrices for the marginal log likelihood.}).  The limited memory
 BFGS2 algorithm in the \footahref{http://www.gnu.org/software/gsl}{GNU
 scientific library} is employed for this purpose.
 
-\item Supervised dimensionality reduction, and improved predictions under
-heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
+\item Supervised dimensionality reduction and improved predictions
+under heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
 \cite{SnelsonThesis}).
 
 \item Sparse multiscale Gaussian process regression (see
@@ -219,8 +222,8 @@ heteroskedastic noise conditions (see \cite{conf/uai/SnelsonG06},
 more commonly used and numerically unstable solution of normal equations via
 Cholesky factorization (see \cite{Foster2009}).
 
-\item Consistent use of BLAS/LAPACK and C-code throughout key computational
-parts of the library for optimum performance and conciseness.
+\item Consistent use of bindings to BLAS/LAPACK and C-code throughout key
+computational parts of the library for optimum performance and conciseness.
 
 \item Functors for plugging arbitrary covariance functions into the framework.
 There is no constraint on the type of covariance functions, i.e.\ also string
@@ -363,32 +366,32 @@ The directory \verb=test= contains two applications.
 
 \subsection{Derivative testing}
 
-The application \verb=test_derivatives.opt= generates random data to run the
-internal test suite for checking the correctness of derivatives of the marginal
-log likelihood function for the ``fat'' squared exponential covariance function.
-It prints out the hyper parameters it is currently testing and would fail with
-an appropriate message if there were a problem.
+The application \verb=test_derivatives.native= generates random data to
+run the internal test suite for checking the correctness of derivatives of
+the marginal log likelihood function for the ``fat'' squared exponential
+covariance function.  It prints out the hyper parameters it is currently
+testing and would fail with an appropriate message if there were a problem.
 
 \subsection{Test case for learning}
 
-The application \verb=save_data.opt= evaluates random inputs on some known,
-nonlinear, one-dimensional function, adds noise, and then trains a Gaussian
-process to learn the function from the data.  The application writes out a
-number of results that can subsequently be visualized using
+The application \verb=save_data.native= evaluates random inputs on some
+known, nonlinear, one-dimensional function, adds noise, and then trains
+a Gaussian process to learn the function from the data.  The application
+writes out a number of results that can subsequently be visualized using
 \footahref{http://www.r-project.org}{R} and cross-verified with a simple
 \footahref{http://www.gnu.org/software/octave}{Octave} script.\\
 
-Just run \verb=save_data.opt=.  It will print out progress information while
-performing evidence maximization to find suitable hyper parameters and locations
-for inducing inputs.  This will not usually take more than a few seconds (often
-just a fraction) unless the randomly chosen initial state leads to a bad local
-optimum that is surrounded by an almost flat surface.  Just restart the run in
-this unlikely case.  Gaussian processes do not seem overly prone to overfitting,
-but depending on the problem and the chosen covariance function, evidence
-maximization may become trapped in local optima. These local optima can be
-interpreted as alternative solutions if they fit about equally well though. Once
-the application finishes, it will store results in the \verb=test/data=
-subdirectory.
+Just run \verb=save_data.native=.  It will print out progress information
+while performing evidence maximization to find suitable hyper parameters
+and locations for inducing inputs.  This will not usually take more than a
+few seconds (often just a fraction) unless the randomly chosen initial state
+leads to a bad local optimum that is surrounded by an almost flat surface.
+Just restart the run in this unlikely case.  Gaussian processes do not seem
+overly prone to overfitting, but depending on the problem and the chosen
+covariance function, evidence maximization may become trapped in local
+optima. These local optima can be interpreted as alternative solutions if
+they fit about equally well though. Once the application finishes, it will
+store results in the \verb=test/data= subdirectory.
 
 \subsubsection{Visualisation of results}
 
@@ -402,17 +405,22 @@ for this data by typing:
 This will visualize the data points, true mean and true confidence intervals,
 the inferred mean function and its confidence intervals, samples of candidate
 latent functions from the posterior distribution, locations of inducing inputs,
-etc.
+etc.  Here is an example:
+
+\begin{center}
+\includegraphics[width=12cm]{fit.png}
+\end{center}
 
 \subsubsection{Verification against Octave implementation}
 
-There is also a small test suite for comparing results of the OCaml library to
-equations written in Octave.  It, too, depends on the data saved above by
-\verb=save_data.opt=.  The Octave test suite does not use particularly efficient
-ways of computing its results, but is fairly simple and readable.  It calls
+There is also a small test suite for comparing results of
+the OCaml library to equations written in Octave.  It, too,
+depends on the data saved above by \verb=save_data.native=.
+The Octave test suite does not use particularly efficient ways of
+computing its results, but is fairly simple and readable.  It calls
 \footahref{http://www.gatsby.ucl.ac.uk/\home{}snelson/SPGP\_dist.tgz}{Edward
-Snelson's SPGP implementation} for reference.  The user may want to compile the
-more efficient \verb=dist.c= file from within Octave first:
+Snelson's SPGP implementation} for reference.  The user may want to compile
+the more efficient \verb=dist.c= file from within Octave first:
 
 \begin{verbatim}
   mex dist.c
@@ -426,13 +434,13 @@ more efficient \verb=dist.c= file from within Octave first:
 
 \section{Command-line tool}
 
-The application \verb=app/ocaml_gpr.opt= employs the OCaml GPR library for
-implementing a simple utility to train and evaluate Gaussian process models
-using the ``fat'' squared exponential covariance function and the variational
-improvement \cite{Titsias2009} for model selection.  It reads comma-separated
-values from standard input for both training and testing.  This application is
-considered to be an example only, but will likely be extended in the future for
-more serious usage.\\
+The application \verb=ocaml_gpr.native= employs the OCaml GPR library
+for implementing a simple utility to train and evaluate Gaussian process
+models using the ``fat'' squared exponential covariance function and the
+variational improvement \cite{Titsias2009} for model selection.  It reads
+comma-separated values from standard input for both training and testing.
+This application is considered to be an example only, but will likely be
+extended in the future for more serious usage.\\
 
 Datasets for regression problems that one may want to try out for testing can be
 downloaded from many sites, one of the most well-known being the
@@ -444,7 +452,7 @@ Repository}.
 Here is an example invocation:
 
 \begin{verbatim}
-  ocaml_gpr.opt -verbose -cmd train -model foo.model < data.csv
+  ocaml_gpr.native -verbose -cmd train -model foo.model < data.csv
 \end{verbatim}
 
 It is assumed that the file \verb=data.csv= is comma-separated and that the last
@@ -509,7 +517,7 @@ may be most suitable for a given problem.
 Here is an example on how to apply models to test sets:
 
 \begin{verbatim}
-  ocaml_gpr.opt -cmd test -model foo.model < test.csv
+  ocaml_gpr.native -cmd test -model foo.model < test.csv
 \end{verbatim}
 
 It is assumed that the test set only contains inputs in its columns.  The mean
@@ -741,6 +749,6 @@ l & = & l_1 + l_2 \\
 
 % BIBLIOGRAPHY
 \bibliographystyle{alpha}
-\bibliography{gpr}
+\bibliography{gpr_manual}
 
 \end{document}

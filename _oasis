@@ -72,6 +72,16 @@ Document API
   XOCamlbuildPath:      .
   XOCamlbuildLibraries: gpr
 
+Document gpr_manual
+  Title:        GPR manual
+  Type:         custom (0.3)
+  Install:      true
+  InstallDir:   $pdfdir
+  DataFiles:    doc/gpr_manual.pdf
+  XCustom:      make -C doc gpr_manual.pdf
+  XCustomClean: make -C doc clean
+  BuildTools:   make
+
 SourceRepository trunk
   Type:       hg
   Location:   ssh://hg@bitbucket.org/mmottl/gpr

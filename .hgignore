@@ -7,3 +7,4 @@
 ^doc/gpr.(dvi|log|pdf|fls|bbl|blg|toc)$
 ^.*\.native$
 ^API\.docdir$
+^doc/.*\.(aux|bbl|blg|log|pdf|toc)$
