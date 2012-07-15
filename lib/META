@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: d105a5bdd905b0a18e41e801118c94d2)
-version = "0.13"
+# DO NOT EDIT (digest: 39937569c7cf27116aa1cf598f840b02)
+version = "1.0.0"
 description = "GPR - Library and Application for Gaussian Process Regression"
 requires = "threads core lacaml gsl"
 archive(byte) = "gpr.cma"

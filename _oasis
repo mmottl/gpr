@@ -1,6 +1,6 @@
 OASISFormat:      0.3
 Name:             gpr
-Version:          0.13
+Version:          1.0.0
 Synopsis:         GPR - Library and Application for Gaussian Process Regression
 Description:      Gaussian process regression is a modern Bayesian approach to machine learning, and GPR implements some of the latest advances in this field
 Authors:          Markus Mottl <markus.mottl@gmail.com>
