@@ -194,7 +194,7 @@ module Deriv = struct
       let m = Mat.dim2 inducing in
       let n_inducing_hypers = d * m in
       let n_all_hypers = 2 + n_inducing_hypers in
-      let hypers = Array.create n_all_hypers `Log_ell in
+      let hypers = Array.create ~len:n_all_hypers `Log_ell in
       hypers.(1) <- `Log_sf2 ;
       for ind = 1 to m do
         let indd = (ind - 1) * d in

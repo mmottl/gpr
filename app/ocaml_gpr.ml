@@ -175,7 +175,7 @@ let read_samples () =
   | None -> failwith "no data"
   | Some line ->
       let conv_line line =
-        try Array.map ~f:float_of_string (split line)
+        try Array.map ~f:Float.of_string (split line)
         with exc -> Exn.reraisef exc "failure '%s' converting sample" line ()
       in
       let sample = conv_line line in
@@ -242,7 +242,7 @@ let write_model model_file ~target_mean ~input_means ~input_stddevs trained =
     }
   in
   Marshal.to_channel oc model [];
-  close_out oc
+  Out_channel.close oc
 
 exception Bailout
 
@@ -374,7 +374,7 @@ let read_test_samples big_dim =
 let read_model model_file : Model.t =
   let ic = open_in model_file in
   let model = Marshal.from_channel ic in
-  close_in ic;
+  In_channel.close ic;
   model
 
 let test args =

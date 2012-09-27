@@ -308,7 +308,7 @@ module Deriv = struct
       update_count_vec log_hetero_skedasticity;
       update_count_mat log_multiscales_m05;
       let n_hypers = !n_hypers_ref in
-      let hypers = Array.create n_hypers `Log_sf2 in
+      let hypers = Array.create ~len:n_hypers `Log_sf2 in
       for ind = 1 to m do
         let indd = (ind - 1) * d in
         for dim = 1 to d do

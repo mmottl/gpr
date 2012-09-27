@@ -339,7 +339,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let means = Trained.calc_means trained in
       let rec loop madsum i =
         if i = 0 then madsum /. f_samples
-        else loop (madsum +. abs_float (y.{i} -. means.{i})) (i - 1)
+        else loop (madsum +. Float.abs (y.{i} -. means.{i})) (i - 1)
       in
       loop 0. n_samples
 
@@ -347,7 +347,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let means = Trained.calc_means trained in
       let rec loop maxad i =
         if i = 0 then maxad
-        else loop (max maxad (abs_float (y.{i} -. means.{i}))) (i - 1)
+        else loop (max maxad (Float.abs (y.{i} -. means.{i}))) (i - 1)
       in
       loop 0. (Vec.dim y)
 
@@ -366,7 +366,7 @@ module Make_common (Spec : Specs.Eval) = struct
         let rec loop ~madsum ~maxad i =
           if i = 0 then madsum /. f_samples, maxad
           else
-            let ad = abs_float (y.{i} -. means.{i}) in
+            let ad = Float.abs (y.{i} -. means.{i}) in
             loop ~madsum:(madsum +. ad) ~maxad:(max maxad ad) (i - 1)
         in
         loop ~madsum:0. ~maxad:0. n_samples
@@ -1210,7 +1210,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let is_bad_deriv ~finite_el ~deriv ~tol =
         Float.is_nan finite_el
           || Float.is_nan deriv
-          || abs_float (finite_el -. deriv) > tol
+          || Float.abs (finite_el -. deriv) > tol
 
       let check_deriv_hyper ?(eps = 1e-8) ?(tol = 1e-2)
             kernel1 inducing_points1 points1 hyper =
@@ -1495,7 +1495,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         exception Optim_exception of exn
 
         let check_exception seen_exception_ref res =
-          if classify_float res = FP_nan then
+          if Float.classify res = Float.Class.Nan then
             match !seen_exception_ref with
             | None ->
                 failwith "Gpr.Optim.Gsl: optimization function returned nan"
