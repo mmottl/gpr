@@ -78,7 +78,7 @@ module Eval = struct
 
     let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
-    let choose_subset inputs indexes = Utils.choose_cols inputs indexes
+    let choose_subset inputs indexes = Gpr_utils.choose_cols inputs indexes
 
     let calc_ard_inputs { Kernel.consts } inputs =
       let res = lacpy inputs in

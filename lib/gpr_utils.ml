@@ -72,7 +72,7 @@ let choose_cols mat indexes =
     let real_c = indexes.{c} in
     if real_c < 1 || real_c > n then
       failwithf
-        "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
+        "Gpr.Gpr_utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
         real_c n ()
     else for r = 1 to m do res.{r, c} <- mat.{r, real_c} done
   done;
@@ -122,12 +122,12 @@ let ichol chol =
 let check_sparse_row_mat_sane ~real_m ~smat ~rows =
   if !debug then begin
     if real_m < 0 then
-      failwith "Gpr.Utils.check_sparse_row_mat_sane: real_m < 0";
+      failwith "Gpr.Gpr_utils.check_sparse_row_mat_sane: real_m < 0";
     let m = Mat.dim1 smat in
     let n_rows = Int_vec.dim rows in
     if n_rows <> m then
       failwithf
-        "Gpr.Utils.check_sparse_row_mat_sane: number of rows in \
+        "Gpr.Gpr_utils.check_sparse_row_mat_sane: number of rows in \
         sparse matrix (%d) disagrees with size of row array (%d)"
         m n_rows ();
     let rec loop ~i ~limit =
@@ -135,11 +135,11 @@ let check_sparse_row_mat_sane ~real_m ~smat ~rows =
         let rows_i = rows.{i} in
         if rows_i <= 0 then
           failwithf
-            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d contains \
+            "Gpr.Gpr_utils.check_sparse_row_mat_sane: sparse row %d contains \
             illegal negative real row index %d" i rows_i ()
         else if rows_i > limit then
           failwithf
-            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d \
+            "Gpr.Gpr_utils.check_sparse_row_mat_sane: sparse row %d \
             associated with real row index %d violates consistency \
             (current row limit: %d)"
             i rows_i limit ()
@@ -152,12 +152,12 @@ let check_sparse_row_mat_sane ~real_m ~smat ~rows =
 let check_sparse_col_mat_sane ~real_n ~smat ~cols =
   if !debug then begin
     if real_n < 0 then
-      failwith "Gpr.Utils.check_sparse_col_mat_sane: real_n < 0";
+      failwith "Gpr.Gpr_utils.check_sparse_col_mat_sane: real_n < 0";
     let n = Mat.dim2 smat in
     let n_cols = Int_vec.dim cols in
     if n_cols <> n then
       failwithf
-        "Gpr.Utils.check_sparse_col_mat_sane: number of cols in \
+        "Gpr.Gpr_utils.check_sparse_col_mat_sane: number of cols in \
         sparse matrix (%d) disagrees with size of col array (%d)"
         n n_cols ();
     let rec loop ~i ~limit =
@@ -165,11 +165,11 @@ let check_sparse_col_mat_sane ~real_n ~smat ~cols =
         let cols_i = cols.{i} in
         if cols_i <= 0 then
           failwithf
-            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d contains \
+            "Gpr.Gpr_utils.check_sparse_col_mat_sane: sparse col %d contains \
             illegal negative real col index %d" i cols_i ()
         else if cols_i > limit then
           failwithf
-            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d \
+            "Gpr.Gpr_utils.check_sparse_col_mat_sane: sparse col %d \
             associated with real col index %d violates consistency \
             (current col limit: %d)"
             i cols_i limit ()
@@ -184,13 +184,13 @@ let check_sparse_vec_sane ~real_n ~svec ~rows =
     let k = Vec.dim svec in
     if Int_vec.dim rows <> k then
       failwith
-        "Gpr.Utils.check_sparse_vec_sane: \
+        "Gpr.Gpr_utils.check_sparse_vec_sane: \
         size of sparse vector disagrees with indexes";
     let rec loop ~last i =
       if i > 0 then
         let ind = rows.{i} in
         if ind >= last || ind <= 0 then
-          failwith "Gpr.Utils.check_sparse_vec_sane: rows inconsistent"
+          failwith "Gpr.Gpr_utils.check_sparse_vec_sane: rows inconsistent"
         else loop ~last:ind (i - 1)
     in
     loop ~last:real_n (Int_vec.dim rows)

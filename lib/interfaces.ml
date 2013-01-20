@@ -24,7 +24,7 @@
 open Core.Std
 open Lacaml.D
 
-open Utils
+open Gpr_utils
 
 (** {6 Representations of (sparse) derivative matrices} *)
 
@@ -271,6 +271,46 @@ module Specs = struct
           cross-covariance matrix of the inputs and inducing inputs given
           precomputed data [cross] and the [hyper]-variable. *)
       val calc_deriv_cross : cross -> Hyper.t -> mat_deriv
+    end
+  end
+
+  (** Derivatives of inputs for global optimization. *)
+  module type Optimizer = sig
+
+    (** Derivatives always require evaluation functions *)
+    module Eval : Eval
+
+    (** Input parameters that have derivatives *)
+    module Var : sig
+      type t  (** Type of input parameter *)
+    end
+
+    module Input : sig
+      (** [get_vars input] @return array of all input parameters for which
+          derivatives can be computed given [input]. *)
+      val get_vars : Eval.Input.t -> Var.t array
+
+      (** [get_value input var] @return value of input parameter [var] for
+          [input]. *)
+      val get_value : Eval.Input.t -> Var.t -> float
+
+      (** [set_values input vars values] @return input in which [vars] have been
+          substituted with [values] position-wise. *)
+      val set_values : Eval.Input.t -> Var.t array -> vec -> Eval.Input.t
+    end
+
+    module Inputs : sig
+      (** [get_vars inputs] @return array of all input parameters for which
+          derivatives can be computed given [inputs]. *)
+      val get_vars : Eval.Inputs.t -> Var.t array
+
+      (** [get_value inputs var] @return value of input parameter [var] for
+          [inputs]. *)
+      val get_value : Eval.Inputs.t -> Var.t -> float
+
+      (** [set_values inputs vars values] @return inputs in which [vars] have
+          been substituted with [values] position-wise. *)
+      val set_values : Eval.Inputs.t -> Var.t array -> vec -> Eval.Inputs.t
     end
   end
 end
@@ -918,6 +958,29 @@ module Sigs = struct
       end
 *)
 
+    end
+
+  end
+
+  (** Modules for global optimization *)
+  module type Optimizer = sig
+
+    (** Sub-modules for learning without derivatives. *)
+    module Eval : Eval
+
+    (** Sub-modules for global optimization. *)
+    module Optimizer : sig
+      module Spec : Specs.Optimizer with module Eval = Eval.Spec
+
+      type t
+
+      val create : ?max_memory : int -> Spec.Eval.Kernel.t -> t
+
+      val learn : t -> (Spec.Eval.Input.t * float) array -> t
+
+      val calc_mpi_criterion : t -> Spec.Eval.Input.t -> float
+
+      val calc_mpi_deriv : t -> Spec.Eval.Input.t
     end
   end
 end

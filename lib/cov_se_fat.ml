@@ -22,7 +22,7 @@
 *)
 
 open Interfaces
-open Utils
+open Gpr_utils
 
 open Core.Std
 open Lacaml.D
@@ -194,7 +194,7 @@ module Eval = struct
 
     let create = Mat.of_col_vecs
     let get_n_points = Mat.dim2
-    let choose_subset = Utils.choose_cols
+    let choose_subset = choose_cols
 
     let create_default_kernel_params inputs ~n_inducing =
       let big_dim = Mat.dim1 inputs in
