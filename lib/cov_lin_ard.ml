@@ -122,7 +122,7 @@ module Deriv = struct
         | `Log_ell d -> (Lazy.force log_ells_lazy).{d} <- values.{i}
       done;
       let new_kernel =
-        if Lazy.lazy_is_val log_ells_lazy then
+        if Lazy.is_val log_ells_lazy then
           Eval.Kernel.create { Params.log_ells = Lazy.force log_ells_lazy }
         else k
       in

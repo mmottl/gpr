@@ -313,7 +313,7 @@ let train args =
   let best_trained = ref None in
   let report_trained_model, report_gradient_norm =
     let got_signal = ref false in
-    Signal.set Signal.int (`Handle (fun _ -> got_signal := true));
+    Signal.Expert.set Signal.int (`Handle (fun _ -> got_signal := true));
     let bailout ~iter _ =
       if !got_signal then raise Bailout;
       match max_iter with

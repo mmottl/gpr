@@ -227,7 +227,7 @@ module Deriv = struct
         Eval.Kernel.create { Params.log_ell; log_sf2 = !log_sf2_ref }
       in
       let lift lazy_value value =
-        if Lazy.lazy_is_val lazy_value then Lazy.force lazy_value
+        if Lazy.is_val lazy_value then Lazy.force lazy_value
         else value
       in
       let new_inducing = lift inducing_lazy inducing in

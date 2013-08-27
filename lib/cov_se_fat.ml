@@ -385,11 +385,11 @@ module Deriv = struct
             (Lazy.force inducing_lazy).{dim, ind} <- values.{i}
       done;
       let lift_opt lazy_value value =
-        if Lazy.lazy_is_val lazy_value then Some (Lazy.force lazy_value)
+        if Lazy.is_val lazy_value then Some (Lazy.force lazy_value)
         else value
       in
       let lift lazy_value value =
-        if Lazy.lazy_is_val lazy_value then Lazy.force lazy_value
+        if Lazy.is_val lazy_value then Lazy.force lazy_value
         else value
       in
       let new_kernel =
