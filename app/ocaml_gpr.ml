@@ -24,7 +24,7 @@
 open Core.Std
 
 module Args = struct
-  type cmd = [ `train | `test ]
+  type cmd = [ `Train | `Test ]
 
   type t = {
     cmd : cmd;
@@ -44,7 +44,7 @@ module Args = struct
     verbose : bool;
   }
 
-  let cmd : cmd ref = ref `train
+  let cmd : cmd ref = ref `Train
   let model_file = ref None
   let with_stddev = ref false
   let predictive = ref false
@@ -68,8 +68,8 @@ module Args = struct
         (
           "-cmd",
           Arg.Symbol ([ "train"; "test" ], function
-            | "train" -> cmd := `train
-            | "test" -> cmd := `test
+            | "train" -> cmd := `Train
+            | "test" -> cmd := `Test
             | _ -> assert false  (* impossible *)
           ),
           " train (default) or test model"
@@ -415,7 +415,7 @@ let test args =
 let main () =
   let args = Args.get () in
   match args.Args.cmd with
-  | `train -> train args
-  | `test -> test args
+  | `Train -> train args
+  | `Test -> test args
 
 let () = main ()
