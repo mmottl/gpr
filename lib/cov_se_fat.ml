@@ -41,7 +41,7 @@ module Params = struct
 
   type t = params
 
-  let create params =
+  let create (params : params) =
     let check v_dim name v =
       let n = v_dim v in
       if n <> params.d then

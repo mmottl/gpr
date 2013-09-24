@@ -296,7 +296,7 @@ module Make_common (Spec : Specs.Eval) = struct
       gemv (Common_model.get_knm trained.model) trained.coeffs
 
     let get_inducing trained = Common_model.get_inducing trained.model
-    let get_targets trained = trained.y
+    let get_targets (trained : t) = trained.y
     let get_model trained = trained.model
   end
 
