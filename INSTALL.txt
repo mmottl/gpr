@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 91291422c591aa2ea1d2e7ec394d0c93) *)
+(* DO NOT EDIT (digest: 27f5bf39503be2c26d04d6e9fa4db977) *)
 This is the INSTALL file for the gpr distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -27,7 +27,7 @@ Installing
 Uninstalling
 ============
 
-1. Go to the root of the package 
+1. Go to the root of the package
 2. Run 'ocaml setup.ml -uninstall'
 
 OASIS

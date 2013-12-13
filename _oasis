@@ -1,6 +1,6 @@
-OASISFormat:      0.3
+OASISFormat:      0.4
 Name:             gpr
-Version:          1.1.1
+Version:          1.1.2
 Synopsis:         GPR - Library and Application for Gaussian Process Regression
 Description:      Gaussian process regression is a modern Bayesian approach to machine learning, and GPR implements some of the latest advances in this field
 Authors:          Markus Mottl <markus.mottl@gmail.com>
@@ -14,7 +14,7 @@ Homepage:         https://bitbucket.org/mmottl/gpr
 #Categories:
 FilesAB:          lib/version.ml.ab
 
-Plugins:          META (0.3), StdFiles (0.3), DevFiles (0.3)
+Plugins:          META (0.4), StdFiles (0.4), DevFiles (0.4)
 XStdFilesREADME:  false
 PostDistcleanCommand: $rmdir test/data
 
@@ -67,14 +67,14 @@ Test test_derivatives
 
 Document API
   Title:                API reference for GPR
-  Type:                 OCamlbuild (0.3)
+  Type:                 OCamlbuild (0.4)
   InstallDir:           $docdir/api
   XOCamlbuildPath:      .
   XOCamlbuildLibraries: gpr
 
 Document gpr_manual
   Title:        GPR manual
-  Type:         custom (0.3)
+  Type:         custom (0.4)
   Install:      true
   InstallDir:   $pdfdir
   DataFiles:    doc/gpr_manual.pdf
