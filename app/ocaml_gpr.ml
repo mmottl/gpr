@@ -80,7 +80,7 @@ module Args = struct
         );(
           "-with-stddev",
           Arg.Set with_stddev,
-          " make predictions with both mean and variance"
+          " make predictions with both mean and standard deviation"
         );(
           "-predictive",
           Arg.Set predictive,
