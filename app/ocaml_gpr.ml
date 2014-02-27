@@ -348,7 +348,9 @@ let train args =
           ?report_trained_model ?report_gradient_norm
           ~kernel ~sigma2 ~n_rand_inducing:n_inducing
           ~tol ~step ~epsabs ~inputs ~targets ())
-    with GP.FIC.Deriv.Optim.Gsl.Optim_exception Bailout -> !best_trained
+    with
+    | GP.FIC.Deriv.Optim.Gsl.Optim_exception Bailout
+    | Bailout -> !best_trained
   with
   | None -> ()
   | Some trained ->
