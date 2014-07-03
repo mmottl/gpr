@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Gpr_utils.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Interfaces" rel="Chapter" href="Interfaces.html">
+<link title="Gpr_utils" rel="Chapter" href="Gpr_utils.html">
+<link title="Block_diag" rel="Chapter" href="Block_diag.html">
+<link title="Cov_const" rel="Chapter" href="Cov_const.html">
+<link title="Cov_lin_ard" rel="Chapter" href="Cov_lin_ard.html">
+<link title="Cov_lin_one" rel="Chapter" href="Cov_lin_one.html">
+<link title="Cov_se_iso" rel="Chapter" href="Cov_se_iso.html">
+<link title="Cov_se_fat" rel="Chapter" href="Cov_se_fat.html">
+<link title="Fitc_gp" rel="Chapter" href="Fitc_gp.html">
+<link title="Version" rel="Chapter" href="Version.html"><link title="Representations of (sparse) derivative matrices" rel="Section" href="#6_Representationsofsparsederivativematrices">
+<title>Interfaces</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Gpr_utils.html" title="Gpr_utils">Next</a>
+</div>
+<h1>Module <a href="type_Interfaces.html">Interfaces</a></h1>
+
+<pre><span class="keyword">module</span> Interfaces: <code class="code">sig</code> <a href="Interfaces.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<h6 id="6_Representationsofsparsederivativematrices">Representations of (sparse) derivative matrices</h6><br>
+</div>
+<hr width="100%">
+<br>
+<h6 id="6_Representationsofsparsederivativematrices">Representations of (sparse) derivative matrices</h6><br>
+
+<pre><span class="keyword">module</span> <a href="Interfaces.Sparse_indices.html">Sparse_indices</a>: <code class="type"><a href="Gpr_utils.Int_vec.html">Gpr_utils.Int_vec</a></code></pre><div class="info">
+Representation of indices into sparse matrices
+</div>
+
+<pre><span id="TYPEcommon_mat_deriv"><span class="keyword">type</span> <code class="type"></code>common_mat_deriv</span> = <code class="type">[ `Const of float<br>       | `Dense of Lacaml.D.mat<br>       | `Factor of float<br>       | `Sparse_rows of Lacaml.D.mat * Sparse_indices.t ]</code> </pre>
+<div class="info ">
+Derivative representations for both symmetric and unsymmetric matrices.
+<p>
+<ul>
+<li>Dense: matrix is dense.</li>
+<li>Sparse_rows: matrix is zero everywhere except for rows whose
+    index is stored in the sparse index argument.  The rows in the
+    matrix correspond to the given indices.</li>
+<li>Const: matrix is constant everywhere.</li>
+<li>Factor: matrix is the non-derived matrix times the given factor
+    (useful with exponential functions).</li>
+</ul>
+<br>
+</div>
+
+
+<pre><span id="TYPEmat_deriv"><span class="keyword">type</span> <code class="type"></code>mat_deriv</span> = <code class="type">[ `Const of float<br>       | `Dense of Lacaml.D.mat<br>       | `Factor of float<br>       | `Sparse_cols of Lacaml.D.mat * Sparse_indices.t<br>       | `Sparse_rows of Lacaml.D.mat * Sparse_indices.t ]</code> </pre>
+<div class="info ">
+Only general matrices support sparse column representations.
+<p>
+<ul>
+<li>Sparse_cols: matrix is zero everywhere except for columns whose
+    index is stored in the sparse index argument.  The columns in
+    the matrix correspond to the given indices.</li>
+</ul>
+<br>
+</div>
+
+
+<pre><span id="TYPEsymm_mat_deriv"><span class="keyword">type</span> <code class="type"></code>symm_mat_deriv</span> = <code class="type">[ `Const of float<br>       | `Dense of Lacaml.D.mat<br>       | `Diag_const of float<br>       | `Diag_vec of Lacaml.D.vec<br>       | `Factor of float<br>       | `Sparse_rows of Lacaml.D.mat * Sparse_indices.t ]</code> </pre>
+<div class="info ">
+Only symmetric (square) matrices support diagonal vectors and
+    diagonal constants as derivatives.
+<p>
+<ul>
+<li>Diag_vec: matrix is zero everywhere except for the diagonal
+    whose values are given in the argument.</li>
+<li>Diag_const: matrix is zero everywhere except for the diagonal
+    whose values are set to the given constant.</li>
+</ul>
+
+  Note that sparse rows do not need to compute or store all elements
+  for symmetric matrices.  Entries that have already appeared in
+  previous rows by symmetry can be left uninitialized.<br>
+</div>
+
+
+<pre><span id="TYPEdiag_deriv"><span class="keyword">type</span> <code class="type"></code>diag_deriv</span> = <code class="type">[ `Const of float<br>       | `Factor of float<br>       | `Sparse_vec of Lacaml.D.vec * Sparse_indices.t<br>       | `Vec of Lacaml.D.vec ]</code> </pre>
+<div class="info ">
+Derivatives of diagonal matrices.
+<p>
+<ul>
+<li>Vec: the derivatives of the diagonal given in a dense vector.</li>
+<li>Sparse_vec: matrix is zero everywhere except at those indices
+    along the diagonal that are mentioned in the sparse indices
+    argument.  The element associated with such an index is stored
+    in the vector argument.</li>
+<li>Const: the derivative of the diagonal matrix is a constant.</li>
+<li>Factor: the derivative of the diagonal is the the non-derived
+    diagonal matrix times the given factor (useful with exponential
+    functions).</li>
+</ul>
+<br>
+</div>
+
+
+<pre><span class="keyword">module</span> <a href="Interfaces.Specs.html">Specs</a>: <code class="code">sig</code> <a href="Interfaces.Specs.html">..</a> <code class="code">end</code></pre><div class="info">
+Specifications of covariance functions (= kernels) and their derivatives
+</div>
+
+<pre><span class="keyword">module</span> <a href="Interfaces.Sigs.html">Sigs</a>: <code class="code">sig</code> <a href="Interfaces.Sigs.html">..</a> <code class="code">end</code></pre><div class="info">
+Signatures for learning sparse Gaussian processes with inducing inputs
+</div>
+</body></html>

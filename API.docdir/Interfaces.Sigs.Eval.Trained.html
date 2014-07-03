@@ -1,0 +1,72 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Interfaces.Sigs.Eval.Model.html">
+<link rel="next" href="Interfaces.Sigs.Eval.Stats.html">
+<link rel="Up" href="Interfaces.Sigs.Eval.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Interfaces" rel="Chapter" href="Interfaces.html">
+<link title="Gpr_utils" rel="Chapter" href="Gpr_utils.html">
+<link title="Block_diag" rel="Chapter" href="Block_diag.html">
+<link title="Cov_const" rel="Chapter" href="Cov_const.html">
+<link title="Cov_lin_ard" rel="Chapter" href="Cov_lin_ard.html">
+<link title="Cov_lin_one" rel="Chapter" href="Cov_lin_one.html">
+<link title="Cov_se_iso" rel="Chapter" href="Cov_se_iso.html">
+<link title="Cov_se_fat" rel="Chapter" href="Cov_se_fat.html">
+<link title="Fitc_gp" rel="Chapter" href="Fitc_gp.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Interfaces.Sigs.Eval.Trained</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Interfaces.Sigs.Eval.Model.html" title="Interfaces.Sigs.Eval.Model">Previous</a>
+&nbsp;<a class="up" href="Interfaces.Sigs.Eval.html" title="Interfaces.Sigs.Eval">Up</a>
+&nbsp;<a class="post" href="Interfaces.Sigs.Eval.Stats.html" title="Interfaces.Sigs.Eval.Stats">Next</a>
+</div>
+<h1>Module <a href="type_Interfaces.Sigs.Eval.Trained.html">Interfaces.Sigs.Eval.Trained</a></h1>
+
+<pre><span class="keyword">module</span> Trained: <code class="code">sig</code> <a href="Interfaces.Sigs.Eval.Trained.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Trained model - requires targets<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+Type of trained models<br>
+</div>
+
+
+<pre><span id="VALcalc"><span class="keyword">val</span> calc</span> : <code class="type"><a href="Interfaces.Sigs.Eval.Model.html#TYPEt">Interfaces.Sigs.Eval.Model.t</a> -><br>       targets:Lacaml.D.vec -> <a href="Interfaces.Sigs.Eval.Trained.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">calc model ~targets</code><br>
+<b>Returns</b> trained model given <code class="code">model</code> and
+          <code class="code">targets</code>.<br>
+</div>
+
+<pre><span id="VALcalc_mean_coeffs"><span class="keyword">val</span> calc_mean_coeffs</span> : <code class="type"><a href="Interfaces.Sigs.Eval.Trained.html#TYPEt">t</a> -> Lacaml.D.vec</code></pre><div class="info ">
+<code class="code">calc_mean_coeffs trained</code><br>
+<b>Returns</b> the vector of coefficients for
+          computing posterior means.<br>
+</div>
+
+<pre><span id="VALcalc_log_evidence"><span class="keyword">val</span> calc_log_evidence</span> : <code class="type"><a href="Interfaces.Sigs.Eval.Trained.html#TYPEt">t</a> -> float</code></pre><div class="info ">
+<code class="code">calc_log_evidence trained</code><br>
+<b>Returns</b> the log evidence for the trained
+          model (includes contribution to log evidence by underlying model).<br>
+</div>
+
+<pre><span id="VALget_model"><span class="keyword">val</span> get_model</span> : <code class="type"><a href="Interfaces.Sigs.Eval.Trained.html#TYPEt">t</a> -> <a href="Interfaces.Sigs.Eval.Model.html#TYPEt">Interfaces.Sigs.Eval.Model.t</a></code></pre><div class="info ">
+<code class="code">get_model trained</code><br>
+<b>Returns</b> the model associated with the <code class="code">trained</code>
+          model.<br>
+</div>
+
+<pre><span id="VALget_targets"><span class="keyword">val</span> get_targets</span> : <code class="type"><a href="Interfaces.Sigs.Eval.Trained.html#TYPEt">t</a> -> Lacaml.D.vec</code></pre><div class="info ">
+<code class="code">get_targets trained</code><br>
+<b>Returns</b> targets used for training <code class="code">trained</code>.<br>
+</div>
+</body></html>
