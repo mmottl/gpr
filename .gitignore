@@ -1,0 +1,14 @@
+_build
+API.docdir
+*.bak
+.*.swp
+setup.data
+setup.log
+*.byte
+*.native
+doc/gpr_manual.aux
+doc/gpr_manual.bbl
+doc/gpr_manual.blg
+doc/gpr_manual.log
+doc/gpr_manual.pdf
+doc/gpr_manual.toc
