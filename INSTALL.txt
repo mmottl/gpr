@@ -1,14 +1,16 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 27f5bf39503be2c26d04d6e9fa4db977) *)
+(* DO NOT EDIT (digest: 87ab2339e4e86f7c4dc414d5187eb993) *)
+
 This is the INSTALL file for the gpr distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
-full information. 
+full information.
 
 Dependencies
 ============
 
 In order to compile this package, you will need:
+
 * ocaml (>= 3.12) for all, test test_derivatives, doc API, doc gpr_manual
 * findlib (>= 1.3.1)
 * core for library gpr
