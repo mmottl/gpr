@@ -9,7 +9,7 @@ sparse Gaussian process to a nonlinear function:
 
   ![Sparse Gaussian Process](http://mmottl.github.io/gpr/fit.png "Sparse Gaussian Process")
 
-Please refer to the [GPR manual](https://mmottl.github.com/gpr/gpr_manual.pdf)
+Please refer to the [GPR manual](http://mmottl.github.io/gpr/gpr_manual.pdf)
 for further details and to the [online API
 documentation](http://mmottl.github.io/gpr/api) as programming reference.
 
