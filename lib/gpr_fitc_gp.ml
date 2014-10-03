@@ -22,7 +22,7 @@
 *)
 
 open Gpr_utils
-open Interfaces
+open Gpr_interfaces
 
 open Core.Std
 open Bigarray

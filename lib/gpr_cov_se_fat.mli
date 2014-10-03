@@ -48,7 +48,7 @@
 
 open Lacaml.D
 
-open Interfaces.Specs
+open Gpr_interfaces.Specs
 
 module Params : sig
   type params = {

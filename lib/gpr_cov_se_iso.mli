@@ -32,7 +32,7 @@
 
 open Lacaml.D
 
-open Interfaces.Specs
+open Gpr_interfaces.Specs
 
 module Params : sig type t = { log_ell : float; log_sf2 : float } end
 

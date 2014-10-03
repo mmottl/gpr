@@ -1,6 +1,6 @@
 OASISFormat:      0.4
 Name:             gpr
-Version:          1.1.4
+Version:          1.2.0
 Synopsis:         GPR - Library and Application for Gaussian Process Regression
 Description:      Gaussian process regression is a modern Bayesian approach to machine learning, and GPR implements some of the latest advances in this field
 Authors:          Markus Mottl <markus.mottl@gmail.com>
@@ -12,7 +12,7 @@ OCamlVersion:     >= 3.12
 FindlibVersion:   >= 1.3.1
 Homepage:         http://mmottl.github.io/gpr
 #Categories:
-FilesAB:          lib/version.ml.ab
+FilesAB:          lib/gpr_version.ml.ab
 
 Plugins:          META (0.4), StdFiles (0.4), DevFiles (0.4)
 XStdFilesREADME:  false
@@ -23,17 +23,17 @@ BuildTools:       ocamlbuild, ocamldoc
 Library gpr
   Path:           lib
   FindlibName:    gpr
-  Pack:           true
-  Modules:        Interfaces,
+  Modules:        Gpr,
+                  Gpr_interfaces,
                   Gpr_utils,
-                  Block_diag,
-                  Cov_const,
-                  Cov_lin_ard,
-                  Cov_lin_one,
-                  Cov_se_iso,
-                  Cov_se_fat,
-                  Fitc_gp,
-                  Version
+                  Gpr_block_diag,
+                  Gpr_cov_const,
+                  Gpr_cov_lin_ard,
+                  Gpr_cov_lin_one,
+                  Gpr_cov_se_iso,
+                  Gpr_cov_se_fat,
+                  Gpr_fitc_gp,
+                  Gpr_version
   BuildDepends:   threads, core, lacaml, gsl
 
 Executable ocaml_gpr

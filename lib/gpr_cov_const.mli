@@ -1,8 +1,8 @@
-(* File: version.ml
+(* File: cov_const.mli
 
    OCaml-GPR - Gaussian Processes for OCaml
 
-     Copyright (C) 2012-  Markus Mottl
+     Copyright (C) 2009-  Markus Mottl
      email: markus.mottl@gmail.com
      WWW:   http://www.ocaml.info
 
@@ -21,4 +21,26 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-let version = "1.1.4"
+(** {6 Covariance of a constant function} *)
+
+(** The covariance is defined as:
+
+    [k(x, y) = 1/s^2]
+    [logtheta = log(s)]
+*)
+
+open Gpr_interfaces.Specs
+
+module Params : sig type t = { log_theta : float } end
+
+module Eval :
+  Eval
+    with type Kernel.params = Params.t
+    with type Inducing.t = int
+    with type Input.t = unit
+    with type Inputs.t = int
+
+module Deriv :
+  Deriv
+    with module Eval = Eval
+    with type Hyper.t = [ `Log_theta ]

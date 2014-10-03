@@ -1,4 +1,4 @@
-(* File: cov_const.mli
+(* File: cov_lin_one.mli
 
    OCaml-GPR - Gaussian Processes for OCaml
 
@@ -21,24 +21,28 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-(** {6 Covariance of a constant function} *)
+(** {6 Covariance of linear functions with one hyperparameter} *)
 
 (** The covariance is defined as:
 
-    [k(x, y) = 1/s^2]
-    [logtheta = log(s)]
+    [k(x, y) = x*inv(P)*y + 1/t^2]
+    [logtheta = log(t)]
+
+    where P is a diagonal matrix containing [t^2] along the diagonal.
 *)
 
-open Interfaces.Specs
+open Lacaml.D
+
+open Gpr_interfaces.Specs
 
 module Params : sig type t = { log_theta : float } end
 
 module Eval :
   Eval
     with type Kernel.params = Params.t
-    with type Inducing.t = int
-    with type Input.t = unit
-    with type Inputs.t = int
+    with type Inducing.t = mat
+    with type Input.t = vec
+    with type Inputs.t = mat
 
 module Deriv :
   Deriv

@@ -1,3 +1,6 @@
+2014-10-03:  Using module aliases for improved compilation and linking time,
+             and executable size.
+
 2013-01-19:  Fixed build problem with regard to newest Lacaml release.
 
 2012-07-20:  Downgraded findlib version requirement to support the Debian

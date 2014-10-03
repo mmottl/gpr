@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 862d61cc4a37c2e04d479daa4ca88ce9)
+# DO NOT EDIT (digest: 602f19b8df5c0d1f458ea4239cd5ce39)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,16 +15,6 @@
 "_darcs": not_hygienic
 # Library gpr
 "lib/gpr.cmxs": use_gpr
-"lib/interfaces.cmx": for-pack(Gpr)
-"lib/gpr_utils.cmx": for-pack(Gpr)
-"lib/block_diag.cmx": for-pack(Gpr)
-"lib/cov_const.cmx": for-pack(Gpr)
-"lib/cov_lin_ard.cmx": for-pack(Gpr)
-"lib/cov_lin_one.cmx": for-pack(Gpr)
-"lib/cov_se_iso.cmx": for-pack(Gpr)
-"lib/cov_se_fat.cmx": for-pack(Gpr)
-"lib/fitc_gp.cmx": for-pack(Gpr)
-"lib/version.cmx": for-pack(Gpr)
 <lib/*.ml{,i}>: pkg_core
 <lib/*.ml{,i}>: pkg_gsl
 <lib/*.ml{,i}>: pkg_lacaml

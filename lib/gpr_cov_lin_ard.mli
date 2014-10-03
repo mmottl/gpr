@@ -1,4 +1,4 @@
-(* File: cov_lin_one.mli
+(* File: cov_lin_ard.mli
 
    OCaml-GPR - Gaussian Processes for OCaml
 
@@ -21,30 +21,30 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-(** {6 Covariance of linear functions with one hyperparameter} *)
+(** {6 Covariance of linear functions with Automatic Relevance Determination} *)
 
 (** The covariance is defined as:
 
-    [k(x, y) = x*inv(P)*y + 1/t^2]
-    [logtheta = log(t)]
+    [k(x, y) = x*inv(P)*y]
 
-    where P is a diagonal matrix containing [t^2] along the diagonal.
+    where P is a diagonal matrix containing ARD parameters ell_1^2,...,ell_D^2,
+    and D is the dimensionality of the input space.
 *)
 
 open Lacaml.D
 
-open Interfaces.Specs
+open Gpr_interfaces.Specs
 
-module Params : sig type t = { log_theta : float } end
+module Params : sig type t = { log_ells : vec } end
 
 module Eval :
   Eval
-    with type Kernel.params = Params.t
-    with type Inducing.t = mat
-    with type Input.t = vec
-    with type Inputs.t = mat
+  with type Kernel.params = Params.t
+  with type Inducing.t = mat
+  with type Input.t = vec
+  with type Inputs.t = mat
 
 module Deriv :
   Deriv
     with module Eval = Eval
-    with type Hyper.t = [ `Log_theta ]
+    with type Hyper.t = [ `Log_ell of int ]
