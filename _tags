@@ -54,5 +54,5 @@
 true: -traverse
 <{lib,app,test}/**>: traverse
 
-<**/*.ml{,i}>: warn(Aer-44-48), strict_sequence, annot
+<**/*.ml{,i}>: warn(Aer-44-48), strict_sequence, safe_string, annot
 <**/*>: no_alias_deps
