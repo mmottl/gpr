@@ -32,7 +32,7 @@ let noise_sigma = 0.7
 let noise_sigma2 = noise_sigma *. noise_sigma
 
 let f ?(with_noise = false) x =
-  let v = (sin (3. *. x)) /. x +. abs_float (x -. 3.) /. (x *. x +. 1.) in
+  let v = (sin (3. *. x)) /. x +. Float.abs (x -. 3.) /. (x *. x +. 1.) in
   if with_noise then
     v +. Gsl.Randist.gaussian Utils.default_rng ~sigma:noise_sigma
   else v
@@ -52,7 +52,7 @@ let training_inputs, training_targets = get_data ~with_noise:true n_inputs
 let gen_write pp file obj =
   let oc = open_out (Filename.concat "test/data" file) in
   Format.fprintf (Format.formatter_of_out_channel oc) "%a@." pp obj;
-  close_out oc
+  Out_channel.close oc
 
 let write_float file = gen_write Format.pp_print_float file
 let write_vec file = gen_write pp_vec file
