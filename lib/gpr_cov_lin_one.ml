@@ -55,7 +55,7 @@ module Eval = struct
         ~beta:1. ~y:(Vec.make (Mat.dim2 inducing) alpha)
 
     let weighted_eval k input inducing ~coeffs =
-      dot ~x:coeffs (eval k input inducing)
+      dot coeffs (eval k input inducing)
 
     let eval_one k input = k.Kernel.const *. (Vec.sqr_nrm2 input +. 1.)
   end

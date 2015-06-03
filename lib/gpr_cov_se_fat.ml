@@ -184,7 +184,7 @@ module Eval = struct
       res
 
     let weighted_eval k input inducing ~coeffs =
-      dot ~x:(eval k input inducing) coeffs
+      dot (eval k input inducing) coeffs
 
     let eval_one k _input = k.Kernel.sf2
   end

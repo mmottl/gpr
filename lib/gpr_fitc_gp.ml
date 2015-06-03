@@ -253,7 +253,7 @@ module Make_common (Spec : Specs.Eval) = struct
     include Common_model
 
     let from_common ({ r_vec; is_vec; l1 } as model) =
-      { model with l1 = l1 +. -0.5 *. dot ~x:is_vec r_vec }
+      { model with l1 = l1 +. -0.5 *. dot is_vec r_vec }
 
     let calc_with_kn_diag inputs sigma2 kn_diag =
       from_common (calc_with_kn_diag inputs sigma2 kn_diag)
@@ -407,7 +407,7 @@ module Make_common (Spec : Specs.Eval) = struct
       then
         failwith
           "Mean.calc: mean predictor and input disagree about inducing points"
-      else { point; value = dot ~x:k_m mean_predictor.Mean_predictor.coeffs }
+      else { point; value = dot k_m mean_predictor.Mean_predictor.coeffs }
 
     let get mean = mean.value
   end
@@ -526,7 +526,7 @@ module Make_common (Spec : Specs.Eval) = struct
       match predictive with
       | None | Some true ->
           let predictive_variances = Vec.make (Vec.dim variances) sigma2 in
-          axpy ~x:variances predictive_variances;
+          axpy variances predictive_variances;
           predictive_variances
       | Some false -> variances
 
@@ -682,7 +682,7 @@ module Make_common (Spec : Specs.Eval) = struct
         Vec.init n (fun _ -> Gsl.Randist.gaussian_ziggurat rng ~sigma:1.)
       in
       trmv ~trans:`T samplers.cov_chol sample;
-      axpy ~x:samplers.means sample;
+      axpy samplers.means sample;
       sample
 
     let samples ?(rng = default_rng) { means; cov_chol } ~n =
@@ -940,7 +940,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
       let update_tmp tmp v = tmp.x <- tmp.x +. v
 
       let calc_dkn_diag_term ~v_vec ~kn_diag = function
-        | `Vec dkn_diag -> dot ~x:v_vec dkn_diag
+        | `Vec dkn_diag -> dot v_vec dkn_diag
         | `Sparse_vec (svec, rows) ->
             check_sparse_vec_sane ~real_n:(Vec.dim v_vec) ~svec ~rows;
             let tmp = { x = 0. } in
@@ -950,7 +950,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             tmp.x
         | `Const 0. | `Factor 0. -> 0.
         | `Const c -> c *. Vec.sum v_vec
-        | `Factor c -> c *. dot ~x:kn_diag v_vec
+        | `Factor c -> c *. dot kn_diag v_vec
 
       let calc_dkm_term ~w_mat ~km = function
         | `Dense dkm -> Mat.symm2_trace w_mat dkm
@@ -1038,7 +1038,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let q_mat = Eval_model.get_q_mat eval_model in
         let n = Mat.dim1 q_mat - Mat.dim2 q_mat in
         let t_mat = lacpy ~uplo:`U inv_km in
-        Mat.axpy ~alpha:~-.1. ~x:(ichol eval_model.Eval_model.r_mat) t_mat;
+        Mat.axpy ~alpha:~-.1. (ichol eval_model.Eval_model.r_mat) t_mat;
         {
           model_kind; model_shared; eval_model; inv_km; t_mat;
           q_diag = Mat.syrk_diag ~n q_mat
@@ -1123,7 +1123,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let c = lacpy ~uplo:`U t_mat in
         let w_mat = syrk ~trans:`T ~alpha:~-.1. u_mat ~beta:1. ~c in
         Mat.scal_rows sqrt_v_vec u_mat;
-        Mat.axpy ~alpha:~-.1. ~x:u_mat x_mat;
+        Mat.axpy ~alpha:~-.1. u_mat x_mat;
         let dfacts = { Shared.v_vec; w_mat; x_mat } in
         { Shared.shared = model_shared; dfacts }
 
@@ -1154,7 +1154,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let n = Vec.dim y_ in
         let q_mat = Eval_model.get_q_mat eval_model in
         ignore (gemv ~m:n ~alpha:~-.1. q_mat qt_y_ ~beta:1. ~y:u_vec);
-        let l2 = -0.5 *. dot ~x:u_vec y_ in
+        let l2 = -0.5 *. dot u_vec y_ in
         let coeffs = qt_y_ in
         trsv eval_model.Eval_model.r_mat coeffs;
         let w_vec = u_vec in
@@ -1162,7 +1162,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         for i = 1 to n do w_vec.{i} <- w_vec.{i} *. sqrt_is_vec.{i} done;
         let v2_vec = Vec.sqr w_vec in
         let v_vec = Cm.calc_v1_vec common_model in
-        axpy ~alpha:~-.1. ~x:v2_vec v_vec;
+        axpy ~alpha:~-.1. v2_vec v_vec;
         {
           common_model; w_vec; v_vec;
           eval_trained = Eval_trained.calc_internal eval_model ~y ~coeffs ~l2
@@ -1192,7 +1192,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         in
         let x_mat =
           Mat.scal_rows v_vec u_mat;
-          Mat.axpy ~alpha:~-.1. ~x:u_mat x_mat;
+          Mat.axpy ~alpha:~-.1. u_mat x_mat;
           ger ~alpha:~-.1. w_vec t_vec x_mat
         in
         { Shared.shared; dfacts = { Shared.v_vec; w_mat; x_mat } }
@@ -1223,7 +1223,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let eval_cross2 = Eval_inputs.calc points2 eval_inducing2 in
         let make_finite ~mat1 ~mat2 =
           let res = lacpy mat2 in
-          Mat.axpy ~alpha:~-.1. ~x:mat1 res;
+          Mat.axpy ~alpha:~-.1. mat1 res;
           Mat.scal (1. /. eps) res;
           res
         in
@@ -1339,7 +1339,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let kn_diag2 = Spec.Eval.Inputs.calc_diag kernel2 points2 in
           let finite_dkn_diag =
             let res = copy kn_diag2 in
-            axpy ~alpha:~-.1. ~x:kn_diag1 res;
+            axpy ~alpha:~-.1. kn_diag1 res;
             scal (1. /. eps) res;
             res
           in
@@ -1765,7 +1765,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
             else old_sigma2, 1
           in
           let hyper_vals = copy old_hyper_vals in
-          axpy ~alpha:eta ~ofsx:hyper_ix ~x:old_gradient hyper_vals;
+          axpy ~alpha:eta ~ofsx:hyper_ix old_gradient hyper_vals;
           let trained =
             let kernel, inducing, input_points =
               Spec.Hyper.set_values
@@ -1948,7 +1948,7 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
           let nu =
             Vec.mul old_eta (Vec.add old_gradient lambda_hessian_nu)
           in
-          axpy ~alpha:lambda ~x:old_nu nu;
+          axpy ~alpha:lambda old_nu nu;
           let trained =
             let kernel, inducing, input_points =
               Spec.Hyper.set_values

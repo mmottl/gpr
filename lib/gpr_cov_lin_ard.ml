@@ -61,7 +61,7 @@ module Eval = struct
       gemv ~trans:`T inducing (calc_ard_input k input)
 
     let weighted_eval k input inducing ~coeffs =
-      dot ~x:coeffs (eval k input inducing)
+      dot coeffs (eval k input inducing)
 
     let eval_one { Kernel.consts } input =
       let rec loop res i =
