@@ -21,4 +21,4 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-let version = "1.2.0"
+let version = "1.2.1"
