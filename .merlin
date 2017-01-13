@@ -1,0 +1,6 @@
+PKG threads threads.posix threads.vm core lacaml gsl
+
+S src
+S test
+B _build/src
+B _build/test
