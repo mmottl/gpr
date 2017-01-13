@@ -1,3 +1,5 @@
+2017-01-12:  Switched to GPL 2 for the application.
+
 2015-07-03:  Fixes wrt. new Lacaml API.
 
 2014-10-03:  Using module aliases for improved compilation and linking time,
