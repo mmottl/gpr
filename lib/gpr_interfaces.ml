@@ -102,8 +102,11 @@ module Specs = struct
 
   (** Signature of kernels and their parameters *)
   module type Kernel = sig
-    type t  (** Type of kernel *)
-    type params  (** Type of kernel parameters *)
+    (** Type of kernel *)
+    type t
+
+    (** Type of kernel parameters *)
+    type params
 
     (** [create params] @return kernel given parameters [params]. *)
     val create : params -> t
@@ -712,8 +715,11 @@ module Sigs = struct
 
       (** (Untrained) model with derivative information *)
       module Model : sig
-        type t  (** Type of models with derivatives *)
-        type hyper_t  (** Type of models for general hyper parameters *)
+        (** Type of models with derivatives *)
+        type t
+
+        (** Type of models for general hyper parameters *)
+        type hyper_t
 
         (** [calc inputs ~sigma2] @return model with derivative information
             given [inputs] and noise level [sigma2]. *)
@@ -743,8 +749,11 @@ module Sigs = struct
 
       (** Trained model with derivative information *)
       module Trained : sig
-        type t  (** Type of trained models with derivatives *)
-        type hyper_t  (** Type of trained models for general hyper parameters *)
+        (** Type of trained models with derivatives *)
+        type t
+
+        (** Type of trained models for general hyper parameters *)
+        type hyper_t
 
         (** [calc model ~targets] @return trained model with derivative
             information given the untrained [model] and [targets]. *)
