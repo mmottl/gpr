@@ -1,14 +1,14 @@
 # OASIS_START
-# DO NOT EDIT (digest: dcc4fd59254bf86529123a8b57a0038a)
-lib/Gpr
-lib/Gpr_interfaces
-lib/Gpr_utils
-lib/Gpr_block_diag
-lib/Gpr_cov_const
-lib/Gpr_cov_lin_ard
-lib/Gpr_cov_lin_one
-lib/Gpr_cov_se_iso
-lib/Gpr_cov_se_fat
-lib/Gpr_fitc_gp
-lib/Gpr_version
+# DO NOT EDIT (digest: 7d8d3f926606e385d44cb85c8af46b05)
+src/Gpr
+src/Gpr_interfaces
+src/Gpr_utils
+src/Gpr_block_diag
+src/Gpr_cov_const
+src/Gpr_cov_lin_ard
+src/Gpr_cov_lin_one
+src/Gpr_cov_se_iso
+src/Gpr_cov_se_fat
+src/Gpr_fitc_gp
+src/Gpr_version
 # OASIS_STOP

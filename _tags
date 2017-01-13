@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 52d8aa01c9d5dfbd0d92ff4280565f85)
+# DO NOT EDIT (digest: c24d48138a98e1ab8d472b091588a10e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,11 +15,11 @@ true: annot, bin_annot
 "_darcs": -traverse
 "_darcs": not_hygienic
 # Library gpr
-"lib/gpr.cmxs": use_gpr
-<lib/*.ml{,i,y}>: package(core)
-<lib/*.ml{,i,y}>: package(gsl)
-<lib/*.ml{,i,y}>: package(lacaml)
-<lib/*.ml{,i,y}>: package(threads)
+"src/gpr.cmxs": use_gpr
+<src/*.ml{,i,y}>: package(core)
+<src/*.ml{,i,y}>: package(gsl)
+<src/*.ml{,i,y}>: package(lacaml)
+<src/*.ml{,i,y}>: package(threads)
 # Executable ocaml_gpr
 <app/ocaml_gpr.{native,byte}>: package(core)
 <app/ocaml_gpr.{native,byte}>: package(gsl)
