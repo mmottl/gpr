@@ -1181,20 +1181,17 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
         let { Cm.eval_model; t_mat; model_shared = shared } = common_model in
         let u_mat, x_mat = Shared.calc_us_mat eval_model in
         let t_vec = eval_trained.Eval_trained.coeffs in
-        let w_mat =
-          let w_mat = syr ~alpha:~-.1. t_vec (lacpy ~uplo:`U t_mat) in
-          let u1_mat = lacpy u_mat in
-          Mat.scal_rows (Vec.sqrt (Cm.calc_v1_vec common_model)) u1_mat;
-          let w_mat = syrk ~trans:`T ~alpha:~-.1. u1_mat ~beta:1. ~c:w_mat in
-          let u2_mat = lacpy u_mat ~b:u1_mat in
-          Mat.scal_rows w_vec u2_mat;
-          syrk ~trans:`T u2_mat ~beta:1. ~c:w_mat
-        in
-        let x_mat =
-          Mat.scal_rows v_vec u_mat;
-          Mat.axpy ~alpha:~-.1. u_mat x_mat;
-          ger ~alpha:~-.1. w_vec t_vec x_mat
-        in
+        let w_mat =lacpy ~uplo:`U t_mat in
+        syr ~alpha:~-.1. t_vec w_mat;
+        let u1_mat = lacpy u_mat in
+        Mat.scal_rows (Vec.sqrt (Cm.calc_v1_vec common_model)) u1_mat;
+        let w_mat = syrk ~trans:`T ~alpha:~-.1. u1_mat ~beta:1. ~c:w_mat in
+        let u2_mat = lacpy u_mat ~b:u1_mat in
+        Mat.scal_rows w_vec u2_mat;
+        ignore (syrk ~trans:`T u2_mat ~beta:1. ~c:w_mat);
+        Mat.scal_rows v_vec u_mat;
+        Mat.axpy ~alpha:~-.1. u_mat x_mat;
+        ger ~alpha:~-.1. w_vec t_vec x_mat;
         { Shared.shared; dfacts = { Shared.v_vec; w_mat; x_mat } }
 
       include Shared
