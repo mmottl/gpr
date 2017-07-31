@@ -1,0 +1,13 @@
+(jbuild_version 1)
+
+(library (
+  (name gpr)
+  (public_name gpr)
+  (flags (
+    :standard
+    -w -9
+    -safe-string -strict-sequence
+    -principal -short-paths
+  ))
+  (libraries (threads core lacaml gsl))
+))

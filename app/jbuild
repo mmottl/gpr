@@ -1,0 +1,13 @@
+(jbuild_version 1)
+
+(executables (
+  (names (ocaml_gpr))
+  (public_names (ocaml_gpr))
+  (flags (
+    :standard
+    -w -9
+    -safe-string -strict-sequence
+    -principal -short-paths
+  ))
+  (libraries (str gpr))
+))

@@ -21,7 +21,7 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 *)
 
-open Core.Std
+open Core
 
 module Args = struct
   type cmd = [ `Train | `Test ]
@@ -171,7 +171,7 @@ end
 let read_samples () =
   let rex = Str.regexp "," in
   let split str = Array.of_list (Str.split rex str) in
-  match try Some (read_line ()) with _ -> None with
+  match In_channel.(input_line stdin) with
   | None -> failwith "no data"
   | Some line ->
       let conv_line line =
@@ -181,7 +181,7 @@ let read_samples () =
       let sample = conv_line line in
       let d = Array.length sample in
       let rec loop samples =
-        match try Some (read_line ()) with _ -> None with
+        match In_channel.(input_line stdin) with
         | Some line ->
             let floats = conv_line line in
             if Array.length floats <> d then
@@ -225,7 +225,7 @@ let read_training_samples () =
   inputs, targets
 
 let write_model model_file ~target_mean ~input_means ~input_stddevs trained =
-  let oc = open_out model_file in
+  let oc = Out_channel.create model_file in
   let model =
     let model = FIC.Trained.get_model trained in
     let sigma2 = FIC.Model.get_sigma2 model in
@@ -374,7 +374,7 @@ let read_test_samples big_dim =
   end
 
 let read_model model_file : Model.t =
-  let ic = open_in model_file in
+  let ic = In_channel.create model_file in
   let model = Marshal.from_channel ic in
   In_channel.close ic;
   model
