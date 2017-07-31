@@ -14,8 +14,8 @@ build: [
 
 depends: [
   "threads"
-  "core (>= 0.9.1)"
-  "lacaml (>= 9.2.3)"
+  "core" {>= "0.9.1"}
+  "lacaml" {>= "9.2.3"}
   "gsl"
   "jbuilder" {build & >= "1.0+beta10"}
 ]
