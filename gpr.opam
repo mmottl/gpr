@@ -13,7 +13,7 @@ build: [
 ]
 
 depends: [
-  "threads"
+  "base-threads"
   "core" {>= "0.9.1"}
   "lacaml" {>= "9.2.3"}
   "gsl"
