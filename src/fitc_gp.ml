@@ -215,7 +215,7 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_with_kn_diag inputs sigma2 kn_diag =
       let v_mat = lacpy inputs.Inputs.knm in
-      trsm ~side:`R v_mat ~a:(Inputs.get_chol_km inputs);
+      trsm ~side:`R (Inputs.get_chol_km inputs) v_mat;
       let r_vec = calc_r_vec ~kn_diag ~v_mat in
       calc_internal inputs sigma2 ~kn_diag ~v_mat ~r_vec
 
@@ -493,7 +493,7 @@ module Make_common (Spec : Specs.Eval) = struct
     let calc_model_inputs model =
       let variances =
         let tmp = lacpy (Common_model.get_knm model) in
-        trsm ~side:`R tmp ~a:model.Common_model.r_mat;
+        trsm ~side:`R model.Common_model.r_mat tmp;
         Mat.syrk_diag tmp ~beta:1. ~y:(copy (Common_model.get_r_vec model))
       in
       let sigma2 = Common_model.get_sigma2 model in
@@ -514,10 +514,10 @@ module Make_common (Spec : Specs.Eval) = struct
         let variances =
           let y = Inputs.calc_diag inputs in
           let tmp = lacpy ktm in
-          trsm ~side:`R tmp ~a:cvp.Co_variance_predictor.chol_km;
+          trsm ~side:`R cvp.Co_variance_predictor.chol_km tmp;
           let y = Mat.syrk_diag ~alpha:~-.1. tmp ~beta:1. ~y in
           let tmp = lacpy ktm ~b:tmp in
-          trsm ~side:`R tmp ~a:cvp.Co_variance_predictor.r_mat;
+          trsm ~side:`R cvp.Co_variance_predictor.r_mat tmp;
           Mat.syrk_diag tmp ~beta:1. ~y
         in
         { points; variances; sigma2 }
@@ -588,10 +588,10 @@ module Make_common (Spec : Specs.Eval) = struct
       let { Inputs.points; knm = ktm } = inputs in
       let covariances =
         let tmp = lacpy ktm in
-        trsm ~side:`R tmp ~a:chol_km;
+        trsm ~side:`R chol_km tmp;
         ignore (syrk ~alpha:~-.1. tmp ~c:covariances);
         let tmp = lacpy ktm ~b:tmp in
-        trsm ~side:`R tmp ~a:r_mat;
+        trsm ~side:`R r_mat tmp;
         syrk tmp ~c:covariances;
       in
       { points; covariances; sigma2 }
@@ -622,7 +622,7 @@ module Make_common (Spec : Specs.Eval) = struct
       let r_vec = Mat.syrk_diag ~alpha:~-.1. ktm ~beta:1. ~y:kt_diag in
       let q_mat = lacpy ktm in
       let r_mat = co_variance_predictor.Co_variance_predictor.r_mat in
-      trsm ~side:`R q_mat ~a:r_mat;
+      trsm ~side:`R r_mat q_mat;
       let points = Inputs.get_points inputs in
       calc_common ~points ~sigma2 ~q_mat ~r_vec
   end
@@ -691,7 +691,7 @@ module Make_common (Spec : Specs.Eval) = struct
         Mat.init_cols n_means n (fun _ _ ->
           Gsl.Randist.gaussian_ziggurat rng ~sigma:1.)
       in
-      trmm ~transa:`T ~a:cov_chol samples;
+      trmm ~transa:`T cov_chol samples;
       for col = 1 to n do
         for row = 1 to n_means do
           samples.{row, col} <- samples.{row, col} +. means.{row}
@@ -929,11 +929,11 @@ module Make_common_deriv (Spec : Specs.Deriv) = struct
 
       let calc_us_mat eval_model =
         let u_mat = lacpy (Eval_model.get_v_mat eval_model) in
-        trsm ~side:`R ~transa:`T u_mat ~a:(Eval_model.get_chol_km eval_model);
+        trsm ~side:`R ~transa:`T (Eval_model.get_chol_km eval_model) u_mat;
         let n = Mat.dim1 u_mat in
         let q_mat = Eval_model.get_q_mat eval_model in
         let s_mat = lacpy ~m:n q_mat in
-        trsm ~side:`R ~transa:`T s_mat ~a:eval_model.Eval_model.r_mat;
+        trsm ~side:`R ~transa:`T eval_model.Eval_model.r_mat s_mat;
         Mat.scal_rows (Eval_model.get_sqrt_is_vec eval_model) s_mat;
         u_mat, s_mat
 
