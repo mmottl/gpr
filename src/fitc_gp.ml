@@ -60,7 +60,8 @@ module Make_common (Spec : Specs.Eval) = struct
 
     let calc_internal kernel points km =
       let chol_km = lacpy ~uplo:`U km in
-      potrf ~jitter chol_km;
+      Mat.add_const_diag jitter chol_km;
+      potrf chol_km;
       { kernel; points; km; chol_km; log_det_km = log_det chol_km }
 
     let calc kernel points =
@@ -673,7 +674,8 @@ module Make_common (Spec : Specs.Eval) = struct
             done
         | Some false -> ()
       end;
-      potrf ~jitter cov_chol;
+      Mat.add_const_diag jitter cov_chol;
+      potrf cov_chol;
       { means = means.Means.values; cov_chol }
 
     let sample ?(rng = default_rng) samplers =

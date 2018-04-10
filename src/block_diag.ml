@@ -43,10 +43,11 @@ let copy t = { t with data = Array.map ~f:(fun mat -> lacpy mat) t.data }
 let reraise_exc loc i exc =
   Exn.reraisef exc "Block_diag.%s: failed at index %d" loc i  ()
 
-let potrf ?jitter t =
+let potrf t =
   Array.iteri t.data ~f:(fun i mat ->
-    try potrf ?jitter mat with exc -> reraise_exc "potrf" i exc)
+    try potrf mat with exc -> reraise_exc "potrf" i exc)
 
-let potri ?jitter ?factorize t =
+let potri t =
   Array.iteri t.data ~f:(fun i mat ->
-    try potri ?jitter ?factorize mat with exc -> reraise_exc "potri" i exc)
+    try Lacaml.D.potri mat
+    with exc -> reraise_exc "potri" i exc)

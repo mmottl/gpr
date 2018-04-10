@@ -109,10 +109,10 @@ let solve_tri ?trans chol mat =
   trtrs ?trans chol ichol_mat;
   ichol_mat
 
-(* Compute the inverse of a matrix using the cholesky factor *)
+(* Compute the inverse of a matrix using the Cholesky factor *)
 let ichol chol =
   let inv = lacpy ~uplo:`U chol in
-  potri ~factorize:false inv;
+  potri inv;
   inv
 
 

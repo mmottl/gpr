@@ -33,19 +33,9 @@ val create : mat array -> t
 (** [copy bm] @return a copy of block diagonal matrix [bm]. *)
 val copy : t -> t
 
-(** [potrf ?jitter bm] perform Cholesky factorization on block diagonal matrix
-    [bm] using Cholesky [jitter] if given.
+(** [potrf bm] perform Cholesky factorization on block diagonal matrix [bm]. *)
+val potrf : t -> unit
 
-    @param jitter default = no jitter
-*)
-val potrf : ?jitter : float -> t -> unit
-
-(** [potri ?jitter ?factorize bm] invert block diagonal matrix [bm] using
-    its Cholesky factor.  If [factorize] is [false], it is assumed that the
-    factorization has already been performed, otherwise it will be calculated
-    using Cholesky [jitter] if given.
-
-    @param jitter default = no jitter
-    @param factorize default = [true]
-*)
-val potri : ?jitter : float -> ?factorize : bool -> t -> unit
+(** [potri bm] invert block diagonal matrix [bm] using its already precomputed
+    Cholesky factor. *)
+val potri : t -> unit
