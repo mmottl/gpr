@@ -1,0 +1,4 @@
+(executables
+  (public_names ocaml_gpr)
+  (libraries str gpr)
+)

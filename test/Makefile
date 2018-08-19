@@ -3,7 +3,7 @@ TARGETS = $(addsuffix .bc, save_data test_derivatives)
 .PHONY: all clean
 
 all:
-	@jbuilder build --dev $(TARGETS)
+	@dune build $(TARGETS)
 
 clean:
-	@jbuilder clean
+	@dune clean
