@@ -1,4 +1,4 @@
-.PHONY: all clean doc
+.PHONY: all clean doc lint
 
 all:
 	dune build @install
@@ -8,3 +8,6 @@ clean:
 
 doc:
 	dune build @doc
+
+lint:
+	@opam lint gpr.opam
