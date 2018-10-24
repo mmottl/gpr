@@ -14,9 +14,15 @@ build: [
 
 depends: [
   "ocaml" {>= "4.04"}
+  "dune" {build & >= "1.4.0"}
   "base-threads"
   "core" {>= "0.9.1"}
   "lacaml" {>= "11.0.0"}
   "gsl"
-  "dune" {build & >= "1.1.0"}
 ]
+
+synopsis: "GPR - Library and Application for Gaussian Process Regression"
+
+description: """
+Gaussian process regression is a modern Bayesian approach to machine learning,
+and GPR implements some of the latest advances in this field."""
