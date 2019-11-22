@@ -135,7 +135,8 @@ module Args = struct
         );
       ]
 
-  let usage_msg = sprintf "%s: -cmd [ train | test ] -model file" Sys.argv.(0)
+  let usage_msg =
+    sprintf "%s: -cmd [ train | test ] -model file" (Sys.get_argv ()).(0)
 
   let anon_fun _ = failwith "no anonymous arguments allowed"
 
@@ -325,7 +326,7 @@ let train args =
       let last_deriv_time = ref 0. in
       let maybe_print last_time line =
         let now = Unix.gettimeofday () in
-        if !last_time +. 1. < now then begin
+        if Float.(!last_time + 1. < now) then begin
           last_time := now;
           prerr_endline line;
         end

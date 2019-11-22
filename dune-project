@@ -21,7 +21,7 @@ and GPR implements some of the latest advances in this field.")
     (ocaml (>= 4.08))
     (dune (>= 1.10))
     base-threads
-    (core (>= 0.9.1))
+    (core (>= v0.13))
     (lacaml (>= 11.0.0))
     (gsl (>= 1.24.0))
   )

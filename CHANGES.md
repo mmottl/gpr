@@ -1,6 +1,8 @@
-### ?.?.? (????-??-??)
+### 1.5.0 (2019-11-22)
 
   * Switched to OPAM file generation via `dune-project`
+
+  * Updates for new Core API v0.13.0
 
 
 ### 1.4.1 (2018-10-24)
