@@ -1,10 +1,10 @@
-(lang dune 1.10)
+(lang dune 2.7)
 (name gpr)
 
 (generate_opam_files true)
 
 (source (github mmottl/gpr))
-(license "LGPL-2.1+ with OCaml linking exception")
+(license "LGPL-2.1-or-later with OCaml-LGPL-linking-exception")
 (homepage "https://mmottl.github.io/gpr")
 (documentation "https://mmottl.github.io/gpr/api")
 
@@ -19,7 +19,6 @@ Gaussian process regression is a modern Bayesian approach to machine learning,
 and GPR implements some of the latest advances in this field.")
   (depends
     (ocaml (>= 4.08))
-    (dune (>= 1.10))
     base-threads
     (core (>= v0.13))
     (lacaml (>= 11.0.0))
