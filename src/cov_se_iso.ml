@@ -1,32 +1,28 @@
-(* File: cov_se_iso.ml
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
 open Interfaces
-
 open Core
 open Lacaml.D
 
-module Params = struct type t = { log_ell : float; log_sf2 : float } end
+module Params = struct
+  type t = { log_ell : float; log_sf2 : float }
+end
 
 type inducing_hyper = { ind : int; dim : int }
 
@@ -66,7 +62,7 @@ module Eval = struct
         for r = 1 to c - 1 do
           for i = 1 to d do
             let diff = inducing.{i, c} -. inducing.{i, r} in
-            ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+            ssqr_diff_ref := !ssqr_diff_ref +. (diff *. diff)
           done;
           res.{r, c} <- !ssqr_diff_ref;
           ssqr_diff_ref := 0.
@@ -81,9 +77,9 @@ module Eval = struct
       let { inv_ell2_05; log_sf2; sf2 } = k in
       for c = 1 to m do
         for r = 1 to c - 1 do
-          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c});
+          res.{r, c} <- exp (log_sf2 +. (inv_ell2_05 *. sqr_diff_mat.{r, c}))
         done;
-        res.{c, c} <- sf2;
+        res.{c, c} <- sf2
       done;
       res
 
@@ -102,10 +98,10 @@ module Eval = struct
       for c = 1 to m do
         for i = 1 to d do
           let diff = input.{i} -. inducing.{i, c} in
-          ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+          ssqr_diff_ref := !ssqr_diff_ref +. (diff *. diff)
         done;
-        res.{c} <- exp (log_sf2 +. inv_ell2_05 *. !ssqr_diff_ref);
-        ssqr_diff_ref := 0.;
+        res.{c} <- exp (log_sf2 +. (inv_ell2_05 *. !ssqr_diff_ref));
+        ssqr_diff_ref := 0.
       done;
       res
 
@@ -139,7 +135,7 @@ module Eval = struct
         for r = 1 to n do
           for i = 1 to d do
             let diff = inputs.{i, r} -. inducing.{i, c} in
-            ssqr_diff_ref := !ssqr_diff_ref +. diff *. diff
+            ssqr_diff_ref := !ssqr_diff_ref +. (diff *. diff)
           done;
           res.{r, c} <- !ssqr_diff_ref;
           ssqr_diff_ref := 0.
@@ -154,7 +150,7 @@ module Eval = struct
       let res = Mat.create n m in
       for c = 1 to m do
         for r = 1 to n do
-          res.{r, c} <- exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
+          res.{r, c} <- exp (log_sf2 +. (inv_ell2_05 *. sqr_diff_mat.{r, c}))
         done
       done;
       res
@@ -173,7 +169,7 @@ module Eval = struct
         if c = 0 then acc
         else
           let el =
-            coeffs.{c} *. exp (log_sf2 +. inv_ell2_05 *. sqr_diff_mat.{r, c})
+            coeffs.{c} *. exp (log_sf2 +. (inv_ell2_05 *. sqr_diff_mat.{r, c}))
           in
           loop r (acc +. el) (c - 1)
       in
@@ -195,7 +191,7 @@ module Deriv = struct
       let n_inducing_hypers = d * m in
       let n_all_hypers = 2 + n_inducing_hypers in
       let hypers = Array.create ~len:n_all_hypers `Log_ell in
-      hypers.(1) <- `Log_sf2 ;
+      hypers.(1) <- `Log_sf2;
       for ind = 1 to m do
         let indd = (ind - 1) * d in
         for dim = 1 to d do
@@ -227,11 +223,10 @@ module Deriv = struct
         Eval.Kernel.create { Params.log_ell; log_sf2 = !log_sf2_ref }
       in
       let lift lazy_value value =
-        if Lazy.is_val lazy_value then Lazy.force lazy_value
-        else value
+        if Lazy.is_val lazy_value then Lazy.force lazy_value else value
       in
       let new_inducing = lift inducing_lazy inducing in
-      new_kernel, new_inducing, inputs
+      (new_kernel, new_inducing, inputs)
   end
 
   type deriv_common = {
@@ -247,7 +242,7 @@ module Deriv = struct
       let module EI = Eval.Inducing in
       let sqr_diff_mat = EI.calc_sqr_diff_mat eval_inducing in
       let eval_mat = EI.calc_upper_with_sqr_diff_mat kernel sqr_diff_mat in
-      eval_mat, (eval_inducing, { kernel; sqr_diff_mat; eval_mat })
+      (eval_mat, (eval_inducing, { kernel; sqr_diff_mat; eval_mat }))
 
     let calc_deriv_upper (inducing, common) = function
       | `Log_sf2 -> `Factor 1.
@@ -260,45 +255,44 @@ module Deriv = struct
             for r = 1 to c - 1 do
               res.{r, c} <- eval_mat.{r, c} *. sqr_diff_mat.{r, c} *. inv_ell2
             done;
-            res.{c, c} <- 0.;
+            res.{c, c} <- 0.
           done;
           `Dense res
-        | `Inducing_hyper { ind; dim } ->
-            let eval_mat = common.eval_mat in
-            let m = Mat.dim2 eval_mat in
-            let res = Mat.create 1 m in
-            let inducing_dim = inducing.{dim, ind} in
-            let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
-            for i = 1 to ind - 1 do
-              let ind_d = inducing.{dim, i} in
-              res.{1, i} <-
-                inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{i, ind}
-            done;
-            res.{1, ind} <- 0.;
-            for i = ind + 1 to m do
-              let ind_d = inducing.{dim, i} in
-              res.{1, i} <-
-                inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{ind, i}
-            done;
-            let rows = Sparse_indices.create 1 in
-            rows.{1} <- ind;
-            `Sparse_rows (res, rows)
+      | `Inducing_hyper { ind; dim } ->
+          let eval_mat = common.eval_mat in
+          let m = Mat.dim2 eval_mat in
+          let res = Mat.create 1 m in
+          let inducing_dim = inducing.{dim, ind} in
+          let inv_ell2 = common.kernel.Eval.Kernel.inv_ell2 in
+          for i = 1 to ind - 1 do
+            let ind_d = inducing.{dim, i} in
+            res.{1, i} <-
+              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{i, ind}
+          done;
+          res.{1, ind} <- 0.;
+          for i = ind + 1 to m do
+            let ind_d = inducing.{dim, i} in
+            res.{1, i} <-
+              inv_ell2 *. (ind_d -. inducing_dim) *. eval_mat.{ind, i}
+          done;
+          let rows = Sparse_indices.create 1 in
+          rows.{1} <- ind;
+          `Sparse_rows (res, rows)
   end
 
   module Inputs = struct
     type diag = Eval.Kernel.t
-
     type cross = Eval.Inputs.t * Eval.Inducing.t * deriv_common
 
     let calc_shared_diag k diag_eval_inputs =
-      Eval.Inputs.calc_diag k diag_eval_inputs, k
+      (Eval.Inputs.calc_diag k diag_eval_inputs, k)
 
     let calc_shared_cross kernel ~inputs ~inducing =
       let module EI = Eval.Inputs in
       let sqr_diff_mat = EI.calc_sqr_diff_mat ~inputs ~inducing in
       let eval_mat = EI.calc_cross_with_sqr_diff_mat kernel sqr_diff_mat in
-      let shared = inputs, inducing, { kernel; sqr_diff_mat; eval_mat } in
-      eval_mat, shared
+      let shared = (inputs, inducing, { kernel; sqr_diff_mat; eval_mat }) in
+      (eval_mat, shared)
 
     let calc_deriv_diag _diag = function
       | `Log_sf2 -> `Factor 1.

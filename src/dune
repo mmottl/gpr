@@ -1,4 +1,3 @@
 (library
-  (public_name gpr)
-  (libraries threads core lacaml gsl)
-)
+ (public_name gpr)
+ (libraries threads core core_unix lacaml gsl))

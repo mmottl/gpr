@@ -1,5 +1,4 @@
 (executables
-  (names save_data test_derivatives)
-  (libraries gpr)
-  (modes byte exe)
-)
+ (names save_data test_derivatives)
+ (libraries gpr)
+ (modes byte exe))

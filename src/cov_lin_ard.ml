@@ -1,30 +1,27 @@
-(* File: cov_lin_ard.ml
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
 open Core
 open Lacaml.D
 
-module Params = struct type t = { log_ells : vec } end
+module Params = struct
+  type t = { log_ells : vec }
+end
 
 module Eval = struct
   module Kernel = struct
@@ -35,7 +32,9 @@ module Eval = struct
       let log_ells = params.Params.log_ells in
       let d = Vec.dim log_ells in
       let consts = Vec.create d in
-      for i = 1 to d do consts.{i} <- exp (-. log_ells.{i}) done;
+      for i = 1 to d do
+        consts.{i} <- exp (-.log_ells.{i})
+      done;
       { params; consts }
 
     let get_params k = k.params
@@ -54,11 +53,12 @@ module Eval = struct
     let calc_ard_input { Kernel.consts } input =
       let d = Vec.dim input in
       let ard_input = Vec.create d in
-      for i = 1 to d do ard_input.{i} <- consts.{i} *. input.{i} done;
+      for i = 1 to d do
+        ard_input.{i} <- consts.{i} *. input.{i}
+      done;
       ard_input
 
-    let eval k input inducing =
-      gemv ~trans:`T inducing (calc_ard_input k input)
+    let eval k input inducing = gemv ~trans:`T inducing (calc_ard_input k input)
 
     let weighted_eval k input inducing ~coeffs =
       dot coeffs (eval k input inducing)
@@ -68,7 +68,7 @@ module Eval = struct
         if i = 0 then res
         else
           let x = consts.{i} *. input.{i} in
-          loop (res +. x *. x) (i - 1)
+          loop (res +. (x *. x)) (i - 1)
       in
       loop 0. (Vec.dim input)
   end
@@ -108,8 +108,7 @@ module Deriv = struct
     type t = [ `Log_ell of int ]
 
     let get_all { Eval.Kernel.params } _inducing _inputs =
-      Array.init (Vec.dim params.Params.log_ells) ~f:(fun d ->
-        `Log_ell (d + 1))
+      Array.init (Vec.dim params.Params.log_ells) ~f:(fun d -> `Log_ell (d + 1))
 
     let get_value { Eval.Kernel.params } _inducing _inputs = function
       | `Log_ell i -> params.Params.log_ells.{i}
@@ -126,7 +125,7 @@ module Deriv = struct
           Eval.Kernel.create { Params.log_ells = Lazy.force log_ells_lazy }
         else k
       in
-      new_kernel, inducing, inputs
+      (new_kernel, inducing, inputs)
   end
 
   module Inducing = struct
@@ -134,24 +133,20 @@ module Deriv = struct
 
     let calc_shared_upper k eval_inducing =
       let upper = Eval.Inducing.calc_upper k eval_inducing in
-      upper, eval_inducing
+      (upper, eval_inducing)
 
-    let calc_deriv_upper _inducing = function
-      | `Log_ell _ -> `Const 0.
+    let calc_deriv_upper _inducing = function `Log_ell _ -> `Const 0.
   end
 
   module Inputs = struct
     type diag = Eval.Kernel.t * Eval.Inputs.t
-    type cross = Eval.Kernel.t * Eval.Inputs.t* Eval.Inducing.t
+    type cross = Eval.Kernel.t * Eval.Inputs.t * Eval.Inducing.t
 
     let calc_shared_diag k eval_inputs =
-      Eval.Inputs.calc_diag k eval_inputs, (k, eval_inputs)
+      (Eval.Inputs.calc_diag k eval_inputs, (k, eval_inputs))
 
     let calc_shared_cross k ~inputs ~inducing =
-      (
-        Eval.Inputs.calc_cross k ~inputs ~inducing,
-        (k, inputs, inducing)
-      )
+      (Eval.Inputs.calc_cross k ~inputs ~inducing, (k, inputs, inducing))
 
     let calc_deriv_diag (k, inputs) (`Log_ell d) =
       let n = Mat.dim2 inputs in
@@ -159,7 +154,7 @@ module Deriv = struct
       let const = -2. *. k.Eval.Kernel.consts.{d} in
       for i = 1 to n do
         let el = inputs.{d, i} in
-        res.{i} <- (const *. el) *. el
+        res.{i} <- const *. el *. el
       done;
       `Vec res
 
@@ -167,7 +162,7 @@ module Deriv = struct
       let m = Mat.dim2 inducing in
       let n = Mat.dim2 inputs in
       let res = Mat.create n m in
-      let const = -. k.Eval.Kernel.consts.{d} in
+      let const = -.k.Eval.Kernel.consts.{d} in
       for c = 1 to m do
         for r = 1 to n do
           res.{r, c} <- const *. inducing.{d, c} *. inputs.{d, r}

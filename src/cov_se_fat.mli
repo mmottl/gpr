@@ -1,27 +1,22 @@
-(* File: cov_se_fat.mli
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
-(** {6 Feature-rich ("fat") squared exponential covariance} *)
+(** {2 Feature-rich ("fat") squared exponential covariance} *)
 
 (** The covariance is defined as:
 
@@ -33,9 +28,9 @@
 
     Note that multiscales must not get smaller than [0.5] in this framework,
     because the overall length scale is considered to be equal to [1], which
-    imposes this mathematical constraint for positive-definiteness.  There is no
+    imposes this mathematical constraint for positive-definiteness. There is no
     need for a variable global length scale, because the dimensionality
-    reduction matrix already generalizes this feature anyway.  Hence an
+    reduction matrix already generalizes this feature anyway. Hence an
     unconstrained multiscale parameter [q] is stored as [log(q - 0.5)].
 
     If [x] and [y] are the same inducing input, then and only then extra noise
@@ -43,11 +38,9 @@
     heteroskedasticity.
 
     Dimensionality reduction, heteroskedasticity, and multiscales are optional
-    features and can be easily turned off by setting the parameters to [None].
-*)
+    features and can be easily turned off by setting the parameters to [None]. *)
 
 open Lacaml.D
-
 open Interfaces.Specs
 
 module Params : sig
@@ -71,26 +64,29 @@ module Eval :
     with type Input.t = vec
     with type Inputs.t = mat
 
-
 (* Derivatives *)
 
-(* module Proj_hyper : sig type t = private { big_dim : int; small_dim : int } end *)
-module Proj_hyper : sig type t = { big_dim : int; small_dim : int } end
-module Dim_hyper : sig type t = int end
-module Inducing_hyper : sig type t = { ind : int; dim : int } end
+(* module Proj_hyper : sig type t = private { big_dim : int; small_dim : int }
+   end *)
+module Proj_hyper : sig
+  type t = { big_dim : int; small_dim : int }
+end
+
+module Dim_hyper : sig
+  type t = int
+end
+
+module Inducing_hyper : sig
+  type t = { ind : int; dim : int }
+end
 
 module Hyper_repr : sig
   type t =
-    [
-    | `Log_sf2
+    [ `Log_sf2
     | `Proj of Proj_hyper.t
     | `Log_hetero_skedasticity of Dim_hyper.t
     | `Inducing_hyper of Inducing_hyper.t
-    | `Log_multiscale_m05 of Inducing_hyper.t
-    ]
+    | `Log_multiscale_m05 of Inducing_hyper.t ]
 end
 
-module Deriv :
-  Deriv
-    with module Eval = Eval
-    with type Hyper.t = Hyper_repr.t
+module Deriv : Deriv with module Eval = Eval with type Hyper.t = Hyper_repr.t

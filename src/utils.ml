@@ -1,27 +1,23 @@
-(* File: utils.ml
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
 open Core
+module Unix = Core_unix
 open Bigarray
 open Lacaml.D
 
@@ -29,6 +25,7 @@ open Lacaml.D
 
 module Int_vec = struct
   type t = (int, int_elt, fortran_layout) Array1.t
+
   let create n : t = Array1.create int fortran_layout n
   let dim (t : t) = Array1.dim t
   let sub (t : t) n = Array1.sub t n
@@ -41,9 +38,7 @@ type fast_float_ref = { mutable x : float }
 
 let pi = 4. *. Float.atan 1.
 let log_2pi = log (pi +. pi)
-
 let default_rng = Gsl.Rng.make (Gsl.Rng.default ())
-
 
 (* Testing and I/O functionality *)
 
@@ -59,7 +54,6 @@ let timing name f =
   Format.printf "%s %.2f@." name (t2.Unix.tms_utime -. t1.Unix.tms_utime);
   res
 
-
 (* General matrix functions *)
 
 (* Choose columns of a matrix *)
@@ -71,10 +65,12 @@ let choose_cols mat indexes =
   for c = 1 to k do
     let real_c = indexes.{c} in
     if real_c < 1 || real_c > n then
-      failwithf
-        "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
+      failwithf "Gpr.Utils.choose_cols: violating 1 <= index (%d) <= dim (%d)"
         real_c n ()
-    else for r = 1 to m do res.{r, c} <- mat.{r, real_c} done
+    else
+      for r = 1 to m do
+        res.{r, c} <- mat.{r, real_c}
+      done
   done;
   res
 
@@ -87,7 +83,9 @@ let sum_symm_mat mat =
   let rest_ref = ref 0. in
   let n = Mat.dim1 mat in
   for c = 1 to n do
-    for r = 1 to c - 1 do rest_ref := !rest_ref +. mat.{r, c} done;
+    for r = 1 to c - 1 do
+      rest_ref := !rest_ref +. mat.{r, c}
+    done;
     diag_ref := !diag_ref +. mat.{c, c}
   done;
   let rest = !rest_ref in
@@ -98,8 +96,7 @@ let log_det mat =
   let n = Mat.dim1 mat in
   if Mat.dim2 mat <> n then failwith "log_det: not a square matrix";
   let rec loop acc i =
-    if i = 0 then acc +. acc
-    else loop (acc +. log mat.{i, i}) (i - 1)
+    if i = 0 then acc +. acc else loop (acc +. log mat.{i, i}) (i - 1)
   in
   loop 0. n
 
@@ -115,20 +112,19 @@ let ichol chol =
   potri inv;
   inv
 
-
 (* Sparse matrices and vectors *)
 
 (* Checks whether a sparse row matrix is sane *)
 let check_sparse_row_mat_sane ~real_m ~smat ~rows =
-  if !debug then begin
+  if !debug then (
     if real_m < 0 then
       failwith "Gpr.Utils.check_sparse_row_mat_sane: real_m < 0";
     let m = Mat.dim1 smat in
     let n_rows = Int_vec.dim rows in
     if n_rows <> m then
       failwithf
-        "Gpr.Utils.check_sparse_row_mat_sane: number of rows in \
-        sparse matrix (%d) disagrees with size of row array (%d)"
+        "Gpr.Utils.check_sparse_row_mat_sane: number of rows in sparse matrix \
+         (%d) disagrees with size of row array (%d)"
         m n_rows ();
     let rec loop ~i ~limit =
       if i > 0 then
@@ -136,29 +132,29 @@ let check_sparse_row_mat_sane ~real_m ~smat ~rows =
         if rows_i <= 0 then
           failwithf
             "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d contains \
-            illegal negative real row index %d" i rows_i ()
+             illegal negative real row index %d"
+            i rows_i ()
         else if rows_i > limit then
           failwithf
-            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d \
-            associated with real row index %d violates consistency \
-            (current row limit: %d)"
+            "Gpr.Utils.check_sparse_row_mat_sane: sparse row %d associated \
+             with real row index %d violates consistency (current row limit: \
+             %d)"
             i rows_i limit ()
         else loop ~i:(i - 1) ~limit:rows_i
     in
-    loop ~i:n_rows ~limit:real_m
-  end
+    loop ~i:n_rows ~limit:real_m)
 
 (* Checks whether a sparse column matrix is sane *)
 let check_sparse_col_mat_sane ~real_n ~smat ~cols =
-  if !debug then begin
+  if !debug then (
     if real_n < 0 then
       failwith "Gpr.Utils.check_sparse_col_mat_sane: real_n < 0";
     let n = Mat.dim2 smat in
     let n_cols = Int_vec.dim cols in
     if n_cols <> n then
       failwithf
-        "Gpr.Utils.check_sparse_col_mat_sane: number of cols in \
-        sparse matrix (%d) disagrees with size of col array (%d)"
+        "Gpr.Utils.check_sparse_col_mat_sane: number of cols in sparse matrix \
+         (%d) disagrees with size of col array (%d)"
         n n_cols ();
     let rec loop ~i ~limit =
       if i > 0 then
@@ -166,26 +162,26 @@ let check_sparse_col_mat_sane ~real_n ~smat ~cols =
         if cols_i <= 0 then
           failwithf
             "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d contains \
-            illegal negative real col index %d" i cols_i ()
+             illegal negative real col index %d"
+            i cols_i ()
         else if cols_i > limit then
           failwithf
-            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d \
-            associated with real col index %d violates consistency \
-            (current col limit: %d)"
+            "Gpr.Utils.check_sparse_col_mat_sane: sparse col %d associated \
+             with real col index %d violates consistency (current col limit: \
+             %d)"
             i cols_i limit ()
         else loop ~i:(i - 1) ~limit:cols_i
     in
-    loop ~i:n_cols ~limit:real_n
-  end
+    loop ~i:n_cols ~limit:real_n)
 
 (* Checks whether a parse vector is sane *)
 let check_sparse_vec_sane ~real_n ~svec ~rows =
-  if !debug then
+  if !debug then (
     let k = Vec.dim svec in
     if Int_vec.dim rows <> k then
       failwith
-        "Gpr.Utils.check_sparse_vec_sane: \
-        size of sparse vector disagrees with indexes";
+        "Gpr.Utils.check_sparse_vec_sane: size of sparse vector disagrees with \
+         indexes";
     let rec loop ~last i =
       if i > 0 then
         let ind = rows.{i} in
@@ -193,10 +189,10 @@ let check_sparse_vec_sane ~real_n ~svec ~rows =
           failwith "Gpr.Utils.check_sparse_vec_sane: rows inconsistent"
         else loop ~last:ind (i - 1)
     in
-    loop ~last:real_n (Int_vec.dim rows)
+    loop ~last:real_n (Int_vec.dim rows))
 
-(* Computes the trace of the product of a symmetric and sparse
-   symmetric matrix *)
+(* Computes the trace of the product of a symmetric and sparse symmetric
+   matrix *)
 let symm2_sparse_trace ~mat ~smat ~rows =
   let m = Int_vec.dim rows in
   let n = Mat.dim2 smat in
@@ -209,14 +205,14 @@ let symm2_sparse_trace ~mat ~smat ~rows =
       let mat_el = if r > c then mat.{c, r} else mat.{r, c} in
       let rows_ix = !rows_ix_ref in
       if
-        rows_ix > m ||
+        rows_ix > m
+        ||
         let rows_el = rows.{rows_ix} in
         r < rows_el || c < rows_el
-      then full_ref := !full_ref +. mat_el *. smat.{sparse_r, r}
-      else begin
-        half_ref := !half_ref +. mat_el *. smat.{rows_ix, c};
-        incr rows_ix_ref
-      end
+      then full_ref := !full_ref +. (mat_el *. smat.{sparse_r, r})
+      else (
+        half_ref := !half_ref +. (mat_el *. smat.{rows_ix, c});
+        incr rows_ix_ref)
     done;
     rows_ix_ref := 1
   done;

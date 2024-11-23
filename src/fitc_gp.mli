@@ -1,25 +1,20 @@
-(* File: fitc_gp.mli
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
 open Interfaces
 
@@ -75,13 +70,10 @@ module Make (Spec : Specs.Eval) : sig
       with module Sampler = Variational_FITC.Sampler
 end
 
-
 (** Derivatives *)
 
 module type Deriv_sig = functor (Spec : Specs.Deriv) ->
-  Sigs.Deriv
-    with module Eval.Spec = Spec.Eval
-    with module Deriv.Spec = Spec
+  Sigs.Deriv with module Eval.Spec = Spec.Eval with module Deriv.Spec = Spec
 
 module Make_FITC_deriv : Deriv_sig
 module Make_FIC_deriv : Deriv_sig
@@ -89,9 +81,8 @@ module Make_variational_FITC_deriv : Deriv_sig
 module Make_variational_FIC_deriv : Deriv_sig
 
 module Make_deriv (Spec : Specs.Deriv) : sig
-  module type Sig = Sigs.Deriv
-    with module Eval.Spec = Spec.Eval
-    with module Deriv.Spec = Spec
+  module type Sig =
+    Sigs.Deriv with module Eval.Spec = Spec.Eval with module Deriv.Spec = Spec
 
   module FITC : Sig
 
@@ -109,7 +100,6 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Variance = FITC.Eval.Variance
       with module Eval.Variances = FITC.Eval.Variances
       with module Eval.Sampler = FITC.Eval.Sampler
-
       with module Deriv.Inducing = FITC.Deriv.Inducing
       with module Deriv.Inputs = FITC.Deriv.Inputs
       with module Deriv.Model = FITC.Deriv.Model
@@ -131,14 +121,13 @@ module Make_deriv (Spec : Specs.Deriv) : sig
       with module Eval.Model = Variational_FITC.Eval.Model
       with module Eval.Trained = Variational_FITC.Eval.Trained
       with module Eval.Mean_predictor = Variational_FITC.Eval.Mean_predictor
-      with module Eval.Co_variance_predictor =
-        Variational_FITC.Eval.Co_variance_predictor
+      with module Eval.Co_variance_predictor = Variational_FITC.Eval
+                                               .Co_variance_predictor
       with module Eval.Mean = Variational_FITC.Eval.Mean
       with module Eval.Means = Variational_FITC.Eval.Means
       with module Eval.Variance = Variational_FITC.Eval.Variance
       with module Eval.Variances = Variational_FITC.Eval.Variances
       with module Eval.Sampler = Variational_FITC.Eval.Sampler
-
       with module Deriv.Inducing = Variational_FITC.Deriv.Inducing
       with module Deriv.Inputs = Variational_FITC.Deriv.Inputs
       with module Deriv.Model = Variational_FITC.Deriv.Model

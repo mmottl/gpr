@@ -1,5 +1,4 @@
 (executables
-  (public_names ocaml_gpr)
-  (libraries str gpr)
-  (modes byte exe)
-)
+ (public_names ocaml_gpr)
+ (libraries core_unix.time_ns_unix str gpr)
+ (modes byte exe))

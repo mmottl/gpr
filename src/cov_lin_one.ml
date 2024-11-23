@@ -1,39 +1,34 @@
-(* File: cov_lin_one.ml
+(* OCaml-GPR - Gaussian Processes for OCaml
 
-   OCaml-GPR - Gaussian Processes for OCaml
+   Copyright © 2009- Markus Mottl <markus.mottl@gmail.com>
 
-     Copyright (C) 2009-  Markus Mottl
-     email: markus.mottl@gmail.com
-     WWW:   http://www.ocaml.info
+   This library is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the Free
+   Software Foundation; either version 2.1 of the License, or (at your option)
+   any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 2.1 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
+   This library is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+   details.
 
    You should have received a copy of the GNU Lesser General Public License
-   along with this library; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*)
+   along with this library; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA *)
 
 open Core
 open Lacaml.D
 
-module Params = struct type t = { log_theta : float } end
+module Params = struct
+  type t = { log_theta : float }
+end
 
 module Eval = struct
   module Kernel = struct
     type params = Params.t
     type t = { params : params; const : float }
 
-    let create params =
-      { params; const = exp (-2. *. params.Params.log_theta) }
-
+    let create params = { params; const = exp (-2. *. params.Params.log_theta) }
     let get_params k = k.params
   end
 
@@ -51,8 +46,8 @@ module Eval = struct
     type t = vec
 
     let eval { Kernel.const = alpha } input inducing =
-      gemv ~alpha ~trans:`T inducing input
-        ~beta:1. ~y:(Vec.make (Mat.dim2 inducing) alpha)
+      gemv ~alpha ~trans:`T inducing input ~beta:1.
+        ~y:(Vec.make (Mat.dim2 inducing) alpha)
 
     let weighted_eval k input inducing ~coeffs =
       dot coeffs (eval k input inducing)
@@ -95,8 +90,8 @@ module Deriv = struct
 
     let get_all _kernel _inducing _inputs = [| `Log_theta |]
 
-    let get_value { Eval.Kernel.params = params } _inducing _inputs =
-      function `Log_theta -> params.Params.log_theta
+    let get_value { Eval.Kernel.params } _inducing _inputs = function
+      | `Log_theta -> params.Params.log_theta
 
     let set_values kernel inducing inputs hypers values =
       let { Eval.Kernel.params } = kernel in
@@ -104,14 +99,16 @@ module Deriv = struct
       let kernel_changed_ref = ref false in
       for i = 1 to Array.length hypers do
         match hypers.(i - 1) with
-        | `Log_theta -> log_theta_ref := values.{i}; kernel_changed_ref := true
+        | `Log_theta ->
+            log_theta_ref := values.{i};
+            kernel_changed_ref := true
       done;
       let new_kernel =
         if !kernel_changed_ref then
           Eval.Kernel.create { Params.log_theta = !log_theta_ref }
         else kernel
       in
-      new_kernel, inducing, inputs
+      (new_kernel, inducing, inputs)
   end
 
   let calc_deriv_common () `Log_theta = `Factor ~-.2.
@@ -119,7 +116,7 @@ module Deriv = struct
   module Inducing = struct
     type upper = unit
 
-    let calc_shared_upper k inducing = Eval.Inducing.calc_upper k inducing, ()
+    let calc_shared_upper k inducing = (Eval.Inducing.calc_upper k inducing, ())
     let calc_deriv_upper = calc_deriv_common
   end
 
@@ -128,10 +125,10 @@ module Deriv = struct
     type cross = unit
 
     let calc_shared_diag k diag_eval_inputs =
-      Eval.Inputs.calc_diag k diag_eval_inputs, ()
+      (Eval.Inputs.calc_diag k diag_eval_inputs, ())
 
     let calc_shared_cross k ~inputs ~inducing =
-      Eval.Inputs.calc_cross k ~inputs ~inducing, ()
+      (Eval.Inputs.calc_cross k ~inputs ~inducing, ())
 
     let calc_deriv_diag = calc_deriv_common
     let calc_deriv_cross = calc_deriv_common
