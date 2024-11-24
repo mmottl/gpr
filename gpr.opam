@@ -15,6 +15,7 @@ depends: [
   "ocaml" {>= "4.08"}
   "base-threads"
   "core" {>= "v0.13"}
+  "core_unix" {>= "v0.13"}
   "lacaml" {>= "11.0.0"}
   "gsl" {>= "1.24.0"}
   "odoc" {with-doc}
