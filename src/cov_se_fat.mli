@@ -38,7 +38,8 @@
     heteroskedasticity.
 
     Dimensionality reduction, heteroskedasticity, and multiscales are optional
-    features and can be easily turned off by setting the parameters to [None]. *)
+    features and can be easily turned off by setting the parameters to [None].
+*)
 
 open Lacaml.D
 open Interfaces.Specs

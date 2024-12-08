@@ -291,10 +291,9 @@ module Specs = struct
       (** [calc_shared_cross kernel ~inputs ~inducing]
 
           @return
-            the pair [(eval,
-          cross)], where [eval] is the
-            cross-covariance matrix of inputs and inducing inputs for [kernel],
-            and [diag] is the precomputed data needed for taking derivatives. *)
+            the pair [(eval, cross)], where [eval] is the cross-covariance
+            matrix of inputs and inducing inputs for [kernel], and [diag] is the
+            precomputed data needed for taking derivatives. *)
 
       val calc_deriv_diag : diag -> Hyper.t -> diag_deriv
       (** [calc_deriv_diag diag hyper]
@@ -582,14 +581,16 @@ module Sigs = struct
       (** [calc_sse trained]
 
           @return
-            the root of the mean sum of squared errors of the [trained] model. *)
+            the root of the mean sum of squared errors of the [trained] model.
+      *)
 
       val calc_smse : Trained.t -> float
       (** [calc_smse trained]
 
           @return
             the standardized mean squared error of the [trained] model. This is
-            equivalent to the mean squared error divided by the target variance. *)
+            equivalent to the mean squared error divided by the target variance.
+      *)
 
       val calc_msll : Trained.t -> float
       (** [calc_msll trained]
@@ -626,7 +627,8 @@ module Sigs = struct
       (** [calc inducing_points ~coeffs]
 
           @return
-            a mean predictor given [inducing_points] and coefficients [coeffs]. *)
+            a mean predictor given [inducing_points] and coefficients [coeffs].
+      *)
 
       val calc_trained : Trained.t -> t
       (** [calc_trained trained]
@@ -1013,12 +1015,11 @@ module Sigs = struct
           [ `Sigma2 | `Hyper of Spec.Hyper.t ] ->
           unit
         (** [self_test ?eps ?tol kernel inducing_points points ~sigma2 ~targets
-            hyper]
-            will raise [Failure] if the internal derivative code for the log
-            evidence given parameter [hyper], the [kernel], [inducing_points],
-            input [points], noise level [sigma2] and [targets] exceeds the
-            tolerance [tol] when compared to finite differences using epsilon
-            [eps].
+             hyper] will raise [Failure] if the internal derivative code for the
+            log evidence given parameter [hyper], the [kernel],
+            [inducing_points], input [points], noise level [sigma2] and
+            [targets] exceeds the tolerance [tol] when compared to finite
+            differences using epsilon [eps].
 
             @param eps default = [1e-8]
             @param tol default = [1e-2] *)
@@ -1049,18 +1050,17 @@ module Sigs = struct
             unit ->
             Eval.Trained.t
           (** [train ?step ?tol ?epsabs ?report_trained_model
-              ?report_gradient_norm ?kernel ?sigma2 ?inducing ?n_rand_inducing
-              ?learn_sigma2 ?hypers ~inputs ~targets ()]
-              takes the optional initial optimizer step size [step], the
-              optimizer line search tolerance [tol], the minimum gradient norm
-              [epsabs] to achieve by the optimizer, callbacks for reporting
-              intermediate results [report_trained_model] and
-              [report_gradient_norm], an optional [kernel], noise level
-              [sigma2], inducing inputs [inducing], number of randomly chosen
-              inducing inputs [n_rand_inducing], a flag for whether the noise
-              level should be learnt [learn_sigma2], an array of optional hyper
-              parameters [hypers] which should be optimized, and the [inputs]
-              and [targets].
+               ?report_gradient_norm ?kernel ?sigma2 ?inducing ?n_rand_inducing
+               ?learn_sigma2 ?hypers ~inputs ~targets ()] takes the optional
+              initial optimizer step size [step], the optimizer line search
+              tolerance [tol], the minimum gradient norm [epsabs] to achieve by
+              the optimizer, callbacks for reporting intermediate results
+              [report_trained_model] and [report_gradient_norm], an optional
+              [kernel], noise level [sigma2], inducing inputs [inducing], number
+              of randomly chosen inducing inputs [n_rand_inducing], a flag for
+              whether the noise level should be learnt [learn_sigma2], an array
+              of optional hyper parameters [hypers] which should be optimized,
+              and the [inputs] and [targets].
 
               @return
                 the trained model obtained by evidence maximization (= type II
