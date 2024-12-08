@@ -13,7 +13,6 @@ bug-reports: "https://github.com/mmottl/gpr/issues"
 depends: [
   "dune" {>= "2.7"}
   "ocaml" {>= "4.08"}
-  "base-threads"
   "core" {>= "v0.13"}
   "core_unix" {>= "v0.13"}
   "lacaml" {>= "11.0.0"}

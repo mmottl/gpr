@@ -25,7 +25,6 @@
  (depends
   (ocaml
    (>= 4.08))
-  base-threads
   (core
    (>= v0.13))
   (core_unix
