@@ -1,3 +1,5 @@
+# Changelog
+
 ## 1.5.2 (2024-12-07)
 
 - Removed obsolete `base-threads` dependency
